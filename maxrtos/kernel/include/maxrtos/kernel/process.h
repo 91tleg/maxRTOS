@@ -14,15 +14,6 @@
 
 #include "maxrtos/status.h"
 
-/* Maximum number of processes supported by the kernel.
- * Process storage is statically allocated; kernel code does not use
- * dynamic memory allocation. */
-#define MAXRTOS_MAX_PROCESSES ( 16U )
-
-/* Maximum supported process priority.
- * Priority 0 is the highest priority. */
-#define MAXRTOS_MAX_PRIORITY ( 31U )
-
 typedef uint32_t maxrtos_process_id_t;
 
 /* Sentinel value indicating that no valid process ID is available. */
@@ -39,6 +30,14 @@ typedef enum
 } maxrtos_process_state_t;
 
 typedef void ( * maxrtos_process_entry_t ) ( void * arg );
+
+typedef uint32_t maxrtos_partition_id_t;
+ 
+/* Sentinel meaning "not assigned to any partition" -- used only
+ * during the transition period before all process-creation call
+ * sites are updated to always specify a real partition_id. */
+#define MAXRTOS_INVALID_PARTITION_ID  \
+    ( ( maxrtos_partition_id_t ) 0xFFFFFFFFU )
 
 /**
  * @brief Process control block.
@@ -57,6 +56,7 @@ typedef struct
     size_t stack_size;
 
     maxrtos_process_id_t id;
+    maxrtos_partition_id_t partition_id;
     uint8_t priority;
     maxrtos_process_state_t state;
 
@@ -107,6 +107,7 @@ void maxrtos_process_pool_init( void );
 maxrtos_status_t maxrtos_process_create(
     uint8_t * stack_base,
     size_t stack_size,
+    maxrtos_partition_id_t partition_id,
     uint8_t priority,
     maxrtos_process_entry_t entry,
     void * entry_arg,

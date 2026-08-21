@@ -14,19 +14,6 @@
 
 #include "maxrtos/kernel/scheduler.h"
 
-#define MAXRTOS_MAX_READY_PER_PRIORITY \
-    MAXRTOS_MAX_PROCESSES
-
-typedef struct
-{
-    maxrtos_process_id_t items[ MAXRTOS_MAX_READY_PER_PRIORITY ];
-    size_t head;
-    size_t count;
-} maxrtos_ready_queue_t;
-
-static maxrtos_ready_queue_t
-    s_ready_queues[ MAXRTOS_MAX_PRIORITY + 1U ];
-
 static size_t maxrtos_scheduler_queue_tail(
     maxrtos_ready_queue_t const * queue )
 {
@@ -63,9 +50,9 @@ static maxrtos_status_t maxrtos_scheduler_queue_push(
     return status;
 }
 
-/* Remove a process ID from a ready queue.
- * Entries following the removed entry are shifted toward the head
- * to preserve FIFO ordering. */
+/* Searches the queue for the specified process ID. If found, entries
+ * after the removed process are shifted toward the head to preserve
+ * FIFO ordering. */
 static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
     maxrtos_ready_queue_t * queue,
     maxrtos_process_id_t id )
@@ -121,39 +108,57 @@ static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
     return status;
 }
 
-void maxrtos_scheduler_init( void )
+maxrtos_status_t maxrtos_scheduler_init(
+    maxrtos_scheduler_context_t * ctx )
 {
+    maxrtos_status_t status;
     size_t priority;
 
-    for( priority = 0U;
-         priority <= MAXRTOS_MAX_PRIORITY;
-         priority++ )
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ctx != NULL )
     {
-        s_ready_queues[ priority ].head = 0U;
-        s_ready_queues[ priority ].count = 0U;
+        for( priority = 0U;
+             priority <= MAXRTOS_MAX_PRIORITY;
+             priority++ )
+        {
+            ctx->queues[ priority ].head = 0U;
+            ctx->queues[ priority ].count = 0U;
+        }
+
+        status = MAXRTOS_OK;
     }
+
+    return status;
 }
 
 maxrtos_status_t maxrtos_scheduler_add_process(
+    maxrtos_scheduler_context_t * ctx,
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
     maxrtos_process_control_block_t * pcb;
 
-    status = MAXRTOS_ERR_INVALID_ID;
-    pcb = maxrtos_process_get( id );
+    status = MAXRTOS_ERR_INVALID_ARG;
+    pcb = NULL;
 
-    if( pcb != NULL )
+    if( ctx != NULL )
     {
-        if( pcb->state != MAXRTOS_PROCESS_STATE_READY )
+        status = MAXRTOS_ERR_INVALID_ID;
+        pcb = maxrtos_process_get( id );
+
+        if( pcb != NULL )
         {
-            status = MAXRTOS_ERR_INVALID_STATE;
-        }
-        else
-        {
-            status = maxrtos_scheduler_queue_push(
-                &s_ready_queues[ pcb->priority ],
-                id );
+            if( pcb->state != MAXRTOS_PROCESS_STATE_READY )
+            {
+                status = MAXRTOS_ERR_INVALID_STATE;
+            }
+            else
+            {
+                status = maxrtos_scheduler_queue_push(
+                    &ctx->queues[ pcb->priority ],
+                    id );
+            }
         }
     }
 
@@ -161,25 +166,32 @@ maxrtos_status_t maxrtos_scheduler_add_process(
 }
 
 maxrtos_status_t maxrtos_scheduler_remove_process(
+    maxrtos_scheduler_context_t * ctx,
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
     maxrtos_process_control_block_t * pcb;
 
-    status = MAXRTOS_ERR_INVALID_ID;
-    pcb = maxrtos_process_get( id );
+    status = MAXRTOS_ERR_INVALID_ARG;
+    pcb = NULL;
 
-    if( pcb != NULL )
+    if( ctx != NULL )
     {
-        if( pcb->state != MAXRTOS_PROCESS_STATE_READY )
+        status = MAXRTOS_ERR_INVALID_ID;
+        pcb = maxrtos_process_get( id );
+
+        if( pcb != NULL )
         {
-            status = MAXRTOS_ERR_INVALID_STATE;
-        }
-        else
-        {
-            status = maxrtos_scheduler_queue_remove_id(
-                &s_ready_queues[ pcb->priority ],
-                id );
+            if( pcb->state != MAXRTOS_PROCESS_STATE_READY )
+            {
+                status = MAXRTOS_ERR_INVALID_STATE;
+            }
+            else
+            {
+                status = maxrtos_scheduler_queue_remove_id(
+                    &ctx->queues[ pcb->priority ],
+                    id );
+            }
         }
     }
 
@@ -187,6 +199,7 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
 }
 
 maxrtos_status_t maxrtos_scheduler_next(
+    maxrtos_scheduler_context_t const * ctx,
     maxrtos_process_id_t * out_id )
 {
     maxrtos_status_t status;
@@ -195,7 +208,7 @@ maxrtos_status_t maxrtos_scheduler_next(
     status = MAXRTOS_ERR_INVALID_ARG;
     priority = 0U;
 
-    if( out_id != NULL )
+    if( ( ctx != NULL ) && ( out_id != NULL ) )
     {
         status = MAXRTOS_ERR_QUEUE_EMPTY;
 
@@ -204,12 +217,12 @@ maxrtos_status_t maxrtos_scheduler_next(
              ( status != MAXRTOS_OK );
              priority++ )
         {
-            if( s_ready_queues[ priority ].count > 0U )
+            if( ctx->queues[ priority ].count > 0U )
             {
                 /* Peek only. Selection does not remove the process from the
                  * ready queue or modify queue state. */
-                *out_id = s_ready_queues[ priority ].items[
-                    s_ready_queues[ priority ].head ];
+                *out_id = ctx->queues[ priority ].items[
+                    ctx->queues[ priority ].head ];
 
                 status = MAXRTOS_OK;
             }
@@ -219,18 +232,22 @@ maxrtos_status_t maxrtos_scheduler_next(
     return status;
 }
 
-size_t maxrtos_scheduler_process_count( void )
+size_t maxrtos_scheduler_process_count(
+    maxrtos_scheduler_context_t const * ctx )
 {
     size_t priority;
     size_t count;
 
     count = 0U;
 
-    for( priority = 0U;
-         priority <= MAXRTOS_MAX_PRIORITY;
-         priority++ )
+    if( ctx != NULL )
     {
-        count += s_ready_queues[ priority ].count;
+        for( priority = 0U;
+             priority <= MAXRTOS_MAX_PRIORITY;
+             priority++ )
+        {
+            count += ctx->queues[ priority ].count;
+        }
     }
 
     return count;

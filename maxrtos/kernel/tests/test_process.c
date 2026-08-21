@@ -3,7 +3,8 @@
  * @brief Unit tests for process lifecycle management.
  *
  * Verifies process creation, argument validation, process-pool
- * capacity, state transitions, and process ID validation.
+ * capacity, state transitions, partition assignment, and process
+ * ID validation.
  *
  * Tests execute against the host build and do not require target
  * hardware.
@@ -12,10 +13,11 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "maxrtos/config.h"
 #include "maxrtos/kernel/process.h"
 
-static uint8_t stack_a[ 256 ];
-static uint8_t stack_b[ 256 ];
+static uint8_t s_stack_a[ 256U ];
+static uint8_t s_stack_b[ 256U ];
 
 static void dummy_entry( void * arg )
 {
@@ -31,8 +33,9 @@ static void test_create_basic( void )
     maxrtos_process_pool_init();
 
     status = maxrtos_process_create(
-        stack_a,
-        sizeof( stack_a ),
+        s_stack_a,
+        sizeof( s_stack_a ),
+        0U,
         5U,
         dummy_entry,
         NULL,
@@ -44,9 +47,10 @@ static void test_create_basic( void )
 
     assert( pcb != NULL );
     assert( pcb->priority == 5U );
+    assert( pcb->partition_id == 0U );
     assert( pcb->state == MAXRTOS_PROCESS_STATE_READY );
-    assert( pcb->stack_base == stack_a );
-    assert( pcb->stack_size == sizeof( stack_a ) );
+    assert( pcb->stack_base == s_stack_a );
+    assert( pcb->stack_size == sizeof( s_stack_a ) );
 
     printf( "test_create_basic: PASS\n" );
 }
@@ -62,23 +66,36 @@ static void test_create_rejects_bad_args( void )
                 NULL,
                 256U,
                 0U,
+                0U,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
 
     /* A zero-length stack shall be rejected. */
     assert( maxrtos_process_create(
-                stack_a,
+                s_stack_a,
+                0U,
                 0U,
                 0U,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
 
-    /* Priorities above the supported range shall be rejected. */
+    /* A partition ID outside the supported range shall be rejected. */
     assert( maxrtos_process_create(
-                stack_a,
-                sizeof( stack_a ),
+                s_stack_a,
+                sizeof( s_stack_a ),
+                MAXRTOS_MAX_PARTITIONS,
+                0U,
+                dummy_entry,
+                NULL,
+                &id ) == MAXRTOS_ERR_INVALID_ARG );
+
+    /* A priority above the supported range shall be rejected. */
+    assert( maxrtos_process_create(
+                s_stack_a,
+                sizeof( s_stack_a ),
+                0U,
                 MAXRTOS_MAX_PRIORITY + 1U,
                 dummy_entry,
                 NULL,
@@ -86,8 +103,9 @@ static void test_create_rejects_bad_args( void )
 
     /* A NULL entry function shall be rejected. */
     assert( maxrtos_process_create(
-                stack_a,
-                sizeof( stack_a ),
+                s_stack_a,
+                sizeof( s_stack_a ),
+                0U,
                 0U,
                 NULL,
                 NULL,
@@ -95,8 +113,9 @@ static void test_create_rejects_bad_args( void )
 
     /* A NULL output ID shall be rejected. */
     assert( maxrtos_process_create(
-                stack_a,
-                sizeof( stack_a ),
+                s_stack_a,
+                sizeof( s_stack_a ),
+                0U,
                 0U,
                 dummy_entry,
                 NULL,
@@ -107,7 +126,9 @@ static void test_create_rejects_bad_args( void )
 
 static void test_pool_exhaustion( void )
 {
-    static uint8_t big_stack[ MAXRTOS_MAX_PROCESSES + 1U ][ 64U ];
+    static uint8_t s_big_stacks[
+        MAXRTOS_MAX_PROCESSES + 1U ][ 64U ];
+
     size_t i;
     maxrtos_process_id_t id;
     maxrtos_status_t status;
@@ -119,8 +140,9 @@ static void test_pool_exhaustion( void )
     for( i = 0U; i < MAXRTOS_MAX_PROCESSES; i++ )
     {
         status = maxrtos_process_create(
-            big_stack[ i ],
-            sizeof( big_stack[ i ] ),
+            s_big_stacks[ i ],
+            sizeof( s_big_stacks[ i ] ),
+            0U,
             0U,
             dummy_entry,
             NULL,
@@ -129,11 +151,11 @@ static void test_pool_exhaustion( void )
         assert( status == MAXRTOS_OK );
     }
 
-    /* Creation shall fail once MAXRTOS_MAX_PROCESSES slots are
-     * allocated. */
+    /* Creation shall fail once all process slots are allocated. */
     status = maxrtos_process_create(
-        big_stack[ MAXRTOS_MAX_PROCESSES ],
-        sizeof( big_stack[ MAXRTOS_MAX_PROCESSES ] ),
+        s_big_stacks[ MAXRTOS_MAX_PROCESSES ],
+        sizeof( s_big_stacks[ MAXRTOS_MAX_PROCESSES ] ),
+        0U,
         0U,
         dummy_entry,
         NULL,
@@ -153,9 +175,10 @@ static void test_set_state_and_invalid_id( void )
     maxrtos_process_pool_init();
 
     status = maxrtos_process_create(
-        stack_b,
-        sizeof( stack_b ),
+        s_stack_b,
+        sizeof( s_stack_b ),
         3U,
+        0U,
         dummy_entry,
         NULL,
         &id );

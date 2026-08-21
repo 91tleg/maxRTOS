@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 
+#include "maxrtos/config.h"
 #include "maxrtos/kernel/process.h"
 
 static maxrtos_process_control_block_t
@@ -56,6 +57,7 @@ void maxrtos_process_pool_init( void )
 maxrtos_status_t maxrtos_process_create(
     uint8_t * stack_base,
     size_t stack_size,
+    maxrtos_partition_id_t partition_id,
     uint8_t priority,
     maxrtos_process_entry_t entry,
     void * entry_arg,
@@ -72,6 +74,7 @@ maxrtos_status_t maxrtos_process_create(
 
     if( ( stack_base == NULL ) ||
         ( stack_size == 0U ) ||
+        ( partition_id >= MAXRTOS_MAX_PARTITIONS ) ||
         ( priority > MAXRTOS_MAX_PRIORITY ) ||
         ( entry == NULL ) ||
         ( out_id == NULL ) )
@@ -89,6 +92,7 @@ maxrtos_status_t maxrtos_process_create(
                 pcb = &s_process_pool[ i ];
 
                 pcb->id = ( maxrtos_process_id_t ) i;
+                pcb->partition_id = partition_id;
                 pcb->stack_base = stack_base;
                 pcb->stack_size = stack_size;
                 pcb->stack_pointer =
