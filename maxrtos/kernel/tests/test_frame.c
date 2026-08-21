@@ -11,6 +11,7 @@
  */
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "maxrtos/kernel/frame.h"
@@ -124,6 +125,27 @@ static void test_init_computes_correct_major_frame_length( void )
     assert( sched.major_frame_length_ticks == 8U );
 
     printf( "test_init_computes_correct_major_frame_length: PASS\n" );
+}
+
+static void test_init_rejects_major_frame_length_overflow( void )
+{
+    maxrtos_frame_schedule_t sched;
+    maxrtos_frame_slot_t slots[ 2 ] =
+    {
+        { 0U, UINT32_MAX },
+        { 1U, 1U }
+    };
+
+    /* The slot durations cannot be represented by the uint32_t
+     * major_frame_length_ticks field. */
+    assert( 
+        maxrtos_frame_init(
+            &sched,
+            slots,
+            2U ) == MAXRTOS_ERR_OVERFLOW );
+
+    printf(
+        "test_init_rejects_major_frame_length_overflow: PASS\n" );
 }
 
 static void test_partition_at_tick_rejects_null_and_uninitialized( void )
@@ -294,6 +316,7 @@ int main( void )
     test_init_rejects_zero_duration_slot();
     test_init_rejects_one_bad_slot_among_valid_ones();
     test_init_computes_correct_major_frame_length();
+    test_init_rejects_major_frame_length_overflow();
     test_partition_at_tick_rejects_null_and_uninitialized();
     test_partition_at_tick_exact_boundaries();
     test_partition_at_tick_single_slot_schedule();

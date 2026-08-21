@@ -26,6 +26,9 @@ typedef enum
     MAXRTOS_ERR_QUEUE_FULL,
     MAXRTOS_ERR_QUEUE_EMPTY,
 
+    /* Arithmetic errors */
+    MAXRTOS_ERR_OVERFLOW,
+
     /* Generic operation errors. */
     MAXRTOS_ERR_NOT_FOUND,
 } maxrtos_status_t;
