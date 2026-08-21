@@ -1,6 +1,7 @@
 add_library(maxrtos_kernel STATIC
     src/scheduler.c
     src/process.c
+    src/frame.c
 )
 
 target_include_directories(maxrtos_kernel PUBLIC

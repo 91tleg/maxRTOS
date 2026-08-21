@@ -5,3 +5,7 @@ add_test(NAME kernel_process_tests COMMAND maxrtos_kernel_test_process)
 add_executable(maxrtos_kernel_test_scheduler test_scheduler.c)
 target_link_libraries(maxrtos_kernel_test_scheduler PRIVATE maxrtos_kernel)
 add_test(NAME kernel_scheduler_tests COMMAND maxrtos_kernel_test_scheduler)
+
+add_executable(maxrtos_kernel_test_frame test_frame.c)
+target_link_libraries(maxrtos_kernel_test_frame PRIVATE maxrtos_kernel)
+add_test(NAME kernel_frame_tests COMMAND maxrtos_kernel_test_frame)

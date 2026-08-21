@@ -29,4 +29,10 @@
     #define MAXRTOS_MAX_READY_PER_PRIORITY ( 8U )
 #endif /* MAXRTOS_MAX_READY_PER_PRIORITY */
 
+/* Maximum number of slots in a single major-frame schedule.
+ * Each slot assigns a fixed duration to one partition. */
+#ifndef MAXRTOS_MAX_FRAME_SLOTS
+    #define MAXRTOS_MAX_FRAME_SLOTS ( 16U )
+#endif /* MAXRTOS_MAX_FRAME_SLOTS */
+
 #endif /* MAXRTOS_CONFIG_H */
