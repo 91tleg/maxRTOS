@@ -9,3 +9,7 @@ add_test(NAME kernel_scheduler_tests COMMAND maxrtos_kernel_test_scheduler)
 add_executable(maxrtos_kernel_test_frame test_frame.c)
 target_link_libraries(maxrtos_kernel_test_frame PRIVATE maxrtos_kernel)
 add_test(NAME kernel_frame_tests COMMAND maxrtos_kernel_test_frame)
+
+add_executable(maxrtos_kernel_test_dispatch test_dispatch.c)
+target_link_libraries(maxrtos_kernel_test_dispatch PRIVATE maxrtos_kernel)
+add_test(NAME kernel_dispatch_tests COMMAND maxrtos_kernel_test_dispatch)
