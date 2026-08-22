@@ -29,6 +29,9 @@ typedef enum
     /* Arithmetic errors */
     MAXRTOS_ERR_OVERFLOW,
 
+    /* Partition state errors */
+    MAXRTOS_ERR_PARTITION_HALTED,
+
     /* Generic operation errors. */
     MAXRTOS_ERR_NOT_FOUND,
 } maxrtos_status_t;
