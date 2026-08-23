@@ -4,6 +4,7 @@ add_library(maxrtos_kernel STATIC
     src/frame.c
     src/dispatch.c
     src/partition.c
+    src/health_monitor.c
 )
 
 target_include_directories(maxrtos_kernel PUBLIC
