@@ -4,7 +4,7 @@ add_library(maxrtos_kernel STATIC
     src/frame.c
     src/dispatch.c
     src/partition.c
-    src/health_monitor.c
+    src/queue_port.c
 )
 
 target_include_directories(maxrtos_kernel PUBLIC
@@ -13,7 +13,9 @@ target_include_directories(maxrtos_kernel PUBLIC
 )
 
 target_compile_options(maxrtos_kernel PRIVATE
-    -Wall -Wextra -Wpedantic
+    -g3
+    -O0
+    -Wall -Wextra -Wpedantic 
 )
 
 if(MAXRTOS_BUILD_TESTS)

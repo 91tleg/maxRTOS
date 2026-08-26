@@ -21,3 +21,7 @@ add_test(NAME kernel_partition_tests COMMAND maxrtos_kernel_test_partition)
 add_executable(maxrtos_kernel_test_health_monitor test_health_monitor.c)
 target_link_libraries(maxrtos_kernel_test_health_monitor PRIVATE maxrtos_kernel)
 add_test(NAME kernel_health_monitor_tests COMMAND maxrtos_kernel_test_health_monitor)
+
+add_executable(maxrtos_kernel_test_queue_port test_queue_port.c)
+target_link_libraries(maxrtos_kernel_test_queue_port PRIVATE maxrtos_kernel)
+add_test(NAME kernel_queue_port_tests COMMAND maxrtos_kernel_test_queue_port)

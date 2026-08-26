@@ -35,4 +35,22 @@
     #define MAXRTOS_MAX_FRAME_SLOTS ( 16U )
 #endif /* MAXRTOS_MAX_FRAME_SLOTS */
 
+/* Upper bounds for a single queuing port (queue_port.h). A port's
+ * ACTUAL message_size and capacity are configured per-instance at
+ * init time, within these compile-time maximums -- the same pattern
+ * MAXRTOS_MAX_FRAME_SLOTS uses relative to a schedule's actual
+ * slot_count. Static allocation only: a port's backing buffer is
+ * sized MAXRTOS_MAX_QUEUE_CAPACITY * MAXRTOS_MAX_QUEUE_MESSAGE_SIZE
+ * bytes regardless of the smaller actual values a given instance
+ * configures, so these bounds directly affect every port's static
+ * memory footprint -- keep them only as large as real ports
+ * actually need. */
+#ifndef MAXRTOS_MAX_QUEUE_MESSAGE_SIZE
+    #define MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ( 64U )
+#endif
+ 
+#ifndef MAXRTOS_MAX_QUEUE_CAPACITY
+    #define MAXRTOS_MAX_QUEUE_CAPACITY ( 8U )
+#endif
+
 #endif /* MAXRTOS_CONFIG_H */
