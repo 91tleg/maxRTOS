@@ -3,6 +3,7 @@ add_library(maxrtos_arch_cortex_m7 STATIC
     src/context_switch.S
     src/fault_handlers.c
     src/mpu.c
+    src/mpu_hw.c
 )
 
 target_include_directories(maxrtos_arch_cortex_m7 PUBLIC
