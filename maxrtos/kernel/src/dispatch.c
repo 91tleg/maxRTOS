@@ -9,6 +9,8 @@
  * READY state. A RUNNING process is not a member of a ready queue.
  */
 
+#include <stddef.h>
+
 #include "maxrtos/kernel/dispatch.h"
 
 maxrtos_status_t maxrtos_kernel_dispatch(
@@ -17,14 +19,8 @@ maxrtos_status_t maxrtos_kernel_dispatch(
     maxrtos_process_id_t * out_next_id )
 {
     maxrtos_status_t status;
-    maxrtos_process_control_block_t * current_pcb;
-    maxrtos_process_control_block_t * next_pcb;
-    maxrtos_process_id_t next_id;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    current_pcb = NULL;
-    next_pcb = NULL;
-    next_id = MAXRTOS_INVALID_PROCESS_ID;
 
     if( ( ctx != NULL ) && ( out_next_id != NULL ) )
     {
@@ -32,6 +28,8 @@ maxrtos_status_t maxrtos_kernel_dispatch(
          * the initial dispatch. */
         if( current_id != MAXRTOS_INVALID_PROCESS_ID )
         {
+            maxrtos_process_control_block_t const * current_pcb;
+
             current_pcb = maxrtos_process_get( current_id );
 
             if( current_pcb == NULL )
@@ -55,89 +53,102 @@ maxrtos_status_t maxrtos_kernel_dispatch(
 
         if( status == MAXRTOS_OK )
         {
+            maxrtos_process_id_t next_id;
+
+            next_id = MAXRTOS_INVALID_PROCESS_ID;
+
             status = maxrtos_scheduler_next( ctx, &next_id );
-        }
 
-        /* No READY process is available. The current process continues
-         * executing when one already exists. */
-        if( ( status == MAXRTOS_ERR_QUEUE_EMPTY ) &&
-            ( current_id != MAXRTOS_INVALID_PROCESS_ID ) )
-        {
-            *out_next_id = current_id;
-            status = MAXRTOS_OK;
-        }
-        else if( status == MAXRTOS_OK )
-        {
-            next_pcb = maxrtos_process_get( next_id );
-
-            if( next_pcb == NULL )
+            /* No READY process is available. The current process
+             * continues executing when one already exists. */
+            if( ( status == MAXRTOS_ERR_QUEUE_EMPTY ) &&
+                ( current_id != MAXRTOS_INVALID_PROCESS_ID ) )
             {
-                status = MAXRTOS_ERR_INVALID_ID;
-            }
-            else if( next_pcb->state !=
-                     MAXRTOS_PROCESS_STATE_READY )
-            {
-                status = MAXRTOS_ERR_INVALID_STATE;
+                *out_next_id = current_id;
+                status = MAXRTOS_OK;
             }
             else
             {
-                /* Remove the selected process before changing any
-                 * process state. This ensures the selected process
-                 * cannot remain in the READY queue while RUNNING. */
-                status = maxrtos_scheduler_remove_process( ctx, next_id );
-            }
-
-            if( status == MAXRTOS_OK )
-            {
-                /* Initial dispatch has no current process to return
-                 * to the READY state. */
-                if( current_id == MAXRTOS_INVALID_PROCESS_ID )
+                /* Continue only when the scheduler selected a
+                 * READY process. */
+                if( status == MAXRTOS_OK )
                 {
-                    status = maxrtos_process_set_state(
-                        next_id,
-                        MAXRTOS_PROCESS_STATE_RUNNING );
-                }
-                else
-                {
-                    /* The current process must become READY before it
-                     * can be inserted into the scheduler. */
-                    status = maxrtos_process_set_state(
-                        current_id,
-                        MAXRTOS_PROCESS_STATE_READY );
+                    maxrtos_process_control_block_t const * next_pcb;
 
-                    if( status == MAXRTOS_OK )
+                    next_pcb = maxrtos_process_get( next_id );
+
+                    if( next_pcb == NULL )
                     {
-                        status = maxrtos_scheduler_add_process(
-                            ctx,
-                            current_id );
+                        status = MAXRTOS_ERR_INVALID_ID;
                     }
-
-                    if( status != MAXRTOS_OK )
+                    else if( next_pcb->state !=
+                             MAXRTOS_PROCESS_STATE_READY )
                     {
-                        /* Restore the original state and restore the
-                         * selected process to its READY queue.
-                         * Best-effort: return values intentionally
-                         * discarded here. */
-                        ( void ) maxrtos_process_set_state(
-                            current_id,
-                            MAXRTOS_PROCESS_STATE_RUNNING );
-
-                        ( void ) maxrtos_scheduler_add_process(
-                            ctx,
-                            next_id );
+                        status = MAXRTOS_ERR_INVALID_STATE;
                     }
                     else
                     {
-                        status = maxrtos_process_set_state(
-                            next_id,
-                            MAXRTOS_PROCESS_STATE_RUNNING );
+                        /* Remove the selected process before changing
+                         * its state so that a RUNNING process is never
+                         * present in the READY queue. */
+                        status = maxrtos_scheduler_remove_process(
+                            ctx,
+                            next_id );
+                    }
+
+                    if( status == MAXRTOS_OK )
+                    {
+                        if( current_id == MAXRTOS_INVALID_PROCESS_ID )
+                        {
+                            /* Initial dispatch has no current process
+                             * to return to the READY state. */
+                            status = maxrtos_process_set_state(
+                                next_id,
+                                MAXRTOS_PROCESS_STATE_RUNNING );
+                        }
+                        else
+                        {
+                            /* The current process must become READY
+                             * before it can be inserted into the
+                             * scheduler. */
+                            status = maxrtos_process_set_state(
+                                current_id,
+                                MAXRTOS_PROCESS_STATE_READY );
+
+                            if( status == MAXRTOS_OK )
+                            {
+                                status = maxrtos_scheduler_add_process(
+                                    ctx,
+                                    current_id );
+                            }
+
+                            if( status != MAXRTOS_OK )
+                            {
+                                /* Restore the original state and
+                                 * restore the selected process to its
+                                 * READY queue. Recovery is best-effort. */
+                                ( void ) maxrtos_process_set_state(
+                                    current_id,
+                                    MAXRTOS_PROCESS_STATE_RUNNING );
+
+                                ( void ) maxrtos_scheduler_add_process(
+                                    ctx,
+                                    next_id );
+                            }
+                            else
+                            {
+                                status = maxrtos_process_set_state(
+                                    next_id,
+                                    MAXRTOS_PROCESS_STATE_RUNNING );
+                            }
+                        }
+                    }
+
+                    if( status == MAXRTOS_OK )
+                    {
+                        *out_next_id = next_id;
                     }
                 }
-            }
-
-            if( status == MAXRTOS_OK )
-            {
-                *out_next_id = next_id;
             }
         }
     }
