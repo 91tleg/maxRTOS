@@ -2,13 +2,13 @@
  * @file process.c
  * @brief Process control block management and process lifecycle operations.
  *
- * Implements the process-management interface declared in process.h.
- *
- * Process control blocks are stored in a statically allocated process
- * pool. No dynamic memory allocation is performed.
+ * Implements static allocation, state management, and lookup operations for
+ * process control blocks.
  */
 
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #include "maxrtos/config.h"
 #include "maxrtos/kernel/process.h"
@@ -51,6 +51,7 @@ void maxrtos_process_pool_init( void )
         s_process_pool[ i ].priority = 0U;
         s_process_pool[ i ].entry = NULL;
         s_process_pool[ i ].entry_arg = NULL;
+        s_process_pool[ i ].partition_id = MAXRTOS_INVALID_PARTITION_ID;
     }
 }
 
@@ -64,13 +65,8 @@ maxrtos_status_t maxrtos_process_create(
     maxrtos_process_id_t * out_id )
 {
     maxrtos_status_t status;
-    maxrtos_process_control_block_t * pcb;
-    size_t i;
-    bool slot_found;
 
     status = MAXRTOS_ERR_POOL_FULL;
-    pcb = NULL;
-    slot_found = false;
 
     if( ( stack_base == NULL ) ||
         ( stack_size == 0U ) ||
@@ -83,20 +79,23 @@ maxrtos_status_t maxrtos_process_create(
     }
     else
     {
+        size_t i;
+
         for( i = 0U;
-             ( i < MAXRTOS_MAX_PROCESSES ) && ( slot_found == false );
+             ( i < MAXRTOS_MAX_PROCESSES ) && ( status != MAXRTOS_OK );
              i++ )
         {
             if( s_process_pool[ i ].state == MAXRTOS_PROCESS_STATE_UNUSED )
             {
+                maxrtos_process_control_block_t * pcb;
+
                 pcb = &s_process_pool[ i ];
 
                 pcb->id = ( maxrtos_process_id_t ) i;
                 pcb->partition_id = partition_id;
                 pcb->stack_base = stack_base;
                 pcb->stack_size = stack_size;
-                pcb->stack_pointer =
-                    ( void * ) ( stack_base + stack_size );
+                pcb->stack_pointer = &stack_base[ stack_size ];
                 pcb->priority = priority;
                 pcb->entry = entry;
                 pcb->entry_arg = entry_arg;
@@ -105,7 +104,6 @@ maxrtos_status_t maxrtos_process_create(
                 *out_id = pcb->id;
 
                 status = MAXRTOS_OK;
-                slot_found = true;
             }
         }
     }

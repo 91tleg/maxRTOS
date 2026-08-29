@@ -16,9 +16,13 @@
 
 typedef uint32_t maxrtos_process_id_t;
 
-/* Sentinel value indicating that no valid process ID is available. */
+/* Sentinel process ID indicating that no valid process is selected. */
 #define MAXRTOS_INVALID_PROCESS_ID \
-    ( ( maxrtos_process_id_t ) 0xFFFFFFFFU )
+    ( ( maxrtos_process_id_t ) UINT32_MAX )
+
+/* Sentinel partition ID indicating that no valid partition is assigned. */
+#define MAXRTOS_INVALID_PARTITION_ID  \
+    ( ( maxrtos_partition_id_t ) UINT32_MAX )
 
 typedef enum
 {
@@ -32,12 +36,6 @@ typedef enum
 typedef void ( * maxrtos_process_entry_t ) ( void * arg );
 
 typedef uint32_t maxrtos_partition_id_t;
- 
-/* Sentinel meaning "not assigned to any partition" -- used only
- * during the transition period before all process-creation call
- * sites are updated to always specify a real partition_id. */
-#define MAXRTOS_INVALID_PARTITION_ID  \
-    ( ( maxrtos_partition_id_t ) 0xFFFFFFFFU )
 
 /**
  * @brief Process control block.
