@@ -5,6 +5,7 @@ add_library(maxrtos_kernel STATIC
     src/dispatch.c
     src/partition.c
     src/queue_port.c
+    src/fault_recovery.c
 )
 
 target_include_directories(maxrtos_kernel PUBLIC
