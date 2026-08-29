@@ -106,7 +106,7 @@ void maxrtos_arch_mpu_init( void )
     __asm volatile ( "isb" );
 }
 
-void maxrtos_arch_mpu_configure_for_partition(
+static void maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
     maxrtos_mpu_region_config_t region;

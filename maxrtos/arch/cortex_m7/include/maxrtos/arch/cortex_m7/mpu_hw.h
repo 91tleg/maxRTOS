@@ -49,23 +49,6 @@ void maxrtos_arch_mpu_set_config(
 void maxrtos_arch_mpu_init( void );
 
 /**
- * @brief Configure the MPU region associated with a partition.
- *
- * The partition ID corresponds directly to the MPU region number.
- * Configuration is obtained from the registered maxrtos_mpu_config_t.
- *
- * This function is intended for use during context switching and
- * assumes that partition configuration has already been validated.
- *
- * @param[in] partition_id
- *     Partition whose MPU region shall be configured.
- *
- * @pre partition_id identifies a configured partition.
- */
-void maxrtos_arch_mpu_configure_for_partition(
-    maxrtos_partition_id_t partition_id );
-
-/**
  * @brief Configure the MPU for the process about to become current.
  *
  * Extracts the partition ID from the supplied process control block
