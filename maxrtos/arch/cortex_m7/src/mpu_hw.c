@@ -23,19 +23,18 @@
 
 #include "maxrtos/arch/cortex_m7/mpu_hw.h"
 
-#define MAXRTOS_MPU_TYPE ( *( volatile uint32_t * ) 0xE000ED90UL )
 #define MAXRTOS_MPU_CTRL ( *( volatile uint32_t * ) 0xE000ED94UL )
 #define MAXRTOS_MPU_RNR  ( *( volatile uint32_t * ) 0xE000ED98UL )
 #define MAXRTOS_MPU_RBAR ( *( volatile uint32_t * ) 0xE000ED9CUL )
 #define MAXRTOS_MPU_RASR ( *( volatile uint32_t * ) 0xE000EDA0UL )
 
-#define MAXRTOS_MPU_CTRL_ENABLE_BIT     ( 1UL << 0U )
-#define MAXRTOS_MPU_CTRL_PRIVDEFENA_BIT ( 1UL << 2U )
+#define MAXRTOS_MPU_CTRL_ENABLE_BIT ( 1UL << 0U )
+
+#define MAXRTOS_MPU_REGION_COUNT    ( 16U )
 
 /* RASR bit-field positions. */
 #define MAXRTOS_RASR_ENABLE_POS ( 0U )
 #define MAXRTOS_RASR_SIZE_POS   ( 1U )   /* 5 bits: bits[5:1]   */
-#define MAXRTOS_RASR_SRD_POS    ( 8U )   /* 8 bits: bits[15:8]  */
 #define MAXRTOS_RASR_B_POS      ( 16U )
 #define MAXRTOS_RASR_C_POS      ( 17U )
 #define MAXRTOS_RASR_S_POS      ( 18U )
@@ -44,16 +43,19 @@
 #define MAXRTOS_RASR_XN_POS     ( 28U )
 
 /* RASR access-permission encodings. */
-#define MAXRTOS_RASR_AP_NO_ACCESS   ( 0x0UL )
-#define MAXRTOS_RASR_AP_READ_ONLY   ( 0x6UL )
-#define MAXRTOS_RASR_AP_READ_WRITE  ( 0x3UL )
+#define MAXRTOS_RASR_AP_NO_ACCESS      ( UINT32_C( 0 ) )
+#define MAXRTOS_RASR_AP_READ_ONLY      ( UINT32_C( 6 ) )
+#define MAXRTOS_RASR_AP_READ_WRITE     ( UINT32_C( 3 ) )
 
 /* Default memory attributes for configured partition regions:
  * Normal memory, inner/outer write-back cacheable, and non-shareable. */
-#define MAXRTOS_RASR_TEX_DEFAULT ( 0x0UL )
-#define MAXRTOS_RASR_C_DEFAULT   ( 1UL )
-#define MAXRTOS_RASR_B_DEFAULT   ( 1UL )
-#define MAXRTOS_RASR_S_DEFAULT   ( 0UL )
+#define MAXRTOS_RASR_TEX_DEFAULT       ( UINT32_C( 0 ) )
+#define MAXRTOS_RASR_C_DEFAULT         ( UINT32_C( 1 ) )
+#define MAXRTOS_RASR_B_DEFAULT         ( UINT32_C( 1 ) )
+#define MAXRTOS_RASR_S_DEFAULT         ( UINT32_C( 0 ) )
+
+#define MAXRTOS_RASR_XN_EXECUTABLE     ( UINT32_C( 0 ) )
+#define MAXRTOS_RASR_XN_NON_EXECUTABLE ( UINT32_C( 1 ) )
 
 static maxrtos_mpu_config_t const * s_config = NULL;
 
@@ -138,15 +140,17 @@ void maxrtos_arch_mpu_configure_for_partition(
             break;
     }
 
-    xn_field = region.executable ? 0UL : 1UL;
+    xn_field = region.executable ?
+        MAXRTOS_RASR_XN_EXECUTABLE :
+        MAXRTOS_RASR_XN_NON_EXECUTABLE;
 
     MAXRTOS_MPU_RNR = ( uint32_t ) partition_id;
 
-    /* The base address was validated to be naturally aligned to
-     * the region size before reaching this function. */
+    /* The base address is validated and aligned by the portable
+     * MPU configuration layer before reaching this function. */
     MAXRTOS_MPU_RBAR = region.base_address;
 
-    rasr = ( 1UL << MAXRTOS_RASR_ENABLE_POS ) |
+    rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
            ( size_field << MAXRTOS_RASR_SIZE_POS ) |
            ( ap_field << MAXRTOS_RASR_AP_POS ) |
            ( MAXRTOS_RASR_TEX_DEFAULT << MAXRTOS_RASR_TEX_POS ) |
@@ -185,9 +189,8 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
     status = MAXRTOS_ERR_INVALID_ARG;
 
     if( ( region_number >= MAXRTOS_MAX_PARTITIONS ) &&
-        ( region_number < 16U ) &&
+        ( region_number < MAXRTOS_MPU_REGION_COUNT ) &&
         ( size_bytes >= MAXRTOS_MPU_REGION_MIN_SIZE ) &&
-        ( maxrtos_mpu_hw_is_power_of_two( size_bytes ) == true ) &&
         ( ( base_address % size_bytes ) == 0U ) &&
         ( ( access == MAXRTOS_MPU_ACCESS_NONE ) ||
           ( access == MAXRTOS_MPU_ACCESS_READ_ONLY ) ||
@@ -216,12 +219,14 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
                 break;
         }
 
-        xn_field = executable ? 0UL : 1UL;
+        xn_field = executable ?
+            MAXRTOS_RASR_XN_EXECUTABLE :
+            MAXRTOS_RASR_XN_NON_EXECUTABLE;
 
         MAXRTOS_MPU_RNR = region_number;
         MAXRTOS_MPU_RBAR = base_address;
 
-        rasr = ( 1UL << MAXRTOS_RASR_ENABLE_POS ) |
+        rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
                ( size_field << MAXRTOS_RASR_SIZE_POS ) |
                ( ap_field << MAXRTOS_RASR_AP_POS ) |
                ( MAXRTOS_RASR_TEX_DEFAULT << MAXRTOS_RASR_TEX_POS ) |
