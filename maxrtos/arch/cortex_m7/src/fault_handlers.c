@@ -8,6 +8,7 @@
  */
 
 #include <stdint.h>
+#include <stdnoreturn.h>
 
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
@@ -39,7 +40,7 @@
 static maxrtos_health_monitor_t const * s_hm = NULL;
 static maxrtos_partition_table_t * s_table = NULL;
 
-static void maxrtos_arch_halt( void )
+static noreturn void maxrtos_arch_halt( void )
 {
     __asm volatile ( "cpsid i" );
 
@@ -157,10 +158,10 @@ static void maxrtos_arch_handle_classified_fault(
 
         case MAXRTOS_HM_ACTION_HALT_PARTITION:
         {
-            /* The recovery layer has already marked this partition
-             * halted. Keep interrupts enabled so SysTick can continue
-             * and the next tick can select another partition. */
-            for( ;; )
+            /* The partition has been marked halted by the recovery layer.
+             * Do not return from the fault handler because that would resume
+             * the faulting context. Sleep until an interrupt transfers control
+             * to the scheduler or another exception handler. */
             {
                 __asm volatile ( "wfi" );
             }
