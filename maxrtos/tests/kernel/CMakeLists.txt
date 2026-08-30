@@ -1,3 +1,8 @@
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../kernel
+    ${CMAKE_CURRENT_BINARY_DIR}/kernel
+)
+
 add_executable(maxrtos_kernel_test_process test_process.c)
 target_link_libraries(maxrtos_kernel_test_process PRIVATE maxrtos_kernel)
 add_test(NAME kernel_process_tests COMMAND maxrtos_kernel_test_process)

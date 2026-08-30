@@ -1,0 +1,1 @@
+add_subdirectory(cortex_m7)
