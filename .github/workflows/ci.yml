@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Host Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake \
+            -S maxrtos/tests \
+            -B build/tests \
+            -G Ninja
+
+      - name: Build
+        run: |
+          cmake \
+            --build build/tests \
+            -j2
+
+      - name: Run tests
+        run: |
+          ctest \
+            --test-dir build/tests \
+            --output-on-failure
+
+  build-nucleo:
+    name: Build Nucleo Demo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install ARM GCC
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi
+
+      - name: Configure
+        run: |
+          cmake \
+            -S demo/nucleo_h753zi \
+            -B build/nucleo \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi.cmake
+
+      - name: Build
+        run: |
+          cmake \
+            --build build/nucleo \
+            --target maxrtos_demo_nucleo_h753zi \
+            -j2
+
+      - name: Verify ELF
+        run: |
+          arm-none-eabi-size \
+            build/nucleo/maxrtos_demo_nucleo_h753zi
+
+      - name: Generate binary
+        run: |
+          arm-none-eabi-objcopy \
+            -O binary \
+            build/nucleo/maxrtos_demo_nucleo_h753zi \
+            build/nucleo/maxrtos_demo_nucleo_h753zi.bin
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: maxrtos-nucleo-h753zi
+          path: |
+            build/nucleo/maxrtos_demo_nucleo_h753zi
+            build/nucleo/maxrtos_demo_nucleo_h753zi.bin
+            build/nucleo/maxrtos_demo_nucleo_h753zi.map
