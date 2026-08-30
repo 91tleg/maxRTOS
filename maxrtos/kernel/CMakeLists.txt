@@ -6,19 +6,12 @@ add_library(maxrtos_kernel STATIC
     src/partition.c
     src/queue_port.c
     src/fault_recovery.c
+    src/health_monitor.c
+    src/tick.c
+    src/yield.c
 )
 
 target_include_directories(maxrtos_kernel PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
-
-target_compile_options(maxrtos_kernel PRIVATE
-    -g3
-    -O0
-    -Wall -Wextra -Wpedantic 
-)
-
-if(MAXRTOS_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()

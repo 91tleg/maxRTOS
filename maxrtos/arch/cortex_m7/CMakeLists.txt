@@ -14,17 +14,3 @@ target_include_directories(maxrtos_arch_cortex_m7 PUBLIC
 target_link_libraries(maxrtos_arch_cortex_m7 PUBLIC
     maxrtos_kernel
 )
-
-target_compile_options(maxrtos_arch_cortex_m7 PRIVATE
-    -mcpu=cortex-m7
-    -mthumb
-    -Wall
-    -Wextra
-    -Wpedantic
-    -g3
-    -O0
-)
-
-if(MAXRTOS_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()
