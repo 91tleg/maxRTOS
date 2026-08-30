@@ -34,3 +34,7 @@ add_test(NAME kernel_queue_port_tests COMMAND maxrtos_kernel_test_queue_port)
 add_executable(maxrtos_kernel_test_fault_recovery test_fault_recovery.c)
 target_link_libraries(maxrtos_kernel_test_fault_recovery PRIVATE maxrtos_kernel)
 add_test(NAME kernel_fault_recovery_tests COMMAND maxrtos_kernel_test_fault_recovery)
+
+add_executable(maxrtos_kernel_test_tick test_tick.c)
+target_link_libraries(maxrtos_kernel_test_tick PRIVATE maxrtos_kernel)
+add_test(NAME kernel_tick_tests COMMAND maxrtos_kernel_test_tick)
