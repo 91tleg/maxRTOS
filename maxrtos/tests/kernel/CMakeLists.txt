@@ -38,3 +38,7 @@ add_test(NAME kernel_fault_recovery_tests COMMAND maxrtos_kernel_test_fault_reco
 add_executable(maxrtos_kernel_test_tick test_tick.c)
 target_link_libraries(maxrtos_kernel_test_tick PRIVATE maxrtos_kernel)
 add_test(NAME kernel_tick_tests COMMAND maxrtos_kernel_test_tick)
+
+add_executable(maxrtos_kernel_test_yield test_yield.c)
+target_link_libraries(maxrtos_kernel_test_yield PRIVATE maxrtos_kernel)
+add_test(NAME kernel_yield_tests COMMAND maxrtos_kernel_test_yield)
