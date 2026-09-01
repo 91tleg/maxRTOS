@@ -22,19 +22,21 @@ maxrtos_status_t maxrtos_frame_init(
     size_t slot_count )
 {
     maxrtos_status_t status;
-    size_t i;
-    bool valid_slot;
-    uint32_t major_frame_length_ticks;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    valid_slot = true;
-    major_frame_length_ticks = 0U;
 
     if( ( sched != NULL ) &&
         ( slots != NULL ) &&
         ( slot_count > 0U ) &&
         ( slot_count <= MAXRTOS_MAX_FRAME_SLOTS ) )
     {
+        size_t i;
+        bool valid_slot;
+        uint32_t major_frame_length_ticks;
+
+        valid_slot = true;
+        major_frame_length_ticks = 0U;
+
         for( i = 0U;
              ( i < slot_count ) && ( valid_slot == true );
              i++ )
@@ -80,13 +82,9 @@ maxrtos_status_t maxrtos_frame_partition_at_tick(
     maxrtos_partition_id_t * out_partition_id )
 {
     maxrtos_status_t status;
-    uint32_t reduced_tick;
-    size_t i;
-    bool found;
     uint32_t start;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    found = false;
     start = 0U;
 
     if( ( sched != NULL ) &&
@@ -94,27 +92,25 @@ maxrtos_status_t maxrtos_frame_partition_at_tick(
         ( sched->slot_count > 0U ) &&
         ( out_partition_id != NULL ) )
     {
+        uint32_t reduced_tick;
+        size_t i;
+
         reduced_tick = tick % sched->major_frame_length_ticks;
 
         for( i = 0U;
-             ( i < sched->slot_count ) && ( found == false );
+             ( i < sched->slot_count ) && ( status != MAXRTOS_OK );
              i++ )
         {
             if( ( reduced_tick >= start ) &&
-                ( reduced_tick < start + sched->slots[ i ].duration_ticks ) )
+                ( reduced_tick < ( start + sched->slots[ i ].duration_ticks ) ) )
             {
-                found = true;
+                status = MAXRTOS_OK;
                 *out_partition_id = sched->slots[ i ].partition_id;
             }
             else
             {
                 start += sched->slots[i].duration_ticks;
             }
-        }
-
-        if( found == true )
-        {
-            status = MAXRTOS_OK;
         }
     }
 

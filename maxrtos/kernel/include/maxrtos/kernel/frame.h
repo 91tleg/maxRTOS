@@ -2,10 +2,9 @@
  * @file frame.h
  * @brief Static major-frame schedule for time-partitioned execution.
  *
- * The frame scheduler implements the time-partitioning layer of the
- * kernel scheduling hierarchy. A major frame consists of a fixed,
- * ordered sequence of time slots. Each slot assigns the processor to
- * one partition for a nonzero, fixed duration measured in ticks.
+ * A major frame consists of a fixed, ordered sequence of time slots.
+ * Each slot assigns the processor to one partition for a nonzero,
+ * fixed duration measured in ticks.
  */
 
 #ifndef MAXRTOS_KERNEL_FRAME_H
@@ -85,8 +84,6 @@ typedef struct
  *
  * @return
  *     MAXRTOS_OK if the schedule is valid and initialized.
- *
- * @return
  *     MAXRTOS_ERR_INVALID_ARG if:
  *     - sched is NULL;
  *     - slots is NULL;
@@ -125,8 +122,6 @@ maxrtos_status_t maxrtos_frame_init(
  *
  * @return
  *     MAXRTOS_OK if a valid partition is identified.
- *
- * @return
  *     MAXRTOS_ERR_INVALID_ARG if sched or out_partition_id is NULL,
  *     or if sched does not contain a valid schedule.
  */
