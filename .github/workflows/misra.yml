@@ -1,0 +1,37 @@
+name: MISRA
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  misra:
+    name: MISRA Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      - name: Run MISRA analysis
+        run: |
+          MISRA_ADDON="$(dpkg -L cppcheck | grep '/misra.py$')"
+
+          cppcheck \
+            --enable=all \
+            --addon="$MISRA_ADDON" \
+            --error-exitcode=1 \
+            --suppress=missingIncludeSystem \
+            --suppress=unusedFunction \
+            --suppressions-list=cppcheck-suppressions.txt \
+            --check-level=exhaustive \
+            -I maxrtos/include \
+            -I maxrtos/kernel/include \
+            -I maxrtos/arch/cortex_m7/include \
+            maxrtos/kernel/src \
+            maxrtos/arch/cortex_m7/src
