@@ -4,9 +4,6 @@
  *
  * Provides a bounded, fixed-size FIFO communication port for
  * inter-process communication.
- *
- * The implementation uses a circular buffer to maintain FIFO
- * ordering while avoiding dynamic memory allocation.
  */
 
 #include <stddef.h>
@@ -46,10 +43,8 @@ maxrtos_status_t maxrtos_queue_port_send(
     size_t message_size )
 {
     maxrtos_status_t status;
-    size_t tail;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    tail = 0;
 
     if( ( port != NULL ) &&
         ( message != NULL ) &&
@@ -57,6 +52,8 @@ maxrtos_status_t maxrtos_queue_port_send(
     {
         if( port->count < port->capacity )
         {
+            size_t tail;
+
             tail = ( port->head + port->count ) % port->capacity;
 
             ( void ) memcpy(

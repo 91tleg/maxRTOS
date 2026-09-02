@@ -1,22 +1,14 @@
 /**
-
-* @file queue_port.h
-* @brief Fixed-capacity, fixed-size FIFO queuing port interface.
-*
-* Provides a bounded FIFO communication port for discrete messages.
-* The interface is modeled after the ARINC 653 queuing-port concept.
-*
-* Each port is configured with a fixed message size and maximum
-* message capacity. Messages are copied into and out of statically
-* allocated storage and are delivered in FIFO order.
-*
-* Sending to a full port and receiving from an empty port are
-* non-blocking operations that return an error status.
-*
-* A queuing port is caller-owned storage and does not contain
-* partition-level access-control information. Any caller with a
-* valid pointer to a port may invoke the send or receive interface.
-*/
+ * @file queue_port.h
+ * @brief Fixed-capacity, fixed-size FIFO queuing port interface.
+ *
+ * Each port is configured with a fixed message size and maximum
+ * message capacity. Messages are copied into and out of statically
+ * allocated storage and are delivered in FIFO order.
+ *
+ * Sending to a full port and receiving from an empty port are
+ * non-blocking operations that return an error status.
+ */
 
 #ifndef MAXRTOS_KERNEL_QUEUE_PORT_H
 #define MAXRTOS_KERNEL_QUEUE_PORT_H
@@ -31,8 +23,8 @@
  * @brief A single queuing port instance.
  *
  * @field buffer
- *     Statically allocated backing storage. The buffer is sized for
- *     the compile-time maximum queue capacity and message size.
+ *     Statically allocated storage. The buffer is sized for the
+ *     compile-time maximum queue capacity and message size.
  *
  * @field message_size
  *     Size, in bytes, of every message carried by this port.
@@ -91,9 +83,6 @@ maxrtos_status_t maxrtos_queue_port_init(
  * The operation is non-blocking. If the port is full, the message is
  * not stored and MAXRTOS_ERR_QUEUE_FULL is returned.
  *
- * The message is copied into the port's internal storage. The caller's
- * buffer is not retained after this function returns.
- *
  * @param[in,out] port
  *     Initialized port to which the message is sent.
  *
@@ -120,9 +109,6 @@ maxrtos_status_t maxrtos_queue_port_send(
  * The operation is non-blocking. If the port is empty,
  * MAXRTOS_ERR_QUEUE_EMPTY is returned.
  *
- * The received message is copied into the caller-provided buffer.
- * Only the configured message_size bytes are written.
- *
  * @param[in,out] port
  *     Initialized port from which the message is received.
  *
@@ -146,8 +132,6 @@ maxrtos_status_t maxrtos_queue_port_receive(
 
 /**
  * @brief Return the number of messages currently stored.
- *
- * This function does not modify the port and cannot fail.
  *
  * @param[in] port
  *     Port to query. If NULL, zero is returned.
