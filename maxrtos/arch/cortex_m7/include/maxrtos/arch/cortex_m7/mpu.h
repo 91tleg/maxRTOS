@@ -12,27 +12,7 @@
  * The current implementation provides spatial isolation of
  * partition data only. Partition code resides in shared executable
  * flash and is not isolated between partitions by the regions
- * represented by this module. Therefore, this implementation does
- * not provide complete code-and-data spatial isolation.
- *
- * This limitation is intentional and shall be considered an
- * architectural constraint of the current implementation. Full
- * partition code isolation would require additional MPU regions,
- * an alternative memory layout, or another hardware/software
- * isolation mechanism. Such functionality is outside the scope of
- * this module.
- *
- * Each configured region shall have:
- *   - a base address aligned to the region size;
- *   - a region size that is a power of two;
- *   - a region size greater than or equal to the minimum supported
- *     MPU region size; and
- *   - explicitly defined access and execute permissions.
- *
- * The target-specific MPU implementation is responsible for
- * translating validated configuration data into the target MPU
- * register representation and for enforcing any target-specific
- * region allocation constraints.
+ * represented by this module.
  */
 
 #ifndef MAXRTOS_ARCH_CORTEX_M7_MPU_H
@@ -132,13 +112,12 @@ maxrtos_status_t maxrtos_mpu_config_init(
  *
  * @return 
  *     MAXRTOS_OK if the region configuration was accepted.
- *      MAXRTOS_ERR_INVALID_ARG if:
- *         - config is NULL;
- *         - partition_id is outside the supported partition range;
- *         - size_bytes is less than
- *           MAXRTOS_MPU_REGION_MIN_SIZE;
- *         - size_bytes is not a power of two; or
- *         - base_address is not aligned to size_bytes.
+ *     MAXRTOS_ERR_INVALID_ARG if:
+ *         - config is NULL
+ *         - partition_id is outside the supported partition range
+ *         - size_bytes is less than MAXRTOS_MPU_REGION_MIN_SIZE
+ *         - size_bytes is not a power of two
+ *         - base_address is not aligned to size_bytes
  */
 maxrtos_status_t maxrtos_mpu_set_partition_region(
     maxrtos_mpu_config_t * config,

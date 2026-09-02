@@ -9,6 +9,7 @@
  * partition region requires a power-of-two region size and a base
  * address aligned to that region size.
  */
+
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -39,7 +40,8 @@ maxrtos_status_t maxrtos_mpu_config_init(
 
 static bool maxrtos_mpu_is_power_of_two( uint32_t value )
 {
-    return ( value > 0 ) && ( ( value & ( value - 1 ) ) == 0U );
+    return ( value > 0U ) &&
+           ( ( value & ( value - 1U ) ) == 0U );
 }
 
 maxrtos_status_t maxrtos_mpu_set_partition_region(
