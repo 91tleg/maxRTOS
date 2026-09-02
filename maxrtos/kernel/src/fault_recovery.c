@@ -19,7 +19,7 @@ maxrtos_status_t maxrtos_fault_recovery_handle(
     maxrtos_hm_action_t * out_action )
 {
     maxrtos_status_t status;
-    maxrtos_process_control_block_t * pcb;
+    maxrtos_process_control_block_t const * pcb;
 
     status = MAXRTOS_ERR_INVALID_ARG;
     pcb = NULL;
