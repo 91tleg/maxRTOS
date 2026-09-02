@@ -138,6 +138,16 @@ static void maxrtos_arch_mpu_program_region(
     __asm volatile ( "isb" );
 }
 
+static void maxrtos_arch_mpu_disable_region(
+    uint32_t region_number )
+{
+    MAXRTOS_MPU_RNR = region_number;
+    MAXRTOS_MPU_RASR &= ~( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS );
+
+    __asm volatile ( "dsb" );
+    __asm volatile ( "isb" );
+}
+
 void maxrtos_arch_mpu_set_config( maxrtos_mpu_config_t const * config )
 {
     s_config = config;
@@ -157,6 +167,20 @@ static void maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
     maxrtos_mpu_region_config_t region;
+    maxrtos_partition_id_t other_partition_id;
+
+    /* Disable every other partition's data region before
+     * enabling the incoming one. */
+    for( other_partition_id = 0U;
+         other_partition_id < MAXRTOS_MAX_PARTITIONS;
+         other_partition_id++ )
+    {
+        if( other_partition_id != partition_id )
+        {
+            maxrtos_arch_mpu_disable_region(
+                ( uint32_t ) other_partition_id );
+        }
+    }
 
     /* Configuration was validated during boot by
      * maxrtos_mpu_set_partition_region(). */
