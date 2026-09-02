@@ -2,19 +2,13 @@
  * @file mpu_hw.c
  * @brief Cortex-M7 MPU hardware configuration.
  *
- * This module is the hardware-specific counterpart to mpu.c.
- * mpu.c owns MPU configuration representation and validation, while
- * this module translates validated configuration into MPU register
+ * This module translates validated configuration into MPU register
  * values and performs the required synchronization barriers.
  *
  * Reserved MPU regions are configured directly through
  * maxrtos_arch_mpu_configure_region() and are intended for
  * system-wide memory such as program code, peripherals, and kernel
  * memory.
- *
- * The MPU is configured with deny-by-default semantics by clearing
- * MPU_CTRL.PRIVDEFENA. Consequently, memory required by the system
- * must be covered by an enabled MPU region.
  */
 
 #include <stdint.h>
@@ -91,6 +85,59 @@ static uint32_t maxrtos_mpu_encode_size_field(
     return size_field;
 }
 
+static void maxrtos_arch_mpu_program_region(
+    uint32_t region_number,
+    uint32_t base_address,
+    uint32_t size_bytes,
+    maxrtos_mpu_access_t access,
+    bool executable )
+{
+    uint32_t size_field;
+    uint32_t ap_field;
+    uint32_t xn_field;
+    uint32_t rasr;
+
+    size_field = maxrtos_mpu_encode_size_field( size_bytes );
+
+    switch( access )
+    {
+        case MAXRTOS_MPU_ACCESS_READ_ONLY:
+            ap_field = MAXRTOS_RASR_AP_READ_ONLY;
+            break;
+
+        case MAXRTOS_MPU_ACCESS_READ_WRITE:
+            ap_field = MAXRTOS_RASR_AP_READ_WRITE;
+            break;
+
+        case MAXRTOS_MPU_ACCESS_NONE:
+        default:
+            ap_field = MAXRTOS_RASR_AP_NO_ACCESS;
+            break;
+    }
+
+    xn_field = executable ?
+        MAXRTOS_RASR_XN_EXECUTABLE :
+        MAXRTOS_RASR_XN_NON_EXECUTABLE;
+
+    MAXRTOS_MPU_RNR = region_number;
+    MAXRTOS_MPU_RBAR = base_address;
+
+    rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
+           ( size_field << MAXRTOS_RASR_SIZE_POS ) |
+           ( ap_field << MAXRTOS_RASR_AP_POS ) |
+           ( MAXRTOS_RASR_TEX_DEFAULT << MAXRTOS_RASR_TEX_POS ) |
+           ( MAXRTOS_RASR_C_DEFAULT << MAXRTOS_RASR_C_POS ) |
+           ( MAXRTOS_RASR_B_DEFAULT << MAXRTOS_RASR_B_POS ) |
+           ( MAXRTOS_RASR_S_DEFAULT << MAXRTOS_RASR_S_POS ) |
+           ( xn_field << MAXRTOS_RASR_XN_POS );
+            /* SRD remains zero, enabling all subregions. */
+
+    MAXRTOS_MPU_RASR = rasr;
+
+    __asm volatile ( "dsb" );
+    __asm volatile ( "isb" );
+}
+
 void maxrtos_arch_mpu_set_config( maxrtos_mpu_config_t const * config )
 {
     s_config = config;
@@ -110,10 +157,6 @@ static void maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
     maxrtos_mpu_region_config_t region;
-    uint32_t size_field;
-    uint32_t ap_field;
-    uint32_t xn_field;
-    uint32_t rasr;
 
     /* Configuration was validated during boot by
      * maxrtos_mpu_set_partition_region(). */
@@ -122,48 +165,12 @@ static void maxrtos_arch_mpu_configure_for_partition(
         partition_id,
         &region );
 
-    size_field = maxrtos_mpu_encode_size_field( region.size_bytes );
-
-    switch( region.access )
-    {
-        case MAXRTOS_MPU_ACCESS_READ_ONLY:
-            ap_field = MAXRTOS_RASR_AP_READ_ONLY;
-            break;
-
-        case MAXRTOS_MPU_ACCESS_READ_WRITE:
-            ap_field = MAXRTOS_RASR_AP_READ_WRITE;
-            break;
-
-        case MAXRTOS_MPU_ACCESS_NONE:
-        default:
-            ap_field = MAXRTOS_RASR_AP_NO_ACCESS;
-            break;
-    }
-
-    xn_field = region.executable ?
-        MAXRTOS_RASR_XN_EXECUTABLE :
-        MAXRTOS_RASR_XN_NON_EXECUTABLE;
-
-    MAXRTOS_MPU_RNR = ( uint32_t ) partition_id;
-
-    /* The base address is validated and aligned by the portable
-     * MPU configuration layer before reaching this function. */
-    MAXRTOS_MPU_RBAR = region.base_address;
-
-    rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
-           ( size_field << MAXRTOS_RASR_SIZE_POS ) |
-           ( ap_field << MAXRTOS_RASR_AP_POS ) |
-           ( MAXRTOS_RASR_TEX_DEFAULT << MAXRTOS_RASR_TEX_POS ) |
-           ( MAXRTOS_RASR_C_DEFAULT << MAXRTOS_RASR_C_POS ) |
-           ( MAXRTOS_RASR_B_DEFAULT << MAXRTOS_RASR_B_POS ) |
-           ( MAXRTOS_RASR_S_DEFAULT << MAXRTOS_RASR_S_POS ) |
-           ( xn_field << MAXRTOS_RASR_XN_POS );
-            /* SRD remains zero, enabling all subregions. */
-
-    MAXRTOS_MPU_RASR = rasr;
-
-    __asm volatile ( "dsb" );
-    __asm volatile ( "isb" );
+    maxrtos_arch_mpu_program_region(
+        ( uint32_t ) partition_id,
+        region.base_address,
+        region.size_bytes,
+        region.access,
+        region.executable );
 }
 
 void maxrtos_arch_mpu_configure_for_next_pcb(
@@ -196,49 +203,12 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
           ( access == MAXRTOS_MPU_ACCESS_READ_ONLY ) ||
           ( access == MAXRTOS_MPU_ACCESS_READ_WRITE ) ) )
     {
-        uint32_t size_field;
-        uint32_t ap_field;
-        uint32_t xn_field;
-        uint32_t rasr;
-
-        size_field = maxrtos_mpu_encode_size_field( size_bytes );
-
-        switch( access )
-        {
-            case MAXRTOS_MPU_ACCESS_READ_ONLY:
-                ap_field = MAXRTOS_RASR_AP_READ_ONLY;
-                break;
-
-            case MAXRTOS_MPU_ACCESS_READ_WRITE:
-                ap_field = MAXRTOS_RASR_AP_READ_WRITE;
-                break;
-
-            case MAXRTOS_MPU_ACCESS_NONE:
-            default:
-                ap_field = MAXRTOS_RASR_AP_NO_ACCESS;
-                break;
-        }
-
-        xn_field = executable ?
-            MAXRTOS_RASR_XN_EXECUTABLE :
-            MAXRTOS_RASR_XN_NON_EXECUTABLE;
-
-        MAXRTOS_MPU_RNR = region_number;
-        MAXRTOS_MPU_RBAR = base_address;
-
-        rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
-               ( size_field << MAXRTOS_RASR_SIZE_POS ) |
-               ( ap_field << MAXRTOS_RASR_AP_POS ) |
-               ( MAXRTOS_RASR_TEX_DEFAULT << MAXRTOS_RASR_TEX_POS ) |
-               ( MAXRTOS_RASR_C_DEFAULT << MAXRTOS_RASR_C_POS ) |
-               ( MAXRTOS_RASR_B_DEFAULT << MAXRTOS_RASR_B_POS ) |
-               ( MAXRTOS_RASR_S_DEFAULT << MAXRTOS_RASR_S_POS ) |
-               ( xn_field << MAXRTOS_RASR_XN_POS );
-
-        MAXRTOS_MPU_RASR = rasr;
-
-        __asm volatile ( "dsb" );
-        __asm volatile ( "isb" );
+        maxrtos_arch_mpu_program_region(
+            region_number,
+            base_address,
+            size_bytes,
+            access,
+            executable );
 
         status = MAXRTOS_OK;
     }
