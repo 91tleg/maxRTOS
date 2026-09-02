@@ -6,10 +6,6 @@
  * priority values represent higher priority. Processes with equal
  * priority are selected in FIFO order based on ready-queue insertion
  * order.
- *
- * The scheduler does not perform context switching or directly modify
- * process state. It determines which READY process shall be selected
- * for execution and maintains ready-queue membership.
  */
 
 #ifndef MAXRTOS_KERNEL_SCHEDULER_H
@@ -53,7 +49,8 @@ typedef struct
  * Clears all ready queues in the specified scheduler context.
  * Process control blocks are not modified.
  *
- * @param[out] ctx Scheduler context to initialize.
+ * @param[out] ctx
+ *     Scheduler context to initialize.
  *
  * @return
  *     MAXRTOS_OK if the context was initialized successfully.
@@ -72,6 +69,7 @@ maxrtos_status_t maxrtos_scheduler_init(
  *
  * @param[in,out] ctx
  *     Scheduler context.
+ *
  * @param[in] id
  *     Process identifier.
  *
@@ -97,6 +95,7 @@ maxrtos_status_t maxrtos_scheduler_add_process(
  *
  * @param[in,out] ctx
  *     Scheduler context.
+ *
  * @param[in] id
  *     Process identifier.
  *
@@ -125,6 +124,7 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
  *
  * @param[in] ctx
  *     Scheduler context.
+ *
  * @param[out] out_id
  *     Output location for the selected process identifier.
  *

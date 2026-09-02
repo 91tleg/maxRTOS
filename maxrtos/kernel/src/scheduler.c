@@ -30,15 +30,15 @@ static maxrtos_status_t maxrtos_scheduler_queue_push(
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
-    size_t tail;
 
     status = MAXRTOS_ERR_QUEUE_FULL;
-    tail = 0U;
 
     if( queue != NULL )
     {
         if( queue->count < MAXRTOS_MAX_READY_PER_PRIORITY )
         {
+            size_t tail;
+
             tail = maxrtos_scheduler_queue_tail( queue );
 
             queue->items[ tail ] = id;
@@ -58,19 +58,19 @@ static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
-    size_t scan;
-    size_t index;
-    size_t found_index;
-    bool found;
 
     status = MAXRTOS_ERR_NOT_FOUND;
-    scan = 0U;
-    index = 0U;
-    found_index = 0U;
-    found = false;
 
     if( queue != NULL )
     {
+        size_t scan;
+        size_t index;
+        size_t found_index;
+        bool found;
+
+        found_index = 0U;
+        found = false;
+
         for( scan = 0U;
              ( scan < queue->count ) && ( found == false );
              scan++ )
@@ -112,12 +112,13 @@ maxrtos_status_t maxrtos_scheduler_init(
     maxrtos_scheduler_context_t * ctx )
 {
     maxrtos_status_t status;
-    size_t priority;
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
     if( ctx != NULL )
     {
+        size_t priority;
+
         for( priority = 0U;
              priority <= MAXRTOS_MAX_PRIORITY;
              priority++ )
@@ -137,14 +138,16 @@ maxrtos_status_t maxrtos_scheduler_add_process(
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
-    maxrtos_process_control_block_t * pcb;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    pcb = NULL;
 
     if( ctx != NULL )
     {
+        maxrtos_process_control_block_t * pcb;
+
+        pcb = NULL;
         status = MAXRTOS_ERR_INVALID_ID;
+
         pcb = maxrtos_process_get( id );
 
         if( pcb != NULL )
@@ -170,14 +173,16 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
     maxrtos_process_id_t id )
 {
     maxrtos_status_t status;
-    maxrtos_process_control_block_t * pcb;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    pcb = NULL;
 
     if( ctx != NULL )
     {
+        maxrtos_process_control_block_t * pcb;
+
+        pcb = NULL;
         status = MAXRTOS_ERR_INVALID_ID;
+
         pcb = maxrtos_process_get( id );
 
         if( pcb != NULL )
@@ -203,13 +208,14 @@ maxrtos_status_t maxrtos_scheduler_next(
     maxrtos_process_id_t * out_id )
 {
     maxrtos_status_t status;
-    size_t priority;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    priority = 0U;
 
     if( ( ctx != NULL ) && ( out_id != NULL ) )
     {
+        size_t priority;
+
+        priority = 0U;
         status = MAXRTOS_ERR_QUEUE_EMPTY;
 
         for( priority = 0U;
@@ -235,13 +241,14 @@ maxrtos_status_t maxrtos_scheduler_next(
 size_t maxrtos_scheduler_process_count(
     maxrtos_scheduler_context_t const * ctx )
 {
-    size_t priority;
     size_t count;
 
     count = 0U;
 
     if( ctx != NULL )
     {
+        size_t priority;
+
         for( priority = 0U;
              priority <= MAXRTOS_MAX_PRIORITY;
              priority++ )

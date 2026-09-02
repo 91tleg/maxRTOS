@@ -24,7 +24,7 @@ static maxrtos_scheduler_context_t s_ctx;
 
 static void dummy_entry( void * arg )
 {
-    ( void )arg;
+    ( void ) arg;
 }
 
 static maxrtos_process_id_t make_ready_process(
