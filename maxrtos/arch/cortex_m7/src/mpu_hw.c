@@ -5,10 +5,12 @@
  * This module translates validated configuration into MPU register
  * values and performs the required synchronization barriers.
  *
- * Reserved MPU regions are configured directly through
- * maxrtos_arch_mpu_configure_region() and are intended for
- * system-wide memory such as program code, peripherals, and kernel
- * memory.
+ * MPU regions 0 through 7 are reserved for system-wide memory
+ * mappings such as program code, peripherals, and kernel memory.
+ *
+ * MPU regions 8 through 15 are reserved for partition-owned
+ * memory mappings. At most one partition-owned region is enabled
+ * at a time.
  */
 
 #include <stdint.h>
@@ -24,16 +26,17 @@
 
 #define MAXRTOS_MPU_CTRL_ENABLE_BIT ( 1UL << 0U )
 
-#define MAXRTOS_MPU_REGION_COUNT    ( 16U )
+#define MAXRTOS_MPU_SYSTEM_REGION_COUNT ( 8U )
+#define MAXRTOS_MPU_REGION_COUNT        ( 16U )
 
 /* RASR bit-field positions. */
 #define MAXRTOS_RASR_ENABLE_POS ( 0U )
-#define MAXRTOS_RASR_SIZE_POS   ( 1U )   /* 5 bits: bits[5:1]   */
+#define MAXRTOS_RASR_SIZE_POS   ( 1U )
 #define MAXRTOS_RASR_B_POS      ( 16U )
 #define MAXRTOS_RASR_C_POS      ( 17U )
 #define MAXRTOS_RASR_S_POS      ( 18U )
-#define MAXRTOS_RASR_TEX_POS    ( 19U )  /* 3 bits: bits[21:19] */
-#define MAXRTOS_RASR_AP_POS     ( 24U )  /* 3 bits: bits[26:24] */
+#define MAXRTOS_RASR_TEX_POS    ( 19U )
+#define MAXRTOS_RASR_AP_POS     ( 24U )
 #define MAXRTOS_RASR_XN_POS     ( 28U )
 
 /* RASR access-permission encodings. */
@@ -52,6 +55,9 @@
 #define MAXRTOS_RASR_XN_NON_EXECUTABLE ( UINT32_C( 1 ) )
 
 static maxrtos_mpu_config_t const * s_config = NULL;
+
+static bool s_active_region_valid = false;
+static maxrtos_partition_id_t s_active_partition_id = 0U;
 
 /**
  * @brief Convert a power-of-two region size to the ARM MPU SIZE field.
@@ -130,12 +136,22 @@ static void maxrtos_arch_mpu_program_region(
            ( MAXRTOS_RASR_B_DEFAULT << MAXRTOS_RASR_B_POS ) |
            ( MAXRTOS_RASR_S_DEFAULT << MAXRTOS_RASR_S_POS ) |
            ( xn_field << MAXRTOS_RASR_XN_POS );
-            /* SRD remains zero, enabling all subregions. */
+           /* SRD remains zero, enabling all subregions. */
 
     MAXRTOS_MPU_RASR = rasr;
 
     __asm volatile ( "dsb" );
     __asm volatile ( "isb" );
+}
+
+/* Map a partition ID to its reserved MPU region.
+ * Regions 0 through 7 are reserved for system-wide regions.
+ * Partition 0 therefore starts at region 8. */
+static uint32_t maxrtos_mpu_partition_region(
+    maxrtos_partition_id_t partition_id )
+{
+    return MAXRTOS_MPU_SYSTEM_REGION_COUNT +
+           ( uint32_t ) partition_id;
 }
 
 static void maxrtos_arch_mpu_disable_region(
@@ -148,7 +164,8 @@ static void maxrtos_arch_mpu_disable_region(
     __asm volatile ( "isb" );
 }
 
-void maxrtos_arch_mpu_set_config( maxrtos_mpu_config_t const * config )
+void maxrtos_arch_mpu_set_config(
+    maxrtos_mpu_config_t const * config )
 {
     s_config = config;
 }
@@ -167,19 +184,21 @@ static void maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
     maxrtos_mpu_region_config_t region;
-    maxrtos_partition_id_t other_partition_id;
+    uint32_t partition_region;
 
-    /* Disable every other partition's data region before
+    partition_region = maxrtos_mpu_partition_region( partition_id );
+
+    /* Disable current partition's data region before
      * enabling the incoming one. */
-    for( other_partition_id = 0U;
-         other_partition_id < MAXRTOS_MAX_PARTITIONS;
-         other_partition_id++ )
+    if( s_active_region_valid &&
+        ( s_active_partition_id != partition_id ) )
     {
-        if( other_partition_id != partition_id )
-        {
-            maxrtos_arch_mpu_disable_region(
-                ( uint32_t ) other_partition_id );
-        }
+        uint32_t active_region;
+
+        active_region = maxrtos_mpu_partition_region(
+            s_active_partition_id );
+
+        maxrtos_arch_mpu_disable_region( active_region );
     }
 
     /* Configuration was validated during boot by
@@ -190,11 +209,14 @@ static void maxrtos_arch_mpu_configure_for_partition(
         &region );
 
     maxrtos_arch_mpu_program_region(
-        ( uint32_t ) partition_id,
+        partition_region,
         region.base_address,
         region.size_bytes,
         region.access,
         region.executable );
+    
+    s_active_partition_id = partition_id;
+    s_active_region_valid = true;
 }
 
 void maxrtos_arch_mpu_configure_for_next_pcb(
@@ -202,9 +224,10 @@ void maxrtos_arch_mpu_configure_for_next_pcb(
 {
     /* Called from the context-switch path with the next process's
      * PCB. The NULL check protects the C/assembly interface. */
-    if ( next_pcb != NULL )
+    if( next_pcb != NULL )
     {
-        maxrtos_arch_mpu_configure_for_partition( next_pcb->partition_id );
+        maxrtos_arch_mpu_configure_for_partition(
+            next_pcb->partition_id );
     }
 }
 
@@ -219,7 +242,7 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( region_number >= MAXRTOS_MAX_PARTITIONS ) &&
+    if( ( region_number >= MAXRTOS_MPU_SYSTEM_REGION_COUNT ) &&
         ( region_number < MAXRTOS_MPU_REGION_COUNT ) &&
         ( size_bytes >= MAXRTOS_MPU_REGION_MIN_SIZE ) &&
         ( ( base_address % size_bytes ) == 0U ) &&
