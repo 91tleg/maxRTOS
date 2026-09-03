@@ -60,7 +60,10 @@ maxrtos_status_t maxrtos_mpu_set_partition_region(
         ( partition_id < MAXRTOS_MAX_PARTITIONS ) &&
         ( size_bytes >= MAXRTOS_MPU_REGION_MIN_SIZE ) &&
         ( maxrtos_mpu_is_power_of_two( size_bytes ) == true ) &&
-        ( ( base_address % size_bytes ) == 0U ) )
+        ( ( base_address % size_bytes ) == 0U ) &&
+        ( ( access == MAXRTOS_MPU_ACCESS_NONE ) ||
+          ( access == MAXRTOS_MPU_ACCESS_READ_ONLY ) ||
+          ( access == MAXRTOS_MPU_ACCESS_READ_WRITE ) ) )
     {
         config->regions[ partition_id ].base_address = base_address;
         config->regions[ partition_id ].size_bytes = size_bytes;

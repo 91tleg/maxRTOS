@@ -60,8 +60,12 @@ void maxrtos_arch_mpu_init( void );
  * @param[in] next_pcb
  *     Process control block about to become current.
  *     If NULL, no MPU configuration is performed.
+ * 
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ARG if next_pcb is NULL.
  */
-void maxrtos_arch_mpu_configure_for_next_pcb(
+maxrtos_status_t maxrtos_arch_mpu_configure_for_next_pcb(
     maxrtos_process_control_block_t const * next_pcb );
 
 /**

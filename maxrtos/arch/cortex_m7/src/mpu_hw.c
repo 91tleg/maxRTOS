@@ -28,7 +28,6 @@
 #define MAXRTOS_MPU_CTRL_ENABLE_BIT ( 1UL << 0U )
 
 #define MAXRTOS_MPU_SYSTEM_REGION_COUNT ( 8U )
-#define MAXRTOS_MPU_REGION_COUNT        ( 16U )
 
 #define MAXRTOS_INVALID_PARTITION_ID ( UINT32_MAX )
 
@@ -165,45 +164,57 @@ void maxrtos_arch_mpu_init( void )
     __asm volatile ( "isb" );
 }
 
-static void maxrtos_arch_mpu_configure_for_partition(
+static maxrtos_status_t maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
     /* No partition is loaded until the first context switch. */
     static uint32_t s_active_partition_id =
         MAXRTOS_INVALID_PARTITION_ID;
 
+    maxrtos_status_t status;
     maxrtos_mpu_region_config_t region;
 
-    if( ( uint32_t ) partition_id != s_active_partition_id )
+    if( ( uint32_t ) partition_id == s_active_partition_id )
     {
-        /* Configuration was validated during boot by
-         * maxrtos_mpu_set_partition_region(). */
-        ( void ) maxrtos_mpu_get_partition_region(
+        status = MAXRTOS_OK;
+    }
+    else
+    {
+        status = maxrtos_mpu_get_partition_region(
             s_config,
             partition_id,
             &region );
 
-        maxrtos_arch_mpu_program_region(
-            MAXRTOS_MPU_PARTITION_REGION,
-            region.base_address,
-            region.size_bytes,
-            region.access,
-            region.executable );
+        if( status == MAXRTOS_OK )
+        {
+            maxrtos_arch_mpu_program_region(
+                MAXRTOS_MPU_PARTITION_REGION,
+                region.base_address,
+                region.size_bytes,
+                region.access,
+                region.executable );
 
-        s_active_partition_id = ( uint32_t ) partition_id;
+            s_active_partition_id = ( uint32_t ) partition_id;
+        }
     }
+
+    return status;
 }
 
-void maxrtos_arch_mpu_configure_for_next_pcb(
+maxrtos_status_t maxrtos_arch_mpu_configure_for_next_pcb(
     maxrtos_process_control_block_t const * next_pcb )
 {
-    /* Called from the context-switch path with the next process's
-     * PCB. The NULL check protects the C/assembly interface. */
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
     if( next_pcb != NULL )
     {
-        maxrtos_arch_mpu_configure_for_partition(
+        status = maxrtos_arch_mpu_configure_for_partition(
             next_pcb->partition_id );
     }
+
+    return status;
 }
 
 maxrtos_status_t maxrtos_arch_mpu_configure_region(

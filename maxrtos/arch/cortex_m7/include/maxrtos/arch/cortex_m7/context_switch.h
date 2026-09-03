@@ -12,6 +12,9 @@
 
 #include "maxrtos/kernel/process.h"
 
+extern maxrtos_process_control_block_t * g_maxrtos_current_pcb;
+extern maxrtos_process_control_block_t * g_maxrtos_next_pcb;
+
 /**
  * @brief Initialize a process execution stack.
  *

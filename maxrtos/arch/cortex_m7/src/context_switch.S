@@ -2,9 +2,8 @@
  * @file context_switch.S
  * @brief Cortex-M7 PendSV context-switch implementation.
  *
- * @details
- * Performs the processor-specific context save, MPU update, and
- * context restore required to switch between MaxRTOS processes.
+ * Performs the context save, MPU update, and context restore required
+ * to switch between processes.
  *
  * On exception entry, the processor automatically saves the hardware
  * exception frame. This handler additionally saves and restores
@@ -15,19 +14,6 @@
  *
  * The current process pointer may be NULL during the initial context
  * switch. In that case, no outgoing process context is saved.
- *
- * The MPU shall be configured for the incoming process before its
- * context is restored and execution resumes. This prevents the
- * incoming process from executing with the outgoing process's MPU
- * configuration.
- *
- * The EXC_RETURN value supplied by the processor is preserved across
- * the handler. Bits 3 and 2 are set before exception return to select
- * Thread mode and PSP. Other EXC_RETURN attributes are preserved.
- *
- * The handler maintains the stack alignment required by the ARM
- * procedure call standard before calling the C MPU configuration
- * function.
  *
  * @pre
  * g_maxrtos_next_pcb shall reference a valid process control block
@@ -73,6 +59,10 @@ PendSV_Handler:
     ldr     r0, [r0]              /* r0 = incoming PCB */
     bl      maxrtos_arch_mpu_configure_for_next_pcb
 
+    cmp     r0, #0
+    beq     2f
+    b       maxrtos_mpu_configure_failed
+2:
     /* r0-r3 and r12 are caller-saved by the function call above.
      * Reload the incoming PCB rather than relying on r0. */
     ldr     r0, =g_maxrtos_next_pcb
@@ -98,3 +88,12 @@ PendSV_Handler:
     bx      lr
 
     .size PendSV_Handler, . - PendSV_Handler
+
+/* MPU configuration failed during a context switch. */
+    .section .text.maxrtos_mpu_configure_failed
+    .type maxrtos_mpu_configure_failed, %function
+    .thumb_func
+maxrtos_mpu_configure_failed:
+    bkpt    #0
+    b       maxrtos_mpu_configure_failed
+    .size maxrtos_mpu_configure_failed, . - maxrtos_mpu_configure_failed

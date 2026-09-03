@@ -42,8 +42,7 @@
 maxrtos_process_control_block_t * g_maxrtos_current_pcb = NULL;
 maxrtos_process_control_block_t * g_maxrtos_next_pcb = NULL;
 
-/* Cortex-M requires the Thumb state bit to be set in an exception
- * return address. */
+/* Thumb-state bit required in the stacked PC for Cortex-M. */
 #define MAXRTOS_THUMB_BIT \
     ( 0x1UL )
 
