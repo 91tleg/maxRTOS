@@ -5,10 +5,6 @@
  *
  * Implements storage, validation, and retrieval of fault-recovery
  * policies used by the kernel fault-recovery service.
- *
- * The module maintains configured policy data only. It does not
- * maintain run-time fault state, access architecture-specific
- * hardware, or perform fault handling directly.
  */
 
 #include <stddef.h>
@@ -19,19 +15,20 @@ maxrtos_status_t maxrtos_hm_init(
     maxrtos_health_monitor_t * hm )
 {
     maxrtos_status_t status;
-    size_t partition_id;
-    size_t fault_type;
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
     if( hm != NULL )
     {
+        size_t partition_id;
+        size_t fault_type;
+
         for( partition_id = 0U;
              partition_id < MAXRTOS_MAX_PARTITIONS;
              partition_id++ )
         {
             for( fault_type = 0U;
-                 fault_type < MAXRTOS_FAULT_COUNT;
+                 fault_type < ( size_t ) MAXRTOS_FAULT_COUNT;
                  fault_type++ )
             {
                 hm->policy[ partition_id ][ fault_type ] = 

@@ -13,11 +13,6 @@
  * Architecture-specific fault handling, processor context
  * management, process stack reconstruction, and context switching
  * are outside the scope of this module.
- *
- * All policy entries are initialized to
- * MAXRTOS_HM_ACTION_HALT_PARTITION by maxrtos_hm_init(). Less
- * restrictive actions require explicit configuration through
- * maxrtos_hm_set_policy().
  */
 
 #ifndef MAXRTOS_KERNEL_HEALTH_MONITOR_H
@@ -41,6 +36,7 @@ typedef enum
     MAXRTOS_FAULT_ILLEGAL_INSTRUCTION,
     MAXRTOS_FAULT_DIVIDE_BY_ZERO,
     MAXRTOS_FAULT_UNEXPECTED_RETURN,
+    MAXRTOS_FAULT_DEADLINE_EXCEEDED,
 
     MAXRTOS_FAULT_COUNT,
 } maxrtos_fault_type_t;
