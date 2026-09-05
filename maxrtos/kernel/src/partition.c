@@ -11,11 +11,6 @@
  * ID. Dispatch operations select the next process within the
  * specified partition and update the corresponding current-process
  * identifier.
- *
- * This module does not access architecture-specific scheduling
- * mechanisms directly. Architecture-specific context switching is
- * performed by the architecture layer after dispatch has selected
- * the next process.
  */
 
 #include <stdbool.h>
@@ -28,12 +23,13 @@ maxrtos_status_t maxrtos_partition_table_init(
     maxrtos_partition_table_t * table )
 {
     maxrtos_status_t status;
-    size_t partition_id;
  
     status = MAXRTOS_ERR_INVALID_ARG;
 
     if( table != NULL )
     {
+        size_t partition_id;
+
         status = MAXRTOS_OK;
 
         for( partition_id = 0U;
