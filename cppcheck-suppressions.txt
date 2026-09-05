@@ -1,8 +1,5 @@
 misra-c2012-11.1:maxrtos/arch/cortex_m7/*
 misra-c2012-11.4:maxrtos/arch/cortex_m7/*
-misra-c2012-11.6:maxrtos/arch/cortex_m7/*
-misra-c2012-17.3:maxrtos/arch/cortex_m7/*
 misra-c2012-18.4:maxrtos/arch/cortex_m7/*
 misra-c2012-8.4:maxrtos/arch/cortex_m7/*
-misra-c2012-8.7:maxrtos/*
 nullPointerRedundantCheck:maxrtos/arch/cortex_m7/src/fault_handlers.c
