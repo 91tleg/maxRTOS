@@ -4,6 +4,7 @@ add_library(maxrtos_arch_cortex_m7 STATIC
     src/fault_handlers.c
     src/mpu.c
     src/mpu_hw.c
+    src/yield.c
 )
 
 target_include_directories(maxrtos_arch_cortex_m7 PUBLIC
