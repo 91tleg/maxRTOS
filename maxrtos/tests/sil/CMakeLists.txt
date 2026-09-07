@@ -1,0 +1,7 @@
+
+add_executable(maxrtos_sil_test_temporal_ratio
+    test_temporal_ratio.c
+)
+target_link_libraries(maxrtos_sil_test_temporal_ratio PRIVATE maxrtos_kernel)
+add_test(NAME sil_temporal_ratio_tests COMMAND maxrtos_sil_test_temporal_ratio)
+ 
