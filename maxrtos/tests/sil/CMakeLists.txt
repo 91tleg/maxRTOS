@@ -5,3 +5,8 @@ add_executable(maxrtos_sil_test_temporal_ratio
 target_link_libraries(maxrtos_sil_test_temporal_ratio PRIVATE maxrtos_kernel)
 add_test(NAME sil_temporal_ratio_tests COMMAND maxrtos_sil_test_temporal_ratio)
  
+add_executable(maxrtos_sil_test_fault_recovery_soak
+    test_fault_recovery_soak.c
+)
+target_link_libraries(maxrtos_sil_test_fault_recovery_soak PRIVATE maxrtos_kernel)
+add_test(NAME sil_fault_recovery_soak_tests COMMAND maxrtos_sil_test_fault_recovery_soak)
