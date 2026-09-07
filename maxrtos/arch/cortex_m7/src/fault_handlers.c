@@ -72,6 +72,11 @@ void maxrtos_arch_set_partition_table(
     s_table = table;
 }
 
+maxrtos_partition_table_t * maxrtos_arch_get_partition_table( void )
+{
+    return s_table;
+}
+
 /* Handle a fault after architecture-specific classification.
  * Recovery policy is selected by the kernel health monitor. The
  * selected action is then enacted here because process context and

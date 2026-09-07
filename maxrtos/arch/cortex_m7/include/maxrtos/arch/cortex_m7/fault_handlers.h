@@ -44,9 +44,8 @@
  * @brief Enable configurable fault exceptions and divide-by-zero
  *        trapping.
  *
- * Enables the MemManage, BusFault, and UsageFault exceptions through
- * SCB->SHCSR and enables integer divide-by-zero trapping through
- * SCB->CCR.DIV_0_TRP.
+ * Enables the MemManage, BusFault, UsageFault, integer divide-by-zero
+ * trapping.
  *
  * This function shall be called once during system initialization
  * before process execution begins.
@@ -72,5 +71,13 @@ void maxrtos_arch_set_health_monitor(
  */
 void maxrtos_arch_set_partition_table(
     maxrtos_partition_table_t * table );
+
+/**
+ * @brief Retrieve the registered partition table used by fault recovery.
+ *
+ * @return The partition-table pointer previously registered via
+ * `maxrtos_arch_set_partition_table()` or NULL if none has been set.
+ */
+maxrtos_partition_table_t * maxrtos_arch_get_partition_table( void );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_FAULT_HANDLERS_H */
