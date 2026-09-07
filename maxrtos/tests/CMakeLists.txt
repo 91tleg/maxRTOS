@@ -4,6 +4,5 @@ project(maxrtos_tests C)
 
 enable_testing()
 
-add_subdirectory(kernel)
-add_subdirectory(arch)
+add_subdirectory(unit)
 add_subdirectory(sil)
