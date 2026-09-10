@@ -43,7 +43,7 @@ void maxrtos_arch_systick( void )
                 &next_id ) == MAXRTOS_OK )
         {
             maxrtos_process_control_block_t * next_pcb;
-            maxrtos_process_control_block_t * current_pcb;
+            maxrtos_process_control_block_t const * current_pcb;
 
             next_pcb = maxrtos_process_get( next_id );
             current_pcb = maxrtos_arch_get_current_pcb();
