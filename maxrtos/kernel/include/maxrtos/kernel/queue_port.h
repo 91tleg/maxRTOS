@@ -1,13 +1,8 @@
 /**
  * @file queue_port.h
- * @brief Fixed-capacity, fixed-size FIFO queuing port interface.
+ * @brief Inter-partition fixed-size queuing port.
  *
- * Each port is configured with a fixed message size and maximum
- * message capacity. Messages are copied into and out of statically
- * allocated storage and are delivered in FIFO order.
- *
- * Sending to a full port and receiving from an empty port are
- * non-blocking operations that return an error status.
+ * Provides FIFO communication between partitions.
  */
 
 #ifndef MAXRTOS_KERNEL_QUEUE_PORT_H
@@ -18,27 +13,16 @@
 
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
+#include "maxrtos/kernel/internal/fifo.h"
 
 /**
  * @brief A single queuing port instance.
  *
  * @field buffer
- *     Statically allocated storage. The buffer is sized for the
- *     compile-time maximum queue capacity and message size.
+ *     Statically allocated queue storage.
  *
- * @field message_size
- *     Size, in bytes, of every message carried by this port.
- *     Fixed during initialization.
- *
- * @field capacity
- *     Maximum number of messages that may be stored simultaneously.
- *     Fixed during initialization.
- *
- * @field head
- *     Index, in message-slot units, of the oldest unread message.
- *
- * @field count
- *     Number of messages currently stored in the port.
+ * @field fifo
+ *     FIFO engine operating on buffer.
  */
 typedef struct
 {
@@ -46,10 +30,7 @@ typedef struct
         MAXRTOS_MAX_QUEUE_CAPACITY *
         MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ];
 
-    size_t message_size;
-    size_t capacity;
-    size_t head;
-    size_t count;
+    maxrtos_kernel_fifo_t fifo;
 } maxrtos_queue_port_t;
 
 /**

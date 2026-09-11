@@ -9,9 +9,13 @@ add_library(maxrtos_kernel STATIC
     src/health_monitor.c
     src/tick.c
     src/yield.c
+    src/internal/fifo.c
 )
 
-target_include_directories(maxrtos_kernel PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+target_include_directories(maxrtos_kernel
+    PUBLIC 
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/internal
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/internal
 )
