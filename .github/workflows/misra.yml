@@ -33,5 +33,6 @@ jobs:
             -I maxrtos/include \
             -I maxrtos/kernel/include \
             -I maxrtos/arch/cortex_m7/include \
+            -I maxrtos/kernel/internal \
             maxrtos/kernel/src \
             maxrtos/arch/cortex_m7/src
