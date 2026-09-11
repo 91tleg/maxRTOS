@@ -103,6 +103,7 @@ static void test_yield_with_sole_ready_process_reports_no_switch(
             TEST_STACK_SIZE,
             (maxrtos_partition_id_t) 0U,
             5U,
+            true,
             dummy_entry,
             NULL,
             &id_a ) == MAXRTOS_OK );
@@ -148,6 +149,7 @@ static void test_switch_needed_matches_next_id_vs_current_id( void )
             TEST_STACK_SIZE,
             (maxrtos_partition_id_t) 0U,
             5U,
+            true,
             dummy_entry,
             NULL,
             &id_a ) == MAXRTOS_OK );

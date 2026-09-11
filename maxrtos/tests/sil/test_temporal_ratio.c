@@ -66,6 +66,7 @@ static void test_5_3_ratio_holds_over_many_frames( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 0U,
             5U,
+            true,
             dummy_entry,
             NULL,
             &id_p0 ) == MAXRTOS_OK );
@@ -76,6 +77,7 @@ static void test_5_3_ratio_holds_over_many_frames( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 1U,
             5U,
+            true,
             dummy_entry,
             NULL,
             &id_p1 ) == MAXRTOS_OK );

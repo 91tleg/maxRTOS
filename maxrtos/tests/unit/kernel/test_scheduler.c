@@ -39,6 +39,7 @@ static maxrtos_process_id_t make_ready_process(
         sizeof( s_stacks[ s_next_stack ] ),
         partition_id,
         priority,
+        true,
         dummy_entry,
         NULL,
         &id );

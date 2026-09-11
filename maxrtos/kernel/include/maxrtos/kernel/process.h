@@ -9,6 +9,7 @@
 #ifndef MAXRTOS_KERNEL_PROCESS_H
 #define MAXRTOS_KERNEL_PROCESS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -57,6 +58,7 @@ typedef struct
     maxrtos_partition_id_t partition_id;
     uint8_t priority;
     maxrtos_process_state_t state;
+    bool unprivileged;
 
     maxrtos_process_entry_t entry;
     void * entry_arg;
@@ -85,6 +87,11 @@ void maxrtos_process_pool_init( void );
  *     Process priority. Valid range is 0 through
  *     MAXRTOS_MAX_PRIORITY, where 0 is the highest priority.
  *
+ * @param[in] unprivileged
+ *     True to run this process unprivileged.
+ *     Partition application code should virtually always pass true.
+ *     false for reserved for kernel-trusted processes.
+ *
  * @param[in] entry
  *     Process entry function.
  *
@@ -107,6 +114,7 @@ maxrtos_status_t maxrtos_process_create(
     size_t stack_size,
     maxrtos_partition_id_t partition_id,
     uint8_t priority,
+    bool unprivileged,
     maxrtos_process_entry_t entry,
     void * entry_arg,
     maxrtos_process_id_t * out_id );
