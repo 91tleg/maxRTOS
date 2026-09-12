@@ -6,6 +6,9 @@ add_library(maxrtos_arch_cortex_m7 STATIC
     src/mpu_hw.c
     src/systick.c
     src/yield.c
+    src/svc.c
+    src/svc.S
+    src/start_scheduler.c
 )
 
 target_include_directories(maxrtos_arch_cortex_m7
