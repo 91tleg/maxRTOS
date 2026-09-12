@@ -9,6 +9,7 @@ add_library(maxrtos_kernel STATIC
     src/health_monitor.c
     src/tick.c
     src/yield.c
+    src/start_scheduler.c
     src/internal/fifo.c
 )
 
