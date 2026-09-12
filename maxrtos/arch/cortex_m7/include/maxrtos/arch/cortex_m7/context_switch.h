@@ -76,6 +76,23 @@ void maxrtos_arch_set_next_pcb(
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void );
 
 /**
+ * @brief Apply the privilege level for the next process.
+ *
+ * Updates the Cortex-M CONTROL.nPRIV bit according to the privilege
+ * configuration of the supplied process control block.
+ *
+ * A process with @c unprivileged set to true is executed in unprivileged
+ * Thread mode. A process with @c unprivileged set to false is executed
+ * in privileged Thread mode.
+ *
+ * @param[in] pcb
+ *     Process control block describing the privilege level to apply.
+ *     If NULL, no action is performed.
+ */
+void maxrtos_arch_apply_privilege_for_next_pcb(
+    maxrtos_process_control_block_t const * pcb );
+
+/**
  * @brief Request a context switch.
  *
  * Pends the Cortex-M7 PendSV exception. The requested context switch

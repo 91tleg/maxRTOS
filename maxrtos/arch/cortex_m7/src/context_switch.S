@@ -1,28 +1,21 @@
 /**
  * @file context_switch.S
- * @brief Cortex-M7 PendSV context-switch implementation.
+ * @brief Cortex-M7 PendSV context switch.
  *
- * Performs the context save, MPU update, and context restore required
- * to switch between processes.
+ * Saves and restores the software-saved process context around the
+ * hardware exception frame, configures the incoming process MPU and
+ * privilege state, and returns to it using PSP.
  *
- * On exception entry, the processor automatically saves the hardware
- * exception frame. This handler additionally saves and restores
- * registers r4-r11, which comprise the software-saved process context.
+ * The PCB's stack_pointer member shall be at offset zero.
  *
- * The process control block shall store stack_pointer as its first
- * member. This handler accesses that member at offset zero.
- *
- * The current process pointer may be NULL during the initial context
- * switch. In that case, no outgoing process context is saved.
+ * g_maxrtos_current_pcb may be NULL during the first context switch.
  *
  * @pre
- * g_maxrtos_next_pcb shall reference a valid process control block
- * when a context switch is requested.
+ * g_maxrtos_next_pcb references a valid process control block.
  *
  * @post
- * The MPU is configured for the incoming process, PSP references its
- * restored exception frame, and g_maxrtos_current_pcb references the
- * incoming process before exception return.
+ * The incoming process is configured and restored, and
+ * g_maxrtos_current_pcb references it before exception return.
  */
 
     .syntax unified
@@ -35,61 +28,58 @@
     .thumb_func
 
 PendSV_Handler:
-    /* Preserve the entry EXC_RETURN value and maintain 8-byte stack
-     * alignment for the C function call below. */
+    /* Preserve EXC_RETURN and keep the stack 8-byte aligned for C calls. */
     push    {r0, lr}
 
-    /* Prevent a concurrent interrupt from observing partially updated
-     * process context or scheduler state. */
+    /* Protect scheduler state and process context during the switch. */
     cpsid   i
 
-    /* Save the outgoing process's software-saved registers. */
+    /* Save the outgoing software-saved context. */
     ldr     r0, =g_maxrtos_current_pcb
-    ldr     r0, [r0]              /* r0 = current PCB */
-    cbz     r0, 1f                /* No outgoing process during first switch. */
+    ldr     r0, [r0]
+    cbz     r0, 1f
 
-    mrs     r1, psp               /* r1 = outgoing process PSP */
-    stmdb   r1!, {r4-r11}         /* Save software-saved registers. */
-    str     r1, [r0]              /* pcb->stack_pointer = saved context. */
+    mrs     r1, psp
+    stmdb   r1!, {r4-r11}
+    str     r1, [r0]              /* pcb->stack_pointer */
 
 1:
-    /* Configure the incoming process's MPU before restoring its
-     * context and allowing it to execute. */
+    /* Configure the incoming process before restoring its context. */
     ldr     r0, =g_maxrtos_next_pcb
-    ldr     r0, [r0]              /* r0 = incoming PCB */
+    ldr     r0, [r0]
     bl      maxrtos_arch_mpu_configure_for_next_pcb
 
     cmp     r0, #0
     beq     2f
     b       maxrtos_mpu_configure_failed
+
 2:
-    /* r0-r3 and r12 are caller-saved by the function call above.
-     * Reload the incoming PCB rather than relying on r0. */
+    ldr     r0, =g_maxrtos_next_pcb
+    ldr     r0, [r0]
+    bl      maxrtos_arch_apply_privilege_for_next_pcb
+
     ldr     r0, =g_maxrtos_next_pcb
     ldr     r0, [r0]
 
-    /* Restore the incoming process's software-saved registers. */
-    ldr     r1, [r0]              /* r1 = incoming saved stack pointer */
-    ldmia   r1!, {r4-r11}         /* Restore software-saved registers. */
-    msr     psp, r1               /* PSP now references the hardware frame. */
+    /* Restore the incoming software-saved context. */
+    ldr     r1, [r0]              /* pcb->stack_pointer */
+    ldmia   r1!, {r4-r11}
+    msr     psp, r1
 
-    /* Publish the incoming process as the current process before
-     * returning to Thread mode. */
+    /* Publish the incoming process before returning to Thread mode. */
     ldr     r2, =g_maxrtos_current_pcb
     str     r0, [r2]
 
-    /* Re-enable interrupts before exception return. */
     cpsie   i
 
-    /* Restore EXC_RETURN. Select Thread mode and PSP while preserving
-     * all other processor-supplied EXC_RETURN attributes. */
+    /* Return to Thread mode using PSP, preserving other EXC_RETURN bits. */
     pop     {r0, lr}
     orr     lr, lr, #0x0C
     bx      lr
 
     .size PendSV_Handler, . - PendSV_Handler
 
-/* MPU configuration failed during a context switch. */
+/* MPU configuration failure is fatal. */
     .section .text.maxrtos_mpu_configure_failed
     .type maxrtos_mpu_configure_failed, %function
     .thumb_func

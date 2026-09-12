@@ -13,16 +13,18 @@
 
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 
-/* ICSR controls system exception state, including the PendSV pending bit. */
+/* SCB ICSR: PendSV set-pending bit. */
 #define MAXRTOS_SCB_ICSR \
     ( *( volatile uint32_t * ) 0xE000ED04UL )
 
-/* SHPR3 contains the configurable priority fields for SysTick and PendSV. */
+/* SHPR3: SysTick and PendSV priority fields. */
 #define MAXRTOS_SCB_SHPR3 \
     ( *( volatile uint32_t * ) 0xE000ED20UL )
 
 #define MAXRTOS_ICSR_PENDSVSET_BIT \
-    ( 1UL << 28U )
+    ( UINT32_C( 1 ) << 28U )
+
+#define MAXRTOS_CONTROL_NPRIV ( UINT32_C( 1 ) )
 
 /* SHPR3 priority fields.
  * ARM exception priorities use numerically larger values to represent
@@ -30,10 +32,10 @@
  * configurable exception priority so that context switching does not
  * preempt higher-priority interrupt handlers. */
 #define MAXRTOS_SHPR3_PENDSV_LOWEST \
-    ( 0xFFUL << 16U )
+    ( UINT32_C( 0xFF ) << 16U )
 
 #define MAXRTOS_SHPR3_SYSTICK_LOWEST \
-    ( 0xFFUL << 24U )
+    ( UINT32_C( 0xFF ) << 24U )
 
 /* Context-switch state shared with context_switch.S.
  * These objects are intentionally externally visible because the
@@ -43,8 +45,7 @@ maxrtos_process_control_block_t * g_maxrtos_current_pcb = NULL;
 maxrtos_process_control_block_t * g_maxrtos_next_pcb = NULL;
 
 /* Thumb-state bit required in the stacked PC for Cortex-M. */
-#define MAXRTOS_THUMB_BIT \
-    ( 0x1UL )
+#define MAXRTOS_THUMB_BIT  ( UINT32_C( 1 ) )
 
 /* Initial xPSR value for a newly-created process.
  * The Thumb-state bit is set and all other fields zeroed. */
@@ -146,6 +147,39 @@ void maxrtos_arch_set_next_pcb(
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void )
 {
     return g_maxrtos_current_pcb;
+}
+
+void maxrtos_arch_apply_privilege_for_next_pcb(
+    maxrtos_process_control_block_t const * pcb )
+{
+
+    if( pcb != NULL )
+    {
+        uint32_t control;
+
+        __asm volatile (
+            "mrs %0, control"
+            : "=r" ( control )
+            :
+            : "memory" );
+
+        if( pcb->unprivileged == true )
+        {
+            control |= MAXRTOS_CONTROL_NPRIV;   /* CONTROL.nPRIV = 1 */
+        }
+        else
+        {
+            control &= ~MAXRTOS_CONTROL_NPRIV;  /* CONTROL.nPRIV = 0 */
+        }
+
+        __asm volatile (
+            "msr control, %0"
+            :
+            : "r" ( control )
+            : "memory" );
+
+        __asm volatile ( "isb" );
+    }
 }
 
 void maxrtos_arch_request_context_switch( void )
