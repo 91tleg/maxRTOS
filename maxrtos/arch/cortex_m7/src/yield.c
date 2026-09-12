@@ -2,7 +2,7 @@
  * @file yield.c
  * @brief implementation of voluntary CPU yield processing.
  *
- * Implements the target-specific wrapper for voluntary process yielding on 
+ * Implements the target-specific wrapper for voluntary process yielding on
  * Cortex-M7. Queries the active PCB context, invokes the kernel yield
  * evaluation logic, and execute a context switch when needed.
  */
@@ -11,9 +11,21 @@
 #include <stddef.h>
 
 #include "maxrtos/arch/cortex_m7/yield.h"
+#include "maxrtos/arch/cortex_m7/internal/yield.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
+#include "maxrtos/arch/cortex_m7/svc.h"
 #include "maxrtos/kernel/yield.h"
 #include "maxrtos/kernel/partition.h"
+#include "maxrtos/arch/cortex_m7/fault_handlers.h"
+
+void maxrtos_yield( void )
+{
+    __asm volatile (
+        "svc %0"
+        :
+        : "i" ( MAXRTOS_SVC_YIELD )
+        : "memory" );
+}
 
 void maxrtos_arch_yield( void )
 {
