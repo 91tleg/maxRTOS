@@ -60,4 +60,50 @@ maxrtos_status_t maxrtos_kernel_dispatch(
     maxrtos_process_id_t current_id,
     maxrtos_process_id_t * out_next_id );
 
+/**
+ * @brief Transition the currently-running process to BLOCKED and
+ *        dispatch a replacement, WITHOUT requeuing the blocking
+ *        process into the ready queue.
+ *
+ * This is distinct from maxrtos_kernel_dispatch(), which always
+ * transitions "current" back to READY and re-adds it to the
+ * scheduler -- that is correct for cooperative yield and tick-driven
+ * preemption, where the outgoing process remains eligible to run
+ * again immediately. It is NOT correct for blocking on a contended
+ * resource (e.g. a mutex): a blocked process must not be selected by
+ * maxrtos_scheduler_next() again until something else (e.g. a mutex
+ * unlock) explicitly makes it READY.
+ *
+ * @param[in,out] ctx
+ *     Scheduler context for the blocking process's partition.
+ *
+ * @param[in] blocking_id
+ *     Process to block. Must currently be in the RUNNING state --
+ *     this function performs the RUNNING -> BLOCKED transition
+ *     itself; the caller must NOT have already changed its state
+ *     before calling (mirrors maxrtos_kernel_dispatch()'s existing
+ *     convention for the outgoing "current" process).
+ *
+ * @param[out] out_next_id
+ *     Process selected to run in blocking_id's place. Must not be
+ *     NULL.
+ *
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ARG if ctx or out_next_id is NULL, or
+ *     blocking_id is MAXRTOS_INVALID_PROCESS_ID.
+ *     MAXRTOS_ERR_INVALID_ID if blocking_id does not refer to an
+ *     allocated process.
+ *     MAXRTOS_ERR_INVALID_STATE if blocking_id's process is not
+ *     currently RUNNING.
+ *     MAXRTOS_ERR_QUEUE_EMPTY if no other process in this partition
+ *     is READY. blocking_id's process has NOT been transitioned to
+ *     BLOCKED in this case (there is nothing to run in its place) --
+ *     the caller must not proceed as though blocking succeeded.
+ */
+maxrtos_status_t maxrtos_kernel_block_and_dispatch(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t blocking_id,
+    maxrtos_process_id_t * out_next_id );
+
 #endif /* MAXRTOS_KERNEL_DISPATCH_H */

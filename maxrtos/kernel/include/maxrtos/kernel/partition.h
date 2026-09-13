@@ -161,4 +161,77 @@ maxrtos_status_t maxrtos_partition_dispatch(
     maxrtos_partition_id_t partition_id,
     maxrtos_process_id_t * out_next_id );
 
+/**
+ * @brief Block a process and dispatch its replacement within one
+ *        partition, updating that partition's current-process ID.
+ *
+ * The blocking process must be in the RUNNING state. On successful
+ * completion, the blocking process is changed to BLOCKED, the selected
+ * process is changed to RUNNING, and the partition's current-process
+ * ID is updated to the selected process.
+ *
+ * @param[in,out] table
+ *     Partition table. Must not be NULL.
+ *
+ * @param[in] partition_id
+ *     Partition containing the blocking process. Must be less than
+ *     MAXRTOS_MAX_PARTITIONS.
+ *
+ * @param[in] blocking_id
+ *     Process to block. Must identify a RUNNING process.
+ *
+ * @param[out] out_next_id
+ *     Process selected to run in blocking_id's place. Must not be
+ *     NULL.
+ *
+ * @return
+ *     MAXRTOS_OK on success (table->current_id[partition_id] is
+ *     updated to *out_next_id).
+ *     MAXRTOS_ERR_INVALID_ARG if table or out_next_id is NULL, or if
+ *     partition_id is out of range.
+ *     MAXRTOS_ERR_PARTITION_HALTED if the partition is halted.
+ *     MAXRTOS_ERR_INVALID_ID if blocking_id or the selected process
+ *     ID is invalid.
+ *     MAXRTOS_ERR_INVALID_STATE if blocking_id is not RUNNING or the
+ *     selected process is not READY.
+ *     MAXRTOS_ERR_QUEUE_EMPTY if no READY process is available.
+ *     Otherwise, any status returned by the lower-level dispatch
+ *     operation.
+ */
+maxrtos_status_t maxrtos_partition_block_and_dispatch(
+    maxrtos_partition_table_t * table,
+    maxrtos_partition_id_t partition_id,
+    maxrtos_process_id_t blocking_id,
+    maxrtos_process_id_t * out_next_id );
+
+/**
+ * @brief Make a process READY and add it to its partition's ready
+ *        queue.
+ *
+ * The specified process is changed to the READY state and added to
+ * the scheduler context associated with partition_id.
+ *
+ * @param[in,out] table
+ *     Partition table. Must not be NULL.
+ *
+ * @param[in] partition_id
+ *     Partition containing the process. Must be less than
+ *     MAXRTOS_MAX_PARTITIONS.
+ *
+ * @param[in] id
+ *     Process to make READY and add to the ready queue.
+ *
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ARG if table is NULL or partition_id is out
+ *     of range.
+ *     Otherwise, any status returned by
+ *     maxrtos_process_set_state() or
+ *     maxrtos_scheduler_add_process().
+ */
+maxrtos_status_t maxrtos_partition_ready_process(
+    maxrtos_partition_table_t * table,
+    maxrtos_partition_id_t partition_id,
+    maxrtos_process_id_t id );
+
 #endif /* MAXRTOS_KERNEL_PARTITION_H */

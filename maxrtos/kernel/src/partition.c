@@ -122,3 +122,62 @@ maxrtos_status_t maxrtos_partition_dispatch(
 
     return status;
 }
+
+maxrtos_status_t maxrtos_partition_ready_process(
+    maxrtos_partition_table_t * table,
+    maxrtos_partition_id_t partition_id,
+    maxrtos_process_id_t id )
+{
+    maxrtos_status_t status;
+ 
+    status = MAXRTOS_ERR_INVALID_ARG;
+ 
+    if( ( table != NULL ) && ( partition_id < MAXRTOS_MAX_PARTITIONS ) )
+    {
+        status = maxrtos_process_set_state(
+            id, MAXRTOS_PROCESS_STATE_READY );
+ 
+        if( status == MAXRTOS_OK )
+        {
+            status = maxrtos_scheduler_add_process(
+                &table->scheduler_ctx[ partition_id ], id );
+        }
+    }
+ 
+    return status;
+}
+
+maxrtos_status_t maxrtos_partition_block_and_dispatch(
+    maxrtos_partition_table_t * table,
+    maxrtos_partition_id_t partition_id,
+    maxrtos_process_id_t blocking_id,
+    maxrtos_process_id_t * out_next_id )
+{
+    maxrtos_status_t status;
+ 
+    status = MAXRTOS_ERR_INVALID_ARG;
+ 
+    if( ( table != NULL ) &&
+        ( out_next_id != NULL ) &&
+        ( partition_id < MAXRTOS_MAX_PARTITIONS ) )
+    {
+        if( table->halted[ partition_id ] )
+        {
+            status = MAXRTOS_ERR_PARTITION_HALTED;
+        }
+        else
+        {
+            status = maxrtos_kernel_block_and_dispatch(
+                        &table->scheduler_ctx[ partition_id ],
+                        blocking_id,
+                        out_next_id );
+ 
+            if( status == MAXRTOS_OK )
+            {
+                table->current_id[ partition_id ] = *out_next_id;
+            }
+        }
+    }
+ 
+    return status;
+}

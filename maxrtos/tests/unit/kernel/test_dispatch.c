@@ -341,6 +341,213 @@ static void test_dispatch_context_isolation( void )
     printf( "test_dispatch_context_isolation: PASS\n" );
 }
 
+static void test_block_and_dispatch_rejects_null_ctx( void )
+{
+    maxrtos_process_id_t out;
+    maxrtos_process_id_t id;
+
+    reset_all();
+
+    id = make_ready_process( 0U, 5U );
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            NULL,
+            id,
+            &out ) == MAXRTOS_ERR_INVALID_ARG );
+
+    printf(
+        "test_block_and_dispatch_rejects_null_ctx: PASS\n" );
+}
+
+static void test_block_and_dispatch_rejects_null_out( void )
+{
+    maxrtos_process_id_t id;
+
+    reset_all();
+
+    id = make_ready_process( 0U, 5U );
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            id,
+            NULL ) == MAXRTOS_ERR_INVALID_ARG );
+
+    printf(
+        "test_block_and_dispatch_rejects_null_out: PASS\n" );
+}
+
+static void test_block_and_dispatch_rejects_invalid_id( void )
+{
+    maxrtos_process_id_t out;
+
+    reset_all();
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            MAXRTOS_INVALID_PROCESS_ID,
+            &out ) == MAXRTOS_ERR_INVALID_ARG );
+
+    printf(
+        "test_block_and_dispatch_rejects_invalid_id: PASS\n" );
+}
+
+static void test_block_and_dispatch_rejects_unknown_id( void )
+{
+    maxrtos_process_id_t out;
+
+    reset_all();
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            ( maxrtos_process_id_t ) 9999U,
+            &out ) == MAXRTOS_ERR_INVALID_ID );
+
+    printf(
+        "test_block_and_dispatch_rejects_unknown_id: PASS\n" );
+}
+
+static void test_block_and_dispatch_rejects_non_running_process( void )
+{
+    maxrtos_process_id_t id;
+    maxrtos_process_id_t out;
+
+    reset_all();
+
+    id = make_ready_process( 0U, 5U );
+
+    assert(
+        maxrtos_scheduler_add_process(
+            &s_ctx,
+            id ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            id,
+            &out ) == MAXRTOS_ERR_INVALID_STATE );
+
+    printf(
+        "test_block_and_dispatch_rejects_non_running_process: PASS\n" );
+}
+
+static void test_block_and_dispatch_empty_ready_queue( void )
+{
+    maxrtos_process_id_t id;
+    maxrtos_process_id_t out;
+    maxrtos_process_control_block_t * pcb;
+
+    reset_all();
+
+    id = make_ready_process( 0U, 5U );
+
+    assert(
+        maxrtos_scheduler_add_process(
+            &s_ctx,
+            id ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_kernel_dispatch(
+            &s_ctx,
+            MAXRTOS_INVALID_PROCESS_ID,
+            &out ) == MAXRTOS_OK );
+
+    assert( out == id );
+
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            id,
+            &out ) == MAXRTOS_ERR_QUEUE_EMPTY );
+
+    assert( out == id );
+
+    pcb = maxrtos_process_get( id );
+
+    assert( pcb != NULL );
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( maxrtos_scheduler_process_count( &s_ctx ) == 0U );
+
+    printf(
+        "test_block_and_dispatch_empty_ready_queue: PASS\n" );
+}
+
+static void test_block_and_dispatch_blocks_current_and_runs_next(
+    void )
+{
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t b;
+    maxrtos_process_id_t out;
+    maxrtos_process_control_block_t * pcb_a;
+    maxrtos_process_control_block_t * pcb_b;
+
+    reset_all();
+
+    a = make_ready_process( 0U, 5U );
+    b = make_ready_process( 0U, 2U );
+
+    assert(
+        maxrtos_scheduler_add_process(
+            &s_ctx,
+            a ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_scheduler_add_process(
+            &s_ctx,
+            b ) == MAXRTOS_OK );
+
+    /*
+     * b has the higher priority and becomes RUNNING.
+     * a remains READY in the scheduler.
+     */
+    assert(
+        maxrtos_kernel_dispatch(
+            &s_ctx,
+            MAXRTOS_INVALID_PROCESS_ID,
+            &out ) == MAXRTOS_OK );
+
+    assert( out == b );
+
+    pcb_a = maxrtos_process_get( a );
+    pcb_b = maxrtos_process_get( b );
+
+    assert( pcb_a != NULL );
+    assert( pcb_b != NULL );
+
+    assert( pcb_a->state == MAXRTOS_PROCESS_STATE_READY );
+    assert( pcb_b->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( maxrtos_scheduler_process_count( &s_ctx ) == 1U );
+
+    /*
+     * b blocks. a is removed from the READY queue and becomes
+     * RUNNING.
+     */
+    assert(
+        maxrtos_kernel_block_and_dispatch(
+            &s_ctx,
+            b,
+            &out ) == MAXRTOS_OK );
+
+    assert( out == a );
+
+    pcb_a = maxrtos_process_get( a );
+    pcb_b = maxrtos_process_get( b );
+
+    assert( pcb_a != NULL );
+    assert( pcb_b != NULL );
+
+    assert( pcb_a->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( pcb_b->state == MAXRTOS_PROCESS_STATE_BLOCKED );
+
+    assert( maxrtos_scheduler_process_count( &s_ctx ) == 0U );
+
+    printf(
+        "test_block_and_dispatch_blocks_current_and_runs_next: PASS\n" );
+}
+
 int main( void )
 {
     test_dispatch_rejects_null_ctx();
@@ -352,6 +559,14 @@ int main( void )
     test_dispatch_rejects_unknown_current_id();
     test_normal_handoff_between_two_processes();
     test_dispatch_context_isolation();
+
+    test_block_and_dispatch_rejects_null_ctx();
+    test_block_and_dispatch_rejects_null_out();
+    test_block_and_dispatch_rejects_invalid_id();
+    test_block_and_dispatch_rejects_unknown_id();
+    test_block_and_dispatch_rejects_non_running_process();
+    test_block_and_dispatch_empty_ready_queue();
+    test_block_and_dispatch_blocks_current_and_runs_next();
 
     printf( "all dispatch tests passed\n" );
 
