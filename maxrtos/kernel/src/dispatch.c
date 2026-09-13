@@ -172,7 +172,7 @@ maxrtos_status_t maxrtos_kernel_block_and_dispatch(
         ( out_next_id != NULL ) &&
         ( blocking_id != MAXRTOS_INVALID_PROCESS_ID ) )
     {
-        maxrtos_process_control_block_t * blocking_pcb;
+        maxrtos_process_control_block_t const * blocking_pcb;
 
         blocking_pcb = maxrtos_process_get( blocking_id );
 
@@ -195,7 +195,7 @@ maxrtos_status_t maxrtos_kernel_block_and_dispatch(
              * in the RUNNING state and return the scheduler error. */
             if( status == MAXRTOS_OK )
             {
-                maxrtos_process_control_block_t * next_pcb;
+                maxrtos_process_control_block_t const * next_pcb;
 
                 next_pcb = maxrtos_process_get( next_id );
 
