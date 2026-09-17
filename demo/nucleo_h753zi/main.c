@@ -1,39 +1,19 @@
 /**
  * @file main.c
  * @brief Minimal Cortex-M7 hardware integration test.
- * 
- * Demonstrates the end-to-end path:
  *
- *     two partitions
- *        |
- *        v
- *     one process per partition
- *        |
- *        v
- *     major-frame scheduling
- *        |
- *        v
- *     SysTick
- *        |
- *        v
- *     PendSV context switching
- *        |
- *        v
- *     two LED processes
+ * All MPU/partition-table/frame-schedule setup lives in maxrtos_config.h/.c
+ * generated from tools/maxrtos_codegen.
  *
- * This test excludes MPU enforcement, health monitoring, fault recovery,
- * and inter-process communication.
+ * This file only does board bring-up and application logic.
  */
 
 #include <stdint.h>
 #include <stddef.h>
 
-#include "maxrtos/kernel/process.h"
-#include "maxrtos/kernel/partition.h"
-#include "maxrtos/kernel/frame.h"
-#include "maxrtos/kernel/tick.h"
-
-#include "maxrtos/arch/cortex_m7/context_switch.h"
+#include "generated/maxrtos_config.h"
+#include "maxrtos/arch/cortex_m7/yield.h"
+#include "maxrtos/kernel/queue_port.h"
 
 #define RCC_BASE            ( 0x58024400UL )
 #define RCC_AHB4ENR         \
@@ -50,8 +30,6 @@
 
 #define LED_LD1_PIN         ( 0U )
 #define LED_LD3_PIN         ( 14U )
-
-#define STACK_SIZE          ( 512U )
 
 #define SYSTICK_HZ          ( 100U )
 #define CPU_CLOCK_HZ        ( 200000000UL )
@@ -70,7 +48,7 @@
 #define SYSTICK_CTRL_TICKINT    ( 1UL << 1U )
 #define SYSTICK_CTRL_CLKSOURCE  ( 1UL << 2U )
 
-static void systick_init( void )
+static void board_systick_init( void )
 {
     uint32_t reload;
 
@@ -85,17 +63,6 @@ static void systick_init( void )
         SYSTICK_CTRL_TICKINT |
         SYSTICK_CTRL_CLKSOURCE;
 }
-
-static maxrtos_partition_table_t s_partition_table;
-static maxrtos_frame_schedule_t s_frame_schedule;
-
-static uint32_t s_tick_count = 0U;
-
-static uint8_t s_stack_p0[ STACK_SIZE ]
-    __attribute__( ( aligned( STACK_SIZE ) ) );
-
-static uint8_t s_stack_p1[ STACK_SIZE ]
-    __attribute__( ( aligned( STACK_SIZE ) ) );
 
 static void board_leds_init( void )
 {
@@ -121,99 +88,95 @@ static void led_ld3_toggle( void )
     GPIOB_ODR ^= ( 1UL << LED_LD3_PIN );
 }
 
-static void process_p0_entry( void * arg )
+static maxrtos_queue_port_t * const s_cmd_channel =
+    ( maxrtos_queue_port_t * ) maxrtos_port_cmd_channel;
+
+#define CMD_MESSAGE_SIZE  ( 4U )
+#define CMD_QUEUE_CAPACITY ( 4U )
+
+static void process_control_entry( void * arg )
 {
+    uint32_t counter;
+
     ( void ) arg;
+
+    _Static_assert( sizeof( maxrtos_queue_port_t ) <= PORT_SIZE_cmd_channel,
+                     "cmd_channel MPU region too small for maxrtos_queue_port_t" );
+
+    if( maxrtos_queue_port_init( s_cmd_channel, CMD_MESSAGE_SIZE, CMD_QUEUE_CAPACITY ) != MAXRTOS_OK )
+    {
+        for( ;; )
+        {
+            __asm volatile ( "bkpt #0" );
+        }
+    }
+
+    counter = 0U;
 
     for( ;; )
     {
         led_ld1_toggle();
 
+        ( void ) maxrtos_queue_port_send( s_cmd_channel, &counter, sizeof( counter ) );
+        counter++;
+
         for( volatile uint32_t i = 0U; i < 200000UL; i++ )
         {
 
         }
+
+        maxrtos_yield();
     }
 }
 
-static void process_p1_entry( void * arg )
+static void process_application_entry( void * arg )
 {
+    uint32_t received;
+
     ( void ) arg;
 
     for( ;; )
     {
         led_ld3_toggle();
 
+        if( maxrtos_queue_port_receive( s_cmd_channel, &received, sizeof( received ) ) == MAXRTOS_OK )
+        {
+            
+        }
+
         for( volatile uint32_t i = 0U; i < 200000UL; i++ )
         {
 
         }
+
+        maxrtos_yield();
     }
 }
 
 void SysTick_Handler( void )
 {
-    maxrtos_process_id_t next_id;
-    maxrtos_process_control_block_t * next_pcb;
-    maxrtos_process_control_block_t * current_pcb;
-
-    s_tick_count++;
-
-    if( maxrtos_kernel_on_tick(
-            &s_frame_schedule,
-            &s_partition_table,
-            s_tick_count,
-            &next_id ) == MAXRTOS_OK )
-    {
-        next_pcb = maxrtos_process_get( next_id );
-        current_pcb = maxrtos_arch_get_current_pcb();
-
-        if( ( next_pcb != NULL ) && ( next_pcb != current_pcb ) )
-        {
-            maxrtos_arch_set_current_pcb( current_pcb );
-            maxrtos_arch_set_next_pcb( next_pcb );
-            maxrtos_arch_request_context_switch();
-        }
-    }
+    maxrtos_arch_systick();
 }
 
 int main( void )
 {
-    maxrtos_process_id_t id_p0;
-    maxrtos_process_id_t id_p1;
-    maxrtos_process_id_t first_id;
-
-    maxrtos_process_control_block_t * pcb_p0;
-    maxrtos_process_control_block_t * pcb_p1;
-    maxrtos_process_control_block_t * first_pcb;
-
-    maxrtos_frame_slot_t slots[ 2 ];
+    maxrtos_process_id_t id_control;
+    maxrtos_process_id_t id_application;
 
     board_leds_init();
+    board_systick_init();
 
-    maxrtos_process_pool_init();
-
-    if( maxrtos_partition_table_init(
-            &s_partition_table ) != MAXRTOS_OK )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    maxrtos_arch_context_switch_init();
-
-    systick_init();
+    maxrtos_config_init();
 
     if( maxrtos_process_create(
-            s_stack_p0,
-            STACK_SIZE,
-            (maxrtos_partition_id_t) 0U,
+            maxrtos_stack_control,
+            PARTITION_STACK_SIZE_control,
+            PARTITION_ID_control,
             5U,
-            process_p0_entry,
+            true,
+            process_control_entry,
             NULL,
-            &id_p0 ) != MAXRTOS_OK )
+            &id_control ) != MAXRTOS_OK )
     {
         for( ;; )
         {
@@ -222,13 +185,14 @@ int main( void )
     }
 
     if( maxrtos_process_create(
-            s_stack_p1,
-            STACK_SIZE,
-            (maxrtos_partition_id_t) 1U,
+            maxrtos_stack_application,
+            PARTITION_STACK_SIZE_application,
+            PARTITION_ID_application,
             5U,
-            process_p1_entry,
+            true,
+            process_application_entry,
             NULL,
-            &id_p1 ) != MAXRTOS_OK )
+            &id_application ) != MAXRTOS_OK )
     {
         for( ;; )
         {
@@ -236,89 +200,7 @@ int main( void )
         }
     }
 
-    pcb_p0 = maxrtos_process_get( id_p0 );
-    pcb_p1 = maxrtos_process_get( id_p1 );
-
-    if( ( pcb_p0 == NULL ) ||
-        ( pcb_p1 == NULL ) ||
-        ( maxrtos_arch_init_stack( pcb_p0 ) != MAXRTOS_OK ) ||
-        ( maxrtos_arch_init_stack( pcb_p1 ) != MAXRTOS_OK ) )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    /* Register each process with its partition. */
-    if( maxrtos_partition_add_process(
-            &s_partition_table,
-            id_p0 ) != MAXRTOS_OK )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    if( maxrtos_partition_add_process(
-            &s_partition_table,
-            id_p1 ) != MAXRTOS_OK )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    /*
-     * Major frame:
-     *     partition 0: 5 ticks
-     *     partition 1: 3 ticks
-     */
-    slots[ 0 ].partition_id = 0U;
-    slots[ 0 ].duration_ticks = 5U;
-
-    slots[ 1 ].partition_id = 1U;
-    slots[ 1 ].duration_ticks = 3U;
-
-    if( maxrtos_frame_init(
-            &s_frame_schedule,
-            slots,
-            2U ) != MAXRTOS_OK )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    /* Select the first process using the same kernel dispatch
-     * path used by subsequent timer ticks. */
-    if( maxrtos_kernel_on_tick(
-            &s_frame_schedule,
-            &s_partition_table,
-            0U,
-            &first_id ) != MAXRTOS_OK )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    first_pcb = maxrtos_process_get( first_id );
-
-    if( first_pcb == NULL )
-    {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
-    }
-
-    /* Never returns. */
-    maxrtos_arch_start_first_process( first_pcb );
+    maxrtos_config_start( id_control, id_application );
 
     for( ;; )
     {

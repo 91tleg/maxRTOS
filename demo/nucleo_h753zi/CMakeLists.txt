@@ -16,6 +16,7 @@ add_subdirectory(
 
 add_executable(maxrtos_demo_nucleo_h753zi
     main.c
+    generated/maxrtos_config.c
     syscalls.c
     startup.s
 )
@@ -35,7 +36,7 @@ target_compile_options(maxrtos_demo_nucleo_h753zi PRIVATE
 )
 
 target_link_options(maxrtos_demo_nucleo_h753zi PRIVATE
-    -T${CMAKE_CURRENT_SOURCE_DIR}/linker.ld
+    -T${CMAKE_CURRENT_SOURCE_DIR}/generated/link.ld
     --specs=nosys.specs
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/maxrtos_demo_nucleo_h753zi.map
     -Wl,--gc-sections

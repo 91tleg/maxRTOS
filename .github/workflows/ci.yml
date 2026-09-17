@@ -45,10 +45,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install ARM GCC
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi binutils-arm-none-eabi
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            python3-pip \
+            cmake \
+            ninja-build
+
+      - name: Install codegen
+        run: |
+          pip3 install -e tools/maxrtos_codegen
+
+      - name: Generate Nucleo configuration
+        run: |
+          maxrtos-codegen \
+            demo/nucleo_h753zi/module.json \
+            --out-dir demo/nucleo_h753zi/generated
 
       - name: Configure
         run: |
