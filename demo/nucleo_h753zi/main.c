@@ -12,7 +12,7 @@
 #include <stddef.h>
 
 #include "generated/maxrtos_config.h"
-#include "maxrtos/arch/cortex_m7/yield.h"
+#include "maxrtos/yield.h"
 #include "maxrtos/kernel/queue_port.h"
 
 #define RCC_BASE            ( 0x58024400UL )
