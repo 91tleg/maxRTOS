@@ -2,4 +2,5 @@ misra-c2012-11.1:maxrtos/arch/cortex_m7/*
 misra-c2012-11.4:maxrtos/arch/cortex_m7/*
 misra-c2012-18.4:maxrtos/arch/cortex_m7/*
 misra-c2012-8.4:maxrtos/arch/cortex_m7/*
+misra-c2012-19.2:maxrtos/kernel/include/maxrtos/kernel/ipc_operation.h
 nullPointerRedundantCheck:maxrtos/arch/cortex_m7/src/fault_handlers.c

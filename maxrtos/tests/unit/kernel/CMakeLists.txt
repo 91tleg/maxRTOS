@@ -46,3 +46,7 @@ add_test(NAME kernel_yield_tests COMMAND maxrtos_kernel_test_yield)
 add_executable(maxrtos_kernel_test_start_scheduler test_start_scheduler.c)
 target_link_libraries(maxrtos_kernel_test_start_scheduler PRIVATE maxrtos_kernel)
 add_test(NAME kernel_start_scheduler_tests COMMAND maxrtos_kernel_test_start_scheduler)
+
+add_executable(maxrtos_kernel_test_waitlist test_waitlist.c)
+target_link_libraries(maxrtos_kernel_test_waitlist PRIVATE maxrtos_kernel)
+add_test(NAME kernel_start_waitlist_tests COMMAND maxrtos_kernel_test_waitlist)

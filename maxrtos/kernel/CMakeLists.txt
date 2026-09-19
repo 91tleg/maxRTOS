@@ -11,6 +11,7 @@ add_library(maxrtos_kernel STATIC
     src/yield.c
     src/start_scheduler.c
     src/internal/fifo.c
+    src/waitlist.c
 )
 
 target_include_directories(maxrtos_kernel
