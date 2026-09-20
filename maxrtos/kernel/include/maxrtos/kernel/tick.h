@@ -1,26 +1,29 @@
 /**
  * @file tick.h
- * @brief Frame-based partition selection and process dispatch
- *        interface.
+ * @brief Kernel system tick and frame-based scheduling interface.
  *
- * Provides the kernel-level tick operation that composes major-frame
- * partition selection with per-partition process dispatch.
+ * Provides the kernel-level tick interface used to maintain the
+ * authoritative system tick and compose major-frame partition
+ * selection with per-partition process dispatch.
  *
- * The active partition is determined from the supplied tick value
+ * The kernel owns and advances the current system tick. The
+ * architecture layer signals the kernel when a hardware timer tick
+ * occurs; it does not supply or maintain the tick value.
+ *
+ * The active partition is determined from the kernel's current tick
  * using the configured frame schedule. The selected partition is then
  * passed to the partition dispatcher to determine the process that
  * shall run.
- *
- * This module does not maintain scheduling state, advance the system
- * tick, or perform architecture-specific context switching.
  */
 
 #ifndef MAXRTOS_KERNEL_TICK_H
 #define MAXRTOS_KERNEL_TICK_H
 
-#include "maxrtos/kernel/frame.h"
-#include "maxrtos/kernel/partition.h"
 #include "maxrtos/status.h"
+#include "maxrtos/types.h"
+
+typedef struct maxrtos_frame_schedule_s maxrtos_frame_schedule_t;
+typedef struct maxrtos_partition_table_s maxrtos_partition_table_t;
 
 /**
  * @brief Select the active partition and dispatch a process within it.
@@ -45,7 +48,16 @@
 maxrtos_status_t maxrtos_kernel_on_tick(
     maxrtos_frame_schedule_t const * sched,
     maxrtos_partition_table_t * table,
-    uint32_t tick,
     maxrtos_process_id_t * out_next_id );
+
+/**
+ * @brief Return the most recently observed kernel tick.
+ *
+ * @return Current kernel tick.
+ *
+ * The value is updated by maxrtos_kernel_on_tick(). Kernel services
+ * use this value when calculating timed-wait deadlines.
+ */
+maxrtos_tick_t maxrtos_kernel_tick_now( void );
 
 #endif /* MAXRTOS_KERNEL_TICK_H */

@@ -48,6 +48,15 @@ static maxrtos_process_id_t make_ready_process(
     return id;
 }
 
+static void test_tick_now_initial_value( void )
+{
+    maxrtos_process_pool_init();
+
+    assert( maxrtos_kernel_tick_now() == 0U );
+
+    printf( "test_tick_now_initial_value: PASS\n" );
+}
+
 static void test_on_tick_rejects_bad_frame_schedule( void )
 {
     maxrtos_partition_table_t table;
@@ -56,7 +65,8 @@ static void test_on_tick_rejects_bad_frame_schedule( void )
 
     maxrtos_process_pool_init();
 
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
 
     s_next_stack = 0U;
 
@@ -67,10 +77,58 @@ static void test_on_tick_rejects_bad_frame_schedule( void )
         maxrtos_kernel_on_tick(
             &bad_sched,
             &table,
-            0U,
             &out ) == MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_on_tick_rejects_bad_frame_schedule: PASS\n" );
+}
+
+static void test_on_tick_updates_current_tick( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_frame_schedule_t sched;
+    maxrtos_frame_slot_t slots[ 1 ] = { { 0U, 10U } };
+    maxrtos_process_id_t process;
+    maxrtos_process_id_t out;
+
+    maxrtos_process_pool_init();
+
+    assert(
+        maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_frame_init(
+            &sched,
+            slots,
+            1U ) == MAXRTOS_OK );
+
+    s_next_stack = 0U;
+
+    process = make_ready_process( 0U, 0U );
+
+    assert(
+        maxrtos_partition_add_process(
+            &table,
+            process ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_kernel_on_tick(
+            &sched,
+            &table,
+            &out ) == MAXRTOS_OK );
+
+    assert( maxrtos_kernel_tick_now() == 0U );
+    assert( out == process );
+
+    assert(
+        maxrtos_kernel_on_tick(
+            &sched,
+            &table,
+            &out ) == MAXRTOS_OK );
+
+    assert( maxrtos_kernel_tick_now() == 1U );
+    assert( out == process );
+
+    printf( "test_on_tick_updates_current_tick: PASS\n" );
 }
 
 static void test_on_tick_single_partition_resumes_correctly( void )
@@ -84,8 +142,14 @@ static void test_on_tick_single_partition_resumes_correctly( void )
 
     maxrtos_process_pool_init();
 
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_frame_init( &sched, slots, 1U ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_frame_init(
+            &sched,
+            slots,
+            1U ) == MAXRTOS_OK );
 
     s_next_stack = 0U;
 
@@ -102,25 +166,23 @@ static void test_on_tick_single_partition_resumes_correctly( void )
             &table,
             process_b ) == MAXRTOS_OK );
 
-    /* Higher-priority process is selected first. */
     assert(
         maxrtos_kernel_on_tick(
             &sched,
             &table,
-            0U,
             &out ) == MAXRTOS_OK );
 
     assert( out == process_b );
+    assert( maxrtos_kernel_tick_now() == 0U );
 
-    /* The remaining ready process is selected next. */
     assert(
         maxrtos_kernel_on_tick(
             &sched,
             &table,
-            1U,
             &out ) == MAXRTOS_OK );
 
     assert( out == process_a );
+    assert( maxrtos_kernel_tick_now() == 1U );
 
     printf(
         "test_on_tick_single_partition_resumes_correctly: PASS\n" );
@@ -138,11 +200,18 @@ static void test_on_tick_switches_partitions_at_frame_boundary( void )
     maxrtos_process_id_t process_0;
     maxrtos_process_id_t process_1;
     maxrtos_process_id_t out;
+    size_t i;
 
     maxrtos_process_pool_init();
 
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_frame_init( &sched, slots, 2U ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_frame_init(
+            &sched,
+            slots,
+            2U ) == MAXRTOS_OK );
 
     s_next_stack = 0U;
 
@@ -159,34 +228,66 @@ static void test_on_tick_switches_partitions_at_frame_boundary( void )
             &table,
             process_1 ) == MAXRTOS_OK );
 
-    /* Tick 2 is within partition 0's [0, 5) slot. */
+    /*
+     * Advance from tick 0 through tick 4. These ticks belong
+     * to partition 0's [0, 5) frame slot.
+     */
+    for( i = 0U; i < 5U; i++ )
+    {
+        assert(
+            maxrtos_kernel_on_tick(
+                &sched,
+                &table,
+                &out ) == MAXRTOS_OK );
+
+        assert( out == process_0 );
+    }
+
+    assert( maxrtos_kernel_tick_now() == 4U );
+
+    /*
+     * Tick 5 is the first tick of partition 1's [5, 8) slot.
+     */
     assert(
         maxrtos_kernel_on_tick(
             &sched,
             &table,
-            2U,
             &out ) == MAXRTOS_OK );
 
-    assert( out == process_0 );
-
-    /* Tick 5 is the first tick of partition 1's [5, 8) slot. */
-    assert(
-        maxrtos_kernel_on_tick(
-            &sched,
-            &table,
-            5U,
-            &out ) == MAXRTOS_OK );
-
+    assert( maxrtos_kernel_tick_now() == 5U );
     assert( out == process_1 );
 
-    /* Tick 8 wraps to partition 0. */
+    /*
+     * Advance through ticks 6 and 7.
+     */
     assert(
         maxrtos_kernel_on_tick(
             &sched,
             &table,
-            8U,
             &out ) == MAXRTOS_OK );
 
+    assert( maxrtos_kernel_tick_now() == 6U );
+    assert( out == process_1 );
+
+    assert(
+        maxrtos_kernel_on_tick(
+            &sched,
+            &table,
+            &out ) == MAXRTOS_OK );
+
+    assert( maxrtos_kernel_tick_now() == 7U );
+    assert( out == process_1 );
+
+    /*
+     * Tick 8 wraps to partition 0.
+     */
+    assert(
+        maxrtos_kernel_on_tick(
+            &sched,
+            &table,
+            &out ) == MAXRTOS_OK );
+
+    assert( maxrtos_kernel_tick_now() == 8U );
     assert( out == process_0 );
 
     printf(
@@ -202,8 +303,14 @@ static void test_on_tick_propagates_queue_empty( void )
 
     maxrtos_process_pool_init();
 
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_frame_init( &sched, slots, 1U ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+
+    assert(
+        maxrtos_frame_init(
+            &sched,
+            slots,
+            1U ) == MAXRTOS_OK );
 
     s_next_stack = 0U;
 
@@ -211,15 +318,18 @@ static void test_on_tick_propagates_queue_empty( void )
         maxrtos_kernel_on_tick(
             &sched,
             &table,
-            0U,
             &out ) == MAXRTOS_ERR_QUEUE_EMPTY );
+
+    assert( maxrtos_kernel_tick_now() == 0U );
 
     printf( "test_on_tick_propagates_queue_empty: PASS\n" );
 }
 
 int main( void )
 {
+    test_tick_now_initial_value();
     test_on_tick_rejects_bad_frame_schedule();
+    test_on_tick_updates_current_tick();
     test_on_tick_single_partition_resumes_correctly();
     test_on_tick_switches_partitions_at_frame_boundary();
     test_on_tick_propagates_queue_empty();
