@@ -90,7 +90,6 @@ static void test_start_dispatches_first_process( void )
         sizeof( s_stack ),
         0U,
         0U,
-        false,
         dummy_entry,
         NULL,
         &process_id );
@@ -189,7 +188,6 @@ static void test_start_selects_partition_at_tick_zero( void )
                 sizeof( s_stack ),
                 1U,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 &process_a ) == MAXRTOS_OK );
@@ -199,7 +197,6 @@ static void test_start_selects_partition_at_tick_zero( void )
                 sizeof( s_stack ),
                 0U,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 &process_b ) == MAXRTOS_OK );

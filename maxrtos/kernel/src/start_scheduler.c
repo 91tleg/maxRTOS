@@ -8,6 +8,7 @@
 
  #include "maxrtos/kernel/start_scheduler.h"
 #include "maxrtos/kernel/tick.h"
+#include "maxrtos/kernel/timing.h"
 
 maxrtos_status_t maxrtos_kernel_start_scheduler(
     maxrtos_frame_schedule_t const * frame_schedule,
@@ -25,6 +26,7 @@ maxrtos_status_t maxrtos_kernel_start_scheduler(
     {
         /* The major frame begins at tick zero. */
         maxrtos_kernel_tick_reset();
+        maxrtos_kernel_rearm_all_timing();
 
         status = maxrtos_kernel_on_tick(
             frame_schedule,

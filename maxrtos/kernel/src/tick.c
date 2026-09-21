@@ -16,6 +16,7 @@
 #include "maxrtos/kernel/frame.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/ipc_block.h"
+#include "maxrtos/kernel/timing.h"
 
 static maxrtos_tick_t s_current_tick = 0U;
 
@@ -39,6 +40,11 @@ maxrtos_status_t maxrtos_kernel_on_tick(
      * of N ticks, started when the tick counter read T, expires when the
      * counter reaches T + N. */
     ( void ) maxrtos_ipc_expire_timeouts( table, s_current_tick );
+
+    /* Periodic releases first, so a process released at this tick is judged
+     * against its new deadline; then record any deadline that has passed. */
+    ( void ) maxrtos_kernel_release_periodic( table, s_current_tick );
+    ( void ) maxrtos_kernel_check_deadlines( table, s_current_tick );
 
     if( status == MAXRTOS_OK )
     {

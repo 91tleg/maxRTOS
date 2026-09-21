@@ -464,7 +464,6 @@ static maxrtos_process_id_t add_process(
             TEST_STACK_SIZE,
             partition,
             5U,
-            true,
             dummy_entry,
             NULL,
             &id ) == MAXRTOS_OK );

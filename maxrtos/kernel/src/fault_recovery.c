@@ -10,6 +10,77 @@
 #include <stddef.h>
 
 #include "maxrtos/kernel/fault_recovery.h"
+#include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/partition.h"
+#include "maxrtos/kernel/tick.h"
+#include "maxrtos/kernel/timing.h"
+#include "maxrtos/kernel/waitlist.h"
+
+/* Make a process runnable again from its entry point, whatever it was doing:
+ * running (the usual fault), ready (a deadline miss of a starved process) or
+ * blocked (a miss while waiting on IPC or on its release). */
+static maxrtos_status_t maxrtos_fault_recovery_restart(
+    maxrtos_partition_table_t * table,
+    maxrtos_process_id_t id )
+{
+    maxrtos_status_t status;
+    maxrtos_process_control_block_t * pcb;
+
+    pcb = maxrtos_process_get( id );
+    status = MAXRTOS_OK;
+
+    if( pcb == NULL )
+    {
+        status = MAXRTOS_ERR_INVALID_ID;
+    }
+    else if( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING )
+    {
+        status = maxrtos_process_set_state( id, MAXRTOS_PROCESS_STATE_READY );
+
+        if( status == MAXRTOS_OK )
+        {
+            status = maxrtos_partition_add_process( table, id );
+        }
+
+        if( status == MAXRTOS_OK )
+        {
+            table->current_id[ pcb->partition_id ] = MAXRTOS_INVALID_PROCESS_ID;
+        }
+    }
+    else if( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED )
+    {
+        /* Leave whatever it was waiting on. */
+        if( pcb->waitlist != NULL )
+        {
+            ( void ) maxrtos_waitlist_remove( pcb->waitlist, id );
+        }
+
+        pcb->waitlist = NULL;
+        pcb->wake_tick = MAXRTOS_TICK_NONE;
+        pcb->ipc_operation.kind = MAXRTOS_IPC_OP_NONE;
+        pcb->ipc_result_pending = false;
+
+        status = maxrtos_process_set_state( id, MAXRTOS_PROCESS_STATE_READY );
+
+        if( status == MAXRTOS_OK )
+        {
+            status = maxrtos_partition_add_process( table, id );
+        }
+    }
+    else
+    {
+        /* READY: already queued, its context is reset by the caller.
+         * SUSPENDED: stays suspended. */
+    }
+
+    if( ( status == MAXRTOS_OK ) && ( pcb != NULL ) )
+    {
+        /* A restarted process begins a new release. */
+        maxrtos_process_rearm_timing( pcb, maxrtos_kernel_tick_now() );
+    }
+
+    return status;
+}
 
 maxrtos_status_t maxrtos_fault_recovery_handle(
     maxrtos_health_monitor_t const * hm,
@@ -51,22 +122,8 @@ maxrtos_status_t maxrtos_fault_recovery_handle(
                         break;
 
                     case MAXRTOS_HM_ACTION_RESTART_PROCESS:
-                        status = maxrtos_process_set_state(
-                                    faulting_process_id,
-                                    MAXRTOS_PROCESS_STATE_READY );
-
-                        if( status == MAXRTOS_OK )
-                        {
-                            status = maxrtos_partition_add_process(
-                                        table,
-                                        faulting_process_id );
-                        }
-
-                        if( status == MAXRTOS_OK )
-                        {
-                            table->current_id[ pcb->partition_id ] =
-                                MAXRTOS_INVALID_PROCESS_ID;
-                        }
+                        status = maxrtos_fault_recovery_restart(
+                                    table, faulting_process_id );
                         break;
 
                     case MAXRTOS_HM_ACTION_HALT_PARTITION:

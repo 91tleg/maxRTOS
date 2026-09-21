@@ -12,6 +12,7 @@
 
 #include "maxrtos/config.h"
 #include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/timing.h"
 
 static maxrtos_process_control_block_t
     s_process_pool[ MAXRTOS_MAX_PROCESSES ];
@@ -41,6 +42,8 @@ void maxrtos_process_pool_init( void )
 {
     size_t i;
 
+    maxrtos_kernel_timing_reset();
+
     for( i = 0U; i < MAXRTOS_MAX_PROCESSES; i++ )
     {
         s_process_pool[ i ].state = MAXRTOS_PROCESS_STATE_UNUSED;
@@ -49,10 +52,15 @@ void maxrtos_process_pool_init( void )
         s_process_pool[ i ].stack_base = NULL;
         s_process_pool[ i ].stack_size = 0U;
         s_process_pool[ i ].priority = 0U;
-        s_process_pool[ i ].unprivileged = false;
         s_process_pool[ i ].wake_tick = MAXRTOS_TICK_NONE;
         s_process_pool[ i ].waitlist = NULL;
         s_process_pool[ i ].ipc_result_pending = false;
+        s_process_pool[ i ].period = 0U;
+        s_process_pool[ i ].time_capacity = 0U;
+        s_process_pool[ i ].release_time = 0U;
+        s_process_pool[ i ].deadline_time = MAXRTOS_TICK_NONE;
+        s_process_pool[ i ].periodic_waiting = false;
+        s_process_pool[ i ].deadline_misses = 0U;
         s_process_pool[ i ].entry = NULL;
         s_process_pool[ i ].entry_arg = NULL;
         s_process_pool[ i ].partition_id = MAXRTOS_INVALID_PARTITION_ID;
@@ -64,7 +72,6 @@ maxrtos_status_t maxrtos_process_create(
     size_t stack_size,
     maxrtos_partition_id_t partition_id,
     uint8_t priority,
-    bool unprivileged,
     maxrtos_process_entry_t entry,
     void * entry_arg,
     maxrtos_process_id_t * out_id )
@@ -102,10 +109,15 @@ maxrtos_status_t maxrtos_process_create(
                 pcb->stack_size = stack_size;
                 pcb->stack_pointer = &stack_base[ stack_size ];
                 pcb->priority = priority;
-                pcb->unprivileged = unprivileged;
                 pcb->wake_tick = MAXRTOS_TICK_NONE;
                 pcb->waitlist = NULL;
                 pcb->ipc_result_pending = false;
+                pcb->period = 0U;
+                pcb->time_capacity = 0U;
+                pcb->release_time = 0U;
+                pcb->deadline_time = MAXRTOS_TICK_NONE;
+                pcb->periodic_waiting = false;
+                pcb->deadline_misses = 0U;
                 pcb->entry = entry;
                 pcb->entry_arg = entry_arg;
                 pcb->state = MAXRTOS_PROCESS_STATE_READY;

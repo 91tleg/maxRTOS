@@ -63,7 +63,6 @@ typedef struct process_control_block_s
     maxrtos_partition_id_t partition_id;
     uint8_t priority;
     maxrtos_process_state_t state;
-    bool unprivileged;
 
     /**
      * @brief Absolute tick at which the current timed wait expires.
@@ -120,6 +119,28 @@ typedef struct process_control_block_s
      */
     bool ipc_result_pending;
 
+    /**
+     * @brief Periodic release and deadline supervision (ARINC 653 PERIOD
+     *        and TIME_CAPACITY). See maxrtos/kernel/timing.h.
+     *
+     * period is the release interval in ticks; 0 makes the process
+     * aperiodic. time_capacity is the deadline in ticks, measured from the
+     * current release: the process must complete the release (call
+     * maxrtos_periodic_wait()) by release_time + time_capacity, in wall
+     * clock time, however much CPU it received. 0 means no deadline.
+     *
+     * deadline_time is the absolute tick at which the armed deadline
+     * expires, or MAXRTOS_TICK_NONE when none is armed. periodic_waiting
+     * is true while the process is blocked until its next release.
+     * deadline_misses counts misses since the process was created.
+     */
+    maxrtos_tick_t period;
+    maxrtos_tick_t time_capacity;
+    maxrtos_tick_t release_time;
+    maxrtos_tick_t deadline_time;
+    bool periodic_waiting;
+    uint32_t deadline_misses;
+
     maxrtos_process_entry_t entry;
     void * entry_arg;
 } maxrtos_process_control_block_t;
@@ -144,15 +165,14 @@ void maxrtos_process_pool_init( void );
  *     Size of the stack in bytes.
  *
  * @param[in] partition_id
- *     Partition assigned to the process.
+ *     Partition assigned to the process. The process runs with the
+ *     privilege level of its partition, which is fixed by the
+ *     configuration (application partitions are unprivileged); a
+ *     process cannot choose its own.
  *
  * @param[in] priority
  *     Process priority. Valid values are 0 through
  *     MAXRTOS_MAX_PRIORITY, where 0 is the highest priority.
- *
- * @param[in] unprivileged
- *     true to execute the process without kernel privilege.
- *     false shall be used only for kernel-trusted processes.
  *
  * @param[in] entry
  *     Process entry function. Shall not be NULL.
@@ -179,7 +199,6 @@ maxrtos_status_t maxrtos_process_create(
     size_t stack_size,
     maxrtos_partition_id_t partition_id,
     uint8_t priority,
-    bool unprivileged,
     maxrtos_process_entry_t entry,
     void * entry_arg,
     maxrtos_process_id_t * out_id );

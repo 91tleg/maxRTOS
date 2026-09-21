@@ -34,7 +34,6 @@ static void test_create_basic( void )
         sizeof( s_stack_a ),
         0U,
         5U,
-        true,
         dummy_entry,
         NULL,
         &id );
@@ -46,7 +45,6 @@ static void test_create_basic( void )
     assert( pcb != NULL );
     assert( pcb->priority == 5U );
     assert( pcb->partition_id == 0U );
-    assert( pcb->unprivileged == true );
     assert( pcb->state == MAXRTOS_PROCESS_STATE_READY );
     assert( pcb->stack_base == s_stack_a );
     assert( pcb->stack_size == sizeof( s_stack_a ) );
@@ -66,7 +64,6 @@ static void test_create_rejects_bad_args( void )
                 256U,
                 0U,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
@@ -77,7 +74,6 @@ static void test_create_rejects_bad_args( void )
                 0U,
                 0U,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
@@ -88,7 +84,6 @@ static void test_create_rejects_bad_args( void )
                 sizeof( s_stack_a ),
                 MAXRTOS_MAX_PARTITIONS,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
@@ -99,7 +94,6 @@ static void test_create_rejects_bad_args( void )
                 sizeof( s_stack_a ),
                 0U,
                 MAXRTOS_MAX_PRIORITY + 1U,
-                false,
                 dummy_entry,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
@@ -110,7 +104,6 @@ static void test_create_rejects_bad_args( void )
                 sizeof( s_stack_a ),
                 0U,
                 0U,
-                false,
                 NULL,
                 NULL,
                 &id ) == MAXRTOS_ERR_INVALID_ARG );
@@ -121,7 +114,6 @@ static void test_create_rejects_bad_args( void )
                 sizeof( s_stack_a ),
                 0U,
                 0U,
-                false,
                 dummy_entry,
                 NULL,
                 NULL ) == MAXRTOS_ERR_INVALID_ARG );
@@ -149,7 +141,6 @@ static void test_pool_exhaustion( void )
             sizeof( s_big_stacks[ i ] ),
             0U,
             0U,
-            false,
             dummy_entry,
             NULL,
             &id );
@@ -163,7 +154,6 @@ static void test_pool_exhaustion( void )
         sizeof( s_big_stacks[ MAXRTOS_MAX_PROCESSES ] ),
         0U,
         0U,
-        false,
         dummy_entry,
         NULL,
         &id );
@@ -186,7 +176,6 @@ static void test_set_state_and_invalid_id( void )
         sizeof( s_stack_b ),
         3U,
         0U,
-        false,
         dummy_entry,
         NULL,
         &id );
