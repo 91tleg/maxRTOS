@@ -21,22 +21,34 @@
     {
       "id": 0,
       "name": "control",
-      "stack_size": "512B",
-      "stack_alignment": "512B",
       "mpu": {
         "access": "read_write",
         "executable": false
-      }
+      },
+      "processes": [
+        {
+          "name": "control_main",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        }
+      ]
     },
     {
       "id": 1,
       "name": "application",
-      "stack_size": "512B",
-      "stack_alignment": "512B",
       "mpu": {
         "access": "read_write",
         "executable": false
-      }
+      },
+      "processes": [
+        {
+          "name": "application_main",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        }
+      ]
     }
   ],
   "schedule": {

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from ..schema import RtosConfig
+from ..schema import HM_ACTIONS, HM_FAULTS, RtosConfig
 
 
 _TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / "templates"
@@ -63,12 +63,19 @@ def _partitions_with_access_enum(
             SimpleNamespace(
                 id=partition.id,
                 name=partition.name,
-                stack_size=partition.stack_size,
-                stack_alignment=partition.stack_alignment,
+                domain_size=partition.domain_size,
                 mpu_executable=partition.mpu_executable,
                 stack_region=partition.stack_region,
-                entry_symbol=partition.entry_symbol,
-                priority=partition.priority,
+                processes=partition.processes,
+                health=[
+                    SimpleNamespace(
+                        fault=HM_FAULTS[fault],
+                        action=HM_ACTIONS[action],
+                    )
+                    for fault, action in (
+                        (f, partition.health[f]) for f in HM_FAULTS
+                    )
+                ],
                 access_enum=_ACCESS_ENUM_SUFFIX[partition.mpu_access],
             )
         )
@@ -120,6 +127,8 @@ def _port_regions_with_mask_expr(
             SimpleNamespace(
                 name=port_region.name,
                 size=port_region.size,
+                message_size=port_region.message_size,
+                capacity=port_region.capacity,
                 region=port_region.region,
                 member_partition_ids=port_region.member_partition_ids,
                 mask_expr=mask_expr,

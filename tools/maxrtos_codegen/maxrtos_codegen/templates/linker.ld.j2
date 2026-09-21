@@ -3,9 +3,9 @@
  * Source: {{ config_path }}
  *
  * This file lays out kernel memory and one NOLOAD section per partition
- * stack. Board-specific sections (isr vector table contents, heap/stack
- * sizes for the main stack, etc.) belong in the board's own linker
- * fragment.
+ * MPU domain, which holds all of that partition's process stacks.
+ * Board-specific sections (isr vector table contents, heap/stack sizes for
+ * the main stack, etc.) belong in the board's own linker fragment.
  */
 
 ENTRY(Reset_Handler)
@@ -79,14 +79,20 @@ SECTIONS
     } >{{ kernel_region|upper }}
 
 {% for region_name, parts in stack_regions.items() %}
-    /* Partition stacks packed into {{ region_name|upper }}, in partition-id order. */
+    /* Partition MPU domains packed into {{ region_name|upper }}, in partition-id order.
+     * Each domain holds all of its partition's process stacks and is aligned
+     * and padded to its own power-of-two size so one MPU region covers it. */
 {% for p in parts %}
-    .partition_{{ p.name }}_stack (NOLOAD) :
+    .partition_{{ p.name }}_domain (NOLOAD) :
     {
-        . = ALIGN({{ p.stack_alignment }});
-        __partition_{{ p.name }}_stack_start = .;
-        *(.partition_{{ p.name }}_stack)
-        . = ALIGN({{ p.stack_alignment }});
+        . = ALIGN({{ p.domain_size }});
+        __partition_{{ p.name }}_domain_start = .;
+{% for pr in p.processes %}
+        *(.partition_{{ p.name }}_{{ pr.name }}_stack)
+{% endfor %}
+        /* Pad to the domain size. If the stacks overflowed it, ld fails
+         * here with "cannot move location counter backwards". */
+        . = __partition_{{ p.name }}_domain_start + {{ p.domain_size }};
     } >{{ region_name|upper }}
 {% endfor %}
 {% endfor %}

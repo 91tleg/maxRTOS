@@ -5,17 +5,21 @@
  * Generated MPU configuration, partition-table wiring, and frame-schedule
  *
  * This file contains the generated RTOS configuration details. Application
- * code should include maxrtos_config.h and use maxrtos_config_init() and
- * maxrtos_config_start().
+ * code should include maxrtos_config.h and call maxrtos_config_init(), create
+ * its processes, then call maxrtos_scheduler_start().
  */
 
 #include "maxrtos_config.h"
 
+#include <stdbool.h>
+
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/arch/cortex_m7/systick.h"
-#include "maxrtos/arch/cortex_m7/start_scheduler.h"
 #include "maxrtos/arch/cortex_m7/mpu.h"
 #include "maxrtos/arch/cortex_m7/mpu_hw.h"
+#include "maxrtos/arch/cortex_m7/fault_handlers.h"
+#include "maxrtos/kernel/health_monitor.h"
+#include "maxrtos/kernel/queue_port.h"
 
 #define MAXRTOS_CONFIG_HALT() \
     do { for( ;; ) { __asm volatile ( "bkpt #0" ); } } while( 0 )
@@ -23,13 +27,18 @@
 #define MAXRTOS_CONFIG_CHECK( expr_ ) \
     do { if( ( expr_ ) != MAXRTOS_OK ) { MAXRTOS_CONFIG_HALT(); } } while( 0 )
 
-/* Partition stacks, placed by the generated linker script. */
-{% for region_name, parts in stack_regions.items() %}
-{% for p in parts %}
-uint8_t maxrtos_stack_{{ p.name }}[ {{ p.stack_size }} ]
+/* Partition MPU domain bases, provided by the generated linker script. */
+{% for p in partitions %}
+extern uint8_t __partition_{{ p.name }}_domain_start[];
+{% endfor %}
+
+/* Process stacks, placed inside their partition's domain by the linker script. */
+{% for p in partitions %}
+{% for pr in p.processes %}
+uint8_t maxrtos_stack_{{ pr.name }}[ {{ pr.stack_size }} ]
     __attribute__((
-        aligned( {{ p.stack_alignment }} ),
-        section( ".partition_{{ p.name }}_stack" )
+        aligned( {{ pr.stack_alignment }} ),
+        section( ".partition_{{ p.name }}_{{ pr.name }}_stack" )
     ));
 {% endfor %}
 {% endfor %}
@@ -46,11 +55,30 @@ uint8_t maxrtos_port_{{ prt.name }}[ {{ prt.size }} ]
 static maxrtos_partition_table_t s_partition_table;
 static maxrtos_frame_schedule_t s_frame_schedule;
 static maxrtos_mpu_config_t s_mpu_config;
+static maxrtos_health_monitor_t s_health_monitor;
+static bool s_ipc_ports_initialized = false;
 
 void maxrtos_config_init( void )
 {
     maxrtos_process_pool_init();
     MAXRTOS_CONFIG_CHECK( maxrtos_partition_table_init( &s_partition_table ) );
+    maxrtos_arch_set_partition_table( &s_partition_table );
+
+    /* Health monitor: per-partition recovery policy for each fault class,
+     * then enable the fault exceptions that report into it. Without this an
+     * MPU violation escalates to HardFault and is never classified. */
+    MAXRTOS_CONFIG_CHECK( maxrtos_hm_init( &s_health_monitor ) );
+{% for p in partitions %}
+{% for h in p.health %}
+    MAXRTOS_CONFIG_CHECK( maxrtos_hm_set_policy(
+        &s_health_monitor,
+        PARTITION_ID_{{ p.name }},
+        MAXRTOS_FAULT_{{ h.fault }},
+        MAXRTOS_HM_ACTION_{{ h.action }} ) );
+{% endfor %}
+{% endfor %}
+    maxrtos_arch_set_health_monitor( &s_health_monitor );
+    maxrtos_arch_fault_handlers_init();
 
     /* MPU configuration. */
     MAXRTOS_CONFIG_CHECK( maxrtos_mpu_config_init( &s_mpu_config ) );
@@ -59,8 +87,8 @@ void maxrtos_config_init( void )
     MAXRTOS_CONFIG_CHECK( maxrtos_mpu_set_partition_region(
         &s_mpu_config,
         PARTITION_ID_{{ p.name }},
-        ( uint32_t ) maxrtos_stack_{{ p.name }},
-        {{ p.stack_size }}U,
+        ( uint32_t ) __partition_{{ p.name }}_domain_start,
+        {{ p.domain_size }}U,
         MAXRTOS_MPU_ACCESS_{{ p.access_enum }},
         {{ "true" if p.mpu_executable else "false" }} ) );
 {% endfor %}
@@ -83,30 +111,23 @@ void maxrtos_config_init( void )
         {{ prt.size }}U,
         {{ prt.mask_expr }} ) );
 {% endfor %}
+    if( !s_ipc_ports_initialized )
+    {
+{% for prt in port_regions %}
+        _Static_assert(
+            sizeof( maxrtos_queue_port_t ) <= {{ prt.size }}U,
+            "{{ prt.name }} port too small for maxrtos_queue_port_t" );
+
+        MAXRTOS_CONFIG_CHECK( maxrtos_queue_port_init(
+            ( maxrtos_queue_port_t * ) maxrtos_port_{{ prt.name }},
+            {{ prt.message_size }}U,
+            {{ prt.capacity }}U ) );
+{% endfor %}
+        s_ipc_ports_initialized = true;
+    }
 {% endif %}
     maxrtos_arch_mpu_init();
 
-    /* Initialize context switching and the frame-scheduled SysTick. */
-    maxrtos_arch_context_switch_init();
-    maxrtos_arch_systick_init( &s_frame_schedule, &s_partition_table );
-}
-
-void maxrtos_config_start(
-{%- for p in partitions -%}
-    maxrtos_process_id_t id_{{ p.name }}{{ ", " if not loop.last else "" }}
-{%- endfor -%}
-)
-{
-    maxrtos_process_control_block_t * pcb;
-
-{% for p in partitions %}
-    pcb = maxrtos_process_get( id_{{ p.name }} );
-    if( ( pcb == NULL ) || ( maxrtos_arch_init_stack( pcb ) != MAXRTOS_OK ) )
-    {
-        MAXRTOS_CONFIG_HALT();
-    }
-    MAXRTOS_CONFIG_CHECK( maxrtos_partition_add_process( &s_partition_table, id_{{ p.name }} ) );
-{% endfor %}
     {
         static maxrtos_frame_slot_t s_frame_slots[ {{ frame_schedule|length }} ];
 {% for slot in frame_schedule %}
@@ -117,7 +138,7 @@ void maxrtos_config_start(
             &s_frame_schedule, s_frame_slots, {{ frame_schedule|length }}U ) );
     }
 
-    maxrtos_arch_start_scheduler( &s_frame_schedule, &s_partition_table );
-
-    MAXRTOS_CONFIG_HALT(); /* Unreachable: maxrtos_arch_start_scheduler() does not return. */
+    /* Initialize context switching and the frame-scheduled SysTick. */
+    maxrtos_arch_context_switch_init();
+    maxrtos_arch_systick_init( &s_frame_schedule, &s_partition_table );
 }

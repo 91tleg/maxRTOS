@@ -81,16 +81,37 @@ class MemoryRegion:
 
 
 @dataclass
-class Partition:
-    id: int
+class Process:
+    """One process of a partition, with its own stack."""
     name: str
     stack_size: int
     stack_alignment: int
+    priority: int
+
+
+@dataclass
+class Partition:
+    """A partition and its MPU memory domain.
+
+    All processes of a partition share one MPU region (the domain) that
+    covers every one of their stacks. The domain is a single naturally
+    aligned power-of-two block, so stacks are packed into it and the
+    domain is padded up to domain_size.
+    """
+    id: int
+    name: str
     mpu_access: str
     mpu_executable: bool
     stack_region: str
-    entry_symbol: str | None = None
-    priority: int | None = None
+    processes: list[Process]
+    domain_size: int
+    domain_alignment: int
+    # Byte offset of each process stack from the domain base, in the
+    # same order as processes.
+    stack_offsets: list[int]
+    # Fully resolved health-monitor policy: every key of HM_FAULTS maps to
+    # a key of HM_ACTIONS.
+    health: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -112,18 +133,86 @@ class MpuRegion:
 class PortRegion:
     """A statically declared, MPU-protected shared-memory region for
     inter-partition IPC.
-    The generator does not know the internal layout of
-    maxrtos_queue_port_t / maxrtos_sampling_port_t, so it is the
-    application's responsibility to cast this buffer and call
-    maxrtos_queue_port_init()/maxrtos_sampling_port_init() once.
+
+    The generator owns the queue/sampling initialization contract because it
+    knows the configured object shape for each static port and because the
+    port must be ready before any partition can send or receive.
     """
     name: str
     size: int
+    message_size: int
+    capacity: int
     region: str
     member_partition_ids: list[int]
 
 
 MAX_PORT_REGIONS = 7
+
+# Must match MAXRTOS_MAX_PROCESSES / MAXRTOS_MAX_PRIORITY in
+# include/maxrtos/config.h.
+MAX_PROCESSES = 16
+MAX_PRIORITY = 31
+
+MPU_MIN_REGION_SIZE = 32
+
+# Fault classes the architecture layer actually raises, mapped to the C
+# enumerator suffix in maxrtos/kernel/health_monitor.h
+# (MAXRTOS_FAULT_<suffix>). UNEXPECTED_RETURN and DEADLINE_EXCEEDED exist in
+# the kernel enum but nothing raises them yet, so they are not configurable.
+HM_FAULTS = {
+    "memory_access": "MEMORY_ACCESS",
+    "bus_error": "BUS_ERROR",
+    "illegal_instruction": "ILLEGAL_INSTRUCTION",
+    "divide_by_zero": "DIVIDE_BY_ZERO",
+}
+
+# "ignore" is deliberately absent: for every raised fault it resumes the
+# faulting instruction, which faults again forever.
+HM_ACTIONS = {
+    "restart_process": "RESTART_PROCESS",
+    "halt_partition": "HALT_PARTITION",
+}
+
+HM_DEFAULT_ACTION = "restart_process"
+
+_LEGACY_PARTITION_KEYS = ("stack_size", "stack_alignment", "priority", "entry_symbol")
+
+
+def _next_pow2(n: int) -> int:
+    p = 1
+    while p < n:
+        p <<= 1
+    return p
+
+
+def _domain_bytes(parts: list["Partition"]) -> int:
+    """Bytes a set of domains occupy when placed in id order, each
+    aligned to its own size (MPU rule), assuming a region-aligned origin."""
+    cursor = 0
+    for p in sorted(parts, key=lambda x: x.id):
+        cursor = (cursor + p.domain_alignment - 1) // p.domain_alignment * p.domain_alignment
+        cursor += p.domain_size
+    return cursor
+
+
+def _pack_domain(processes: list[Process]) -> tuple[int, int, list[int]]:
+    """Pack process stacks into one MPU domain.
+
+    Stacks are placed in descending-alignment order (ties keep JSON order)
+    to minimise padding. Returns (domain_size, domain_alignment, offsets)
+    where offsets are indexed like `processes`. domain_size is a power of
+    two >= the MPU minimum, and the domain must be aligned to itself.
+    """
+    order = sorted(range(len(processes)), key=lambda i: -processes[i].stack_alignment)
+    offsets = [0] * len(processes)
+    cursor = 0
+    for i in order:
+        pr = processes[i]
+        cursor = (cursor + pr.stack_alignment - 1) // pr.stack_alignment * pr.stack_alignment
+        offsets[i] = cursor
+        cursor += pr.stack_size
+    domain_size = max(_next_pow2(cursor), MPU_MIN_REGION_SIZE)
+    return domain_size, domain_size, offsets
 
 
 @dataclass
@@ -135,6 +224,32 @@ class RtosConfig:
     mpu_regions: list[MpuRegion]
     stack_region_name: str
     port_regions: list[PortRegion]
+
+
+def _parse_health_policy(raw: object, ctx: str) -> dict[str, str]:
+    """Validate one health_monitor object -> {fault: action} (may be partial)."""
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{ctx} must be an object mapping fault names to actions")
+    policy: dict[str, str] = {}
+    for fault, action in raw.items():
+        if fault not in HM_FAULTS:
+            hint = ""
+            if fault in ("unexpected_return", "deadline_exceeded"):
+                hint = " (this fault class is not raised by the architecture layer yet)"
+            raise ConfigError(
+                f"{ctx}.{fault}: unknown fault; expected one of {sorted(HM_FAULTS)}{hint}"
+            )
+        if action == "ignore":
+            raise ConfigError(
+                f"{ctx}.{fault}: 'ignore' is not allowed - it resumes the faulting "
+                f"instruction, which faults again forever. Use one of {sorted(HM_ACTIONS)}"
+            )
+        if action not in HM_ACTIONS:
+            raise ConfigError(
+                f"{ctx}.{fault}: action must be one of {sorted(HM_ACTIONS)}, got {action!r}"
+            )
+        policy[fault] = action
+    return policy
 
 
 def load_config(raw: dict) -> RtosConfig:
@@ -160,14 +275,35 @@ def load_config(raw: dict) -> RtosConfig:
     if not partitions_raw:
         raise ConfigError("at least one partition is required")
 
+    hm_raw = raw.get("health_monitor", {})
+    if not isinstance(hm_raw, dict):
+        raise ConfigError("health_monitor must be an object")
+    for key in hm_raw:
+        if key != "default":
+            raise ConfigError(
+                f"health_monitor.{key}: unknown key; only 'default' is supported "
+                f"(per-partition overrides go on partitions[].health_monitor)"
+            )
+    hm_default = {f: HM_DEFAULT_ACTION for f in HM_FAULTS}
+    hm_default.update(_parse_health_policy(hm_raw.get("default", {}), "health_monitor.default"))
+
     seen_ids: set[int] = set()
     seen_names: set[str] = set()
+    seen_process_names: set[str] = set()
     partitions: list[Partition] = []
     for i, p in enumerate(partitions_raw):
         ctx = f"partitions[{i}]"
-        for req in ("id", "name", "stack_size", "stack_alignment", "mpu"):
+        for req in ("id", "name", "mpu", "processes"):
             if req not in p:
                 raise ConfigError(f"{ctx} missing required key '{req}'")
+        for legacy in _LEGACY_PARTITION_KEYS:
+            if legacy in p:
+                raise ConfigError(
+                    f"{ctx}.{legacy} is no longer supported on a partition: a "
+                    f"partition owns several processes, each with its own stack. "
+                    f"Move it into partitions[{i}].processes[] "
+                    f"(name, stack_size, stack_alignment, priority)"
+                )
         pid = p["id"]
         name = require_c_ident(p["name"], f"{ctx}.name")
         if pid in seen_ids:
@@ -176,19 +312,6 @@ def load_config(raw: dict) -> RtosConfig:
             raise ConfigError(f"duplicate partition name {name!r}")
         seen_ids.add(pid)
         seen_names.add(name)
-
-        stack_size = parse_size(p["stack_size"])
-        stack_align = parse_size(p["stack_alignment"])
-        if not is_power_of_two(stack_align):
-            raise ConfigError(
-                f"{ctx}.stack_alignment ({stack_align}) must be a power of two"
-            )
-
-        if stack_size % stack_align != 0:
-            raise ConfigError(
-                f"{ctx}.stack_size ({stack_size}) must be a multiple of "
-                f"stack_alignment ({stack_align}) - MPU sub-region alignment requires this"
-            )
 
         mpu = p["mpu"]
         access = mpu.get("access", "read_write")
@@ -209,40 +332,81 @@ def load_config(raw: dict) -> RtosConfig:
                 f"{ctx}.stack_region {stack_region!r} not found in 'memory'"
             )
 
-        entry_symbol = p.get("entry_symbol")
-        if entry_symbol is not None:
-            require_c_ident(entry_symbol, f"{ctx}.entry_symbol")
+        health = dict(hm_default)
+        health.update(
+            _parse_health_policy(p.get("health_monitor", {}), f"{ctx}.health_monitor")
+        )
+
+        procs_raw = p["processes"]
+        if not isinstance(procs_raw, list) or not procs_raw:
+            raise ConfigError(f"{ctx}.processes must be a non-empty list")
+
+        processes: list[Process] = []
+        for j, pr in enumerate(procs_raw):
+            pctx = f"{ctx}.processes[{j}]"
+            for req in ("name", "stack_size", "stack_alignment", "priority"):
+                if req not in pr:
+                    raise ConfigError(f"{pctx} missing required key '{req}'")
+            pname = require_c_ident(pr["name"], f"{pctx}.name")
+            if pname in seen_process_names:
+                raise ConfigError(f"duplicate process name {pname!r}")
+            seen_process_names.add(pname)
+
+            stack_size = parse_size(pr["stack_size"])
+            stack_align = parse_size(pr["stack_alignment"])
+            if not is_power_of_two(stack_align):
+                raise ConfigError(
+                    f"{pctx}.stack_alignment ({stack_align}) must be a power of two"
+                )
+            if stack_size <= 0 or stack_size % stack_align != 0:
+                raise ConfigError(
+                    f"{pctx}.stack_size ({stack_size}) must be a positive multiple of "
+                    f"stack_alignment ({stack_align})"
+                )
+
+            prio = pr["priority"]
+            if isinstance(prio, bool) or not isinstance(prio, int) or not (0 <= prio <= MAX_PRIORITY):
+                raise ConfigError(
+                    f"{pctx}.priority must be an integer in [0, {MAX_PRIORITY}], got {prio!r}"
+                )
+
+            processes.append(Process(pname, stack_size, stack_align, prio))
+
+        domain_size, domain_align, offsets = _pack_domain(processes)
 
         partitions.append(
             Partition(
                 id=pid,
                 name=name,
-                stack_size=stack_size,
-                stack_alignment=stack_align,
                 mpu_access=access,
                 mpu_executable=executable,
                 stack_region=stack_region,
-                entry_symbol=entry_symbol,
-                priority=p.get("priority"),
+                processes=processes,
+                domain_size=domain_size,
+                domain_alignment=domain_align,
+                stack_offsets=offsets,
+                health=health,
             )
         )
 
-    # Validate every partition sharing a stack_region packs without overflowing it.
+    total_processes = sum(len(p.processes) for p in partitions)
+    if total_processes > MAX_PROCESSES:
+        raise ConfigError(
+            f"{total_processes} processes declared but MAXRTOS_MAX_PROCESSES is {MAX_PROCESSES}"
+        )
+
     by_region: dict[str, list[Partition]] = {}
     for p in partitions:
         by_region.setdefault(p.stack_region, []).append(p)
 
     stack_region_name = partitions[0].stack_region
     for region_name, parts in by_region.items():
-        region = memory[region_name]
-        cursor = 0
-        for p in sorted(parts, key=lambda x: x.id):
-            cursor = (cursor + p.stack_alignment - 1) // p.stack_alignment * p.stack_alignment
-            cursor += p.stack_size
-        if cursor > region.size:
+        need = _domain_bytes(parts)
+        if need > memory[region_name].size:
             raise ConfigError(
-                f"partition stacks assigned to memory region {region_name!r} "
-                f"require {cursor} bytes but the region is only {region.size} bytes"
+                f"partition domains assigned to memory region {region_name!r} "
+                f"require {need} bytes but the region is only "
+                f"{memory[region_name].size} bytes"
             )
 
     schedule_raw = raw.get("schedule", {}).get("major_frame", [])
@@ -364,7 +528,7 @@ def load_config(raw: dict) -> RtosConfig:
     port_regions: list[PortRegion] = []
     for i, prt in enumerate(ports_raw):
         ctx = f"ports[{i}]"
-        for req in ("name", "size", "region", "members"):
+        for req in ("name", "size", "message_size", "capacity", "region", "members"):
             if req not in prt:
                 raise ConfigError(f"{ctx} missing required key '{req}'")
 
@@ -378,6 +542,14 @@ def load_config(raw: dict) -> RtosConfig:
             raise ConfigError(f"{ctx}.size ({size}) must be a power of two -- MPU region size rule")
         if size < 32:
             raise ConfigError(f"{ctx}.size ({size}) must be at least 32 bytes -- ARMv7-M MPU minimum region size")
+
+        message_size = parse_size(prt["message_size"])
+        if message_size <= 0:
+            raise ConfigError(f"{ctx}.message_size must be greater than zero")
+
+        capacity = int(prt["capacity"])
+        if capacity <= 0:
+            raise ConfigError(f"{ctx}.capacity must be greater than zero")
 
         region_name = prt["region"]
         if region_name not in memory:
@@ -395,7 +567,11 @@ def load_config(raw: dict) -> RtosConfig:
             raise ConfigError(f"{ctx}.members lists the same partition more than once")
 
         port_regions.append(PortRegion(
-            name=name, size=size, region=region_name,
+            name=name,
+            size=size,
+            message_size=message_size,
+            capacity=capacity,
+            region=region_name,
             member_partition_ids=sorted(member_ids),
         ))
 
@@ -413,10 +589,7 @@ def load_config(raw: dict) -> RtosConfig:
     for region_name in all_region_names:
         region = memory[region_name]
 
-        stack_bytes = 0
-        for p in sorted(by_region.get(region_name, []), key=lambda x: x.id):
-            stack_bytes = (stack_bytes + p.stack_alignment - 1) // p.stack_alignment * p.stack_alignment
-            stack_bytes += p.stack_size
+        stack_bytes = _domain_bytes(by_region.get(region_name, []))
 
         port_bytes = 0
         for prt in port_regions_by_memory.get(region_name, []):
@@ -427,7 +600,7 @@ def load_config(raw: dict) -> RtosConfig:
         if total > region.size:
             raise ConfigError(
                 f"memory region {region_name!r} needs {total} bytes for partition "
-                f"stacks ({stack_bytes}) and port buffers ({port_bytes}) together "
+                f"domains ({stack_bytes}) and port buffers ({port_bytes}) together "
                 f"but is only {region.size} bytes"
             )
 

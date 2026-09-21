@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
@@ -19,7 +20,7 @@ def generate_linker_script(
     """
     Generate the linker script for an RTOS configuration.
 
-    Partition stacks and static port buffers are grouped by their configured
+    Partition domains (one per partition, holding all its process stacks) and static port buffers are grouped by their configured
     memory region so the linker template can emit deterministic NOLOAD
     sections. Kernel data, BSS, heap, and the main stack are placed in the
     first available non-flash memory region that is not assigned to
@@ -54,10 +55,23 @@ def generate_linker_script(
     stack_regions: dict[str, list] = {}
 
     for partition in cfg.partitions:
+        # Processes in offset order so the linker places input sections
+        # exactly where the schema's packing put them.
+        ordered = [
+            partition.processes[i]
+            for i in sorted(
+                range(len(partition.processes)),
+                key=lambda k: partition.stack_offsets[k],
+            )
+        ]
         stack_regions.setdefault(
             partition.stack_region,
             [],
-        ).append(partition)
+        ).append(SimpleNamespace(
+            name=partition.name,
+            domain_size=partition.domain_size,
+            processes=ordered,
+        ))
 
     # Group static port buffers by memory region in configuration order.
     # Each port buffer is emitted as a separate NOLOAD section and aligned

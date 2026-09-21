@@ -7,9 +7,9 @@ maxrtos partitioned application, from a single JSON config.
 
 | File              | Contents                                                                 |
 |-------------------|---------------------------------------------------------------------------|
-| `link.ld`         | `MEMORY` map + per-partition `NOLOAD` stack sections, packed automatically |
-| `maxrtos_config.h`   | `PARTITION_ID_*` constants, `extern` stack arrays, `maxrtos_config_init/start()` |
-| `maxrtos_config.c`   | MPU region setup, partition table wiring, frame schedule, scheduler start |
+| `link.ld`         | `MEMORY` map + one `NOLOAD` MPU-domain section per partition holding all its process stacks |
+| `maxrtos_config.h`   | `PARTITION_ID_*`, `PARTITION_DOMAIN_SIZE_*`, per-process `extern` stacks + `PROCESS_STACK_SIZE_*`/`PROCESS_PRIORITY_*`, `maxrtos_config_init()` |
+| `maxrtos_config.c`   | MPU region setup (one per partition), partition table wiring, frame schedule |
 
 ## What it deliberately does NOT generate
 
@@ -43,10 +43,31 @@ See `examples/example_module.json`. Key sections:
   Sizes accept `"512B"`, `"512"`, `"128K"`, `"2M"`.
 - `stack_region`: which memory region holds partition stacks by default
   (override per-partition with a `"stack_region"` key on that partition).
-- `partitions[]`: `id`, `name` (C identifier), `stack_size`, `stack_alignment`
-  (must be a power of two; `stack_size` must be a multiple of it — this is an
-  MPU sub-region alignment requirement, not a style choice), and `mpu.access`
-  / `mpu.executable` for that partition's own memory protection.
+- `partitions[]`: `id`, `name` (C identifier), `mpu.access` / `mpu.executable`
+  for the partition's memory domain, and `processes[]`. Each process has
+  `name` (C identifier, unique across the config), `stack_size`,
+  `stack_alignment` (power of two; `stack_size` a multiple of it) and
+  `priority` (0..`MAXRTOS_MAX_PRIORITY`). The old partition-level
+  `stack_size`/`stack_alignment`/`priority`/`entry_symbol` keys are rejected.
+- **MPU isolation is per partition.** All processes of a partition share one
+  MPU region, the *domain*: a naturally aligned power-of-two block covering all
+  of that partition's stacks (sum of the stacks, rounded up). Processes in the
+  same partition are therefore not isolated from each other's stacks.
+- `health_monitor` (optional): recovery policy per fault class, as
+  `{"default": {...}}` at the top level and optionally
+  `partitions[].health_monitor` to override per partition. Fault classes:
+  `memory_access`, `bus_error`, `illegal_instruction`, `divide_by_zero`.
+  Actions: `restart_process` (default for all) and `halt_partition`.
+  `maxrtos_config_init()` installs the table and enables the fault
+  exceptions; without it an MPU violation would escalate to HardFault
+  unclassified. `ignore` is rejected (it retries the faulting instruction
+  forever). `unexpected_return` and `deadline_exceeded` are not raised by
+  the architecture layer yet, so they are not configurable.
+  - `restart_process`: the faulting process gets a fresh initial context
+    and is rescheduled; other processes and partitions are unaffected.
+  - `halt_partition`: the partition is never scheduled again. Its frame
+    slots run the architecture idle context (privileged WFI) so the rest of
+    the schedule keeps its timing.
 - `schedule.major_frame[]`: ordered `{partition, duration_ticks}` slots.
 - `mpu.regions[]`: background MPU regions (flash, peripheral space, etc.)
   independent of any partition. `size` must be a power of two and `base`
@@ -59,7 +80,9 @@ The tool rejects configs that would compile but fault at runtime:
 - non-power-of-two stack alignment or MPU region size
 - stack_size not a multiple of stack_alignment
 - MPU region base not aligned to its own size
-- partition stacks that don't fit in their assigned memory region
+- partition domains that don't fit in their assigned memory region
+- legacy single-stack partitions, duplicate process names, bad priorities,
+  more processes than `MAXRTOS_MAX_PROCESSES`
 - a `no_access` background MPU region overlapping a partition's stack region
 - duplicate partition ids/names, frame slots referencing unknown partitions
 
@@ -67,25 +90,37 @@ The tool rejects configs that would compile but fault at runtime:
 
 ```c
 #include "maxrtos_config.h"
+#include "maxrtos/scheduler.h"
 
-static void process_control_entry(void *arg)     { /* your logic */ }
-static void process_application_entry(void *arg)  { /* your logic */ }
+static void control_main_entry(void *arg) { /* your logic */ }
+static void application_main_entry(void *arg) { /* your logic */ }
 
 int main(void)
 {
+    maxrtos_process_id_t id;
+
     board_init();            /* yours: clocks, GPIO, SysTick timing */
-    maxrtos_config_init();      /* generated: MPU, partition table, context switch init */
+    maxrtos_config_init();   /* generated: MPU, partition table, frame schedule */
 
-    maxrtos_process_id_t id_control, id_application;
-    maxrtos_process_create(maxrtos_stack_control, PARTITION_STACK_SIZE_control,
-                            PARTITION_ID_control, 5U, process_control_entry, NULL, &id_control);
-    maxrtos_process_create(maxrtos_stack_application, PARTITION_STACK_SIZE_application,
-                            PARTITION_ID_application, 5U, process_application_entry, NULL, &id_application);
+    /* You create the processes; the generated header supplies the stacks. */
+    maxrtos_process_create(maxrtos_stack_control_main, PROCESS_STACK_SIZE_control_main,
+                           PARTITION_ID_control, PROCESS_PRIORITY_control_main,
+                           true, control_main_entry, NULL, &id);
+    maxrtos_process_create(maxrtos_stack_application_main, PROCESS_STACK_SIZE_application_main,
+                           PARTITION_ID_application, PROCESS_PRIORITY_application_main,
+                           true, application_main_entry, NULL, &id);
 
-    maxrtos_config_start(id_control, id_application);  /* generated: binds + starts scheduler, does not return */
+    maxrtos_scheduler_start();   /* registers created processes, does not return */
 }
 
 void SysTick_Handler(void) { maxrtos_arch_systick(); }
+```
+
+## Tests
+
+```bash
+pip install -e tools/maxrtos_codegen pytest
+pytest tools/maxrtos_codegen/tests
 ```
 
 ## Layout
@@ -99,6 +134,7 @@ maxrtos_codegen/
 │   │   ├── linker.py         # RtosConfig -> link.ld
 │   │   └── c_config.py       # RtosConfig -> maxrtos_config.h / .c
 │   └── templates/            # Jinja2 templates (the only place C/linker syntax lives)
+├── tests/
 └── examples/
     └── example_module.json
 ```
