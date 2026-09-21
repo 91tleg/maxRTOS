@@ -49,7 +49,6 @@ function(add_emu_test name source config)
             ${gen}/maxrtos_config.c
             ${gen}/maxrtos_config.h
             ${gen}/link.ld
-            ${gen}/startup.S
         COMMAND ${CMAKE_COMMAND} -E env
             PYTHONPATH=${MAXRTOS_ROOT}/tools/maxrtos_codegen
             ${Python3_EXECUTABLE} -m maxrtos_codegen.cli
@@ -63,7 +62,7 @@ function(add_emu_test name source config)
         ${source}
         harness.c
         ${gen}/maxrtos_config.c
-        ${gen}/startup.S
+        ${MAXRTOS_ROOT}/maxrtos/arch/cortex_m7/examples/startup.S
     )
 
     target_include_directories(${target} PRIVATE

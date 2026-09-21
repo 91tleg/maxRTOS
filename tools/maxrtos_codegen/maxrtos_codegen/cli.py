@@ -7,17 +7,16 @@ import sys
 
 from .generators.c_config import generate_header, generate_source
 from .generators.linker import generate_linker_script
-from .generators.startup import generate_startup
 from .schema import ConfigError, load_config
 
 
 def main(argv: list[str] | None = None) -> int:
     """
-    Generate MAXRTOS configuration and startup artifacts.
+    Generate MAXRTOS configuration artifacts.
 
     The input JSON configuration is validated before any output files are
-    created. Generated files include the linker script, C configuration
-    header/source, and architecture startup assembly.
+    created. Generated files include the linker script and the C
+    configuration header/source. Startup code is owned by the application.
 
     Args:
         argv: Optional command-line arguments. If None, arguments are read
@@ -60,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     config_path_str = str(args.config)
 
     # Generate all artifacts from the same validated configuration so
-    # that the linker script, C configuration, and startup code remain
+    # that the linker script and C configuration remain
     # consistent with one another.
     (args.out_dir / "link.ld").write_text(
         generate_linker_script(cfg, config_path_str)
@@ -71,14 +70,10 @@ def main(argv: list[str] | None = None) -> int:
     (args.out_dir / "maxrtos_config.c").write_text(
         generate_source(cfg, config_path_str)
     )
-    (args.out_dir / "startup.S").write_text(
-        generate_startup(cfg, config_path_str)
-    )
 
     print(f"generated: {args.out_dir}/link.ld")
     print(f"generated: {args.out_dir}/maxrtos_config.h")
     print(f"generated: {args.out_dir}/maxrtos_config.c")
-    print(f"generated: {args.out_dir}/startup.S")
 
     return 0
 
