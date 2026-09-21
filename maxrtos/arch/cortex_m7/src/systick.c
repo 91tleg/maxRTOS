@@ -26,6 +26,11 @@ void maxrtos_arch_systick_init(
     s_partition_table = table;
 }
 
+maxrtos_frame_schedule_t const * maxrtos_arch_get_frame_schedule( void )
+{
+    return s_frame_schedule;
+}
+
 void maxrtos_arch_systick( void )
 {
     maxrtos_process_id_t next_id;
