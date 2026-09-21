@@ -32,16 +32,24 @@ extern "C" {
 #define PARTITION_DOMAIN_SIZE_control ( 2048U )
 #define PARTITION_DOMAIN_SIZE_application ( 512U )
 
-/* Process stacks (defined and placed by maxrtos_config.c / linker), each inside its partition's domain. */
+/* Process stacks (defined and placed by maxrtos_config.c / linker), each inside its partition's domain.
+ * PERIOD / TIME_CAPACITY are the process's release interval and deadline in ticks (0 = none); pass
+ * them to maxrtos_process_set_timing() (maxrtos/kernel/timing.h) after creating the process. */
 extern uint8_t maxrtos_stack_control_main[ 512 ];
 #define PROCESS_STACK_SIZE_control_main ( 512U )
 #define PROCESS_PRIORITY_control_main ( 5U )
+#define PROCESS_PERIOD_TICKS_control_main ( 0U )
+#define PROCESS_TIME_CAPACITY_TICKS_control_main ( 0U )
 extern uint8_t maxrtos_stack_control_log[ 1024 ];
 #define PROCESS_STACK_SIZE_control_log ( 1024U )
 #define PROCESS_PRIORITY_control_log ( 7U )
+#define PROCESS_PERIOD_TICKS_control_log ( 40U )
+#define PROCESS_TIME_CAPACITY_TICKS_control_log ( 20U )
 extern uint8_t maxrtos_stack_application_main[ 512 ];
 #define PROCESS_STACK_SIZE_application_main ( 512U )
 #define PROCESS_PRIORITY_application_main ( 5U )
+#define PROCESS_PERIOD_TICKS_application_main ( 0U )
+#define PROCESS_TIME_CAPACITY_TICKS_application_main ( 0U )
 /**
  * Static IPC port buffers (defined and placed by maxrtos_config.c / linker).
  *

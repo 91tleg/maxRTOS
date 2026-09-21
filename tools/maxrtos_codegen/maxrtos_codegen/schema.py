@@ -87,6 +87,10 @@ class Process:
     stack_size: int
     stack_alignment: int
     priority: int
+    # Release interval in ticks; 0 = aperiodic.
+    period_ticks: int = 0
+    # Deadline in ticks, from the start of each release; 0 = none.
+    time_capacity_ticks: int = 0
 
 
 @dataclass
@@ -104,6 +108,7 @@ class Partition:
     mpu_executable: bool
     stack_region: str
     processes: list[Process]
+    type: str
     domain_size: int
     domain_alignment: int
     # Byte offset of each process stack from the domain base, in the
@@ -157,13 +162,15 @@ MPU_MIN_REGION_SIZE = 32
 
 # Fault classes the architecture layer actually raises, mapped to the C
 # enumerator suffix in maxrtos/kernel/health_monitor.h
-# (MAXRTOS_FAULT_<suffix>). UNEXPECTED_RETURN and DEADLINE_EXCEEDED exist in
-# the kernel enum but nothing raises them yet, so they are not configurable.
+# (MAXRTOS_FAULT_<suffix>). UNEXPECTED_RETURN exists in the kernel enum but
+# nothing raises it yet, so it is not configurable. DEADLINE_EXCEEDED is
+# raised by the kernel's deadline supervision (process time_capacity_ticks).
 HM_FAULTS = {
     "memory_access": "MEMORY_ACCESS",
     "bus_error": "BUS_ERROR",
     "illegal_instruction": "ILLEGAL_INSTRUCTION",
     "divide_by_zero": "DIVIDE_BY_ZERO",
+    "deadline_exceeded": "DEADLINE_EXCEEDED",
 }
 
 # "ignore" is deliberately absent: for every raised fault it resumes the
@@ -174,6 +181,12 @@ HM_ACTIONS = {
 }
 
 HM_DEFAULT_ACTION = "restart_process"
+
+# A partition's privilege is fixed by its type. Application partitions run
+# unprivileged; only a system partition (platform software such as a driver
+# partition) runs privileged, for all of its processes together, because they
+# share one memory domain.
+PARTITION_TYPES = ("application", "system")
 
 _LEGACY_PARTITION_KEYS = ("stack_size", "stack_alignment", "priority", "entry_symbol")
 
@@ -224,6 +237,9 @@ class RtosConfig:
     mpu_regions: list[MpuRegion]
     stack_region_name: str
     port_regions: list[PortRegion]
+    # Value of MPU_CTRL.PRIVDEFENA. False (the default) denies every access
+    # not permitted by a region, privileged included.
+    privileged_default_map: bool = False
 
 
 def _parse_health_policy(raw: object, ctx: str) -> dict[str, str]:
@@ -234,7 +250,7 @@ def _parse_health_policy(raw: object, ctx: str) -> dict[str, str]:
     for fault, action in raw.items():
         if fault not in HM_FAULTS:
             hint = ""
-            if fault in ("unexpected_return", "deadline_exceeded"):
+            if fault == "unexpected_return":
                 hint = " (this fault class is not raised by the architecture layer yet)"
             raise ConfigError(
                 f"{ctx}.{fault}: unknown fault; expected one of {sorted(HM_FAULTS)}{hint}"
@@ -313,6 +329,12 @@ def load_config(raw: dict) -> RtosConfig:
         seen_ids.add(pid)
         seen_names.add(name)
 
+        ptype = p.get("type", "application")
+        if ptype not in PARTITION_TYPES:
+            raise ConfigError(
+                f"{ctx}.type must be one of {PARTITION_TYPES}, got {ptype!r}"
+            )
+
         mpu = p["mpu"]
         access = mpu.get("access", "read_write")
         if access not in ACCESS_VALUES:
@@ -370,7 +392,24 @@ def load_config(raw: dict) -> RtosConfig:
                     f"{pctx}.priority must be an integer in [0, {MAX_PRIORITY}], got {prio!r}"
                 )
 
-            processes.append(Process(pname, stack_size, stack_align, prio))
+            period = pr.get("period_ticks", 0)
+            capacity = pr.get("time_capacity_ticks", 0)
+            for key, value in (("period_ticks", period), ("time_capacity_ticks", capacity)):
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    raise ConfigError(
+                        f"{pctx}.{key} must be a non-negative integer number of ticks, "
+                        f"got {value!r}"
+                    )
+            if period > 0 and capacity > period:
+                raise ConfigError(
+                    f"{pctx}.time_capacity_ticks ({capacity}) must not exceed "
+                    f"period_ticks ({period}): a deadline later than the next release "
+                    f"could never be met"
+                )
+
+            processes.append(
+                Process(pname, stack_size, stack_align, prio, period, capacity)
+            )
 
         domain_size, domain_align, offsets = _pack_domain(processes)
 
@@ -382,6 +421,7 @@ def load_config(raw: dict) -> RtosConfig:
                 mpu_executable=executable,
                 stack_region=stack_region,
                 processes=processes,
+                type=ptype,
                 domain_size=domain_size,
                 domain_alignment=domain_align,
                 stack_offsets=offsets,
@@ -604,6 +644,42 @@ def load_config(raw: dict) -> RtosConfig:
                 f"but is only {region.size} bytes"
             )
 
+    mpu_section = raw.get("mpu", {})
+    privdefena = mpu_section.get("privileged_default_map", False)
+    if not isinstance(privdefena, bool):
+        raise ConfigError("mpu.privileged_default_map must be true or false")
+
+    if not privdefena:
+        # Deny-by-default: privileged kernel code (handlers, the scheduler,
+        # the MPU driver) then needs regions too. Check the ones we can know.
+        flash = memory.get("flash")
+        if flash is not None and not any(
+            mr.access in ("read_only", "priv_read_only", "read_write", "priv_read_write")
+            and mr.base <= flash.origin
+            and (mr.base + mr.size) >= flash.end
+            for mr in mpu_regions
+        ):
+            raise ConfigError(
+                f"mpu.privileged_default_map is false but memory region 'flash' "
+                f"[0x{flash.origin:X}, 0x{flash.end:X}) is not covered by a readable "
+                f"entry in mpu.regions: the kernel could not fetch its own code"
+            )
+        for name, region in memory.items():
+            if name == "flash":
+                continue
+            if not any(
+                mr.access in ("priv_read_write", "read_write")
+                and mr.base <= region.origin
+                and (mr.base + mr.size) >= region.end
+                for mr in mpu_regions
+            ):
+                raise ConfigError(
+                    f"mpu.privileged_default_map is false but memory region {name!r} "
+                    f"[0x{region.origin:X}, 0x{region.end:X}) is not fully covered by a "
+                    f"'priv_read_write' (or 'read_write') entry in mpu.regions: kernel "
+                    f"data, stacks and IPC objects placed there would fault"
+                )
+
     return RtosConfig(
         module_name=module_name,
         memory=memory,
@@ -612,4 +688,5 @@ def load_config(raw: dict) -> RtosConfig:
         mpu_regions=mpu_regions,
         stack_region_name=stack_region_name,
         port_regions=port_regions,
+        privileged_default_map=privdefena,
     )

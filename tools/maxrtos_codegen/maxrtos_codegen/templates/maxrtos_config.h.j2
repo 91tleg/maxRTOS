@@ -34,12 +34,16 @@ extern "C" {
 #define PARTITION_DOMAIN_SIZE_{{ p.name }} ( {{ p.domain_size }}U )
 {% endfor %}
 
-/* Process stacks (defined and placed by maxrtos_config.c / linker), each inside its partition's domain. */
+/* Process stacks (defined and placed by maxrtos_config.c / linker), each inside its partition's domain.
+ * PERIOD / TIME_CAPACITY are the process's release interval and deadline in ticks (0 = none); pass
+ * them to maxrtos_process_set_timing() (maxrtos/kernel/timing.h) after creating the process. */
 {% for p in partitions %}
 {% for pr in p.processes %}
 extern uint8_t maxrtos_stack_{{ pr.name }}[ {{ pr.stack_size }} ];
 #define PROCESS_STACK_SIZE_{{ pr.name }} ( {{ pr.stack_size }}U )
 #define PROCESS_PRIORITY_{{ pr.name }} ( {{ pr.priority }}U )
+#define PROCESS_PERIOD_TICKS_{{ pr.name }} ( {{ pr.period_ticks }}U )
+#define PROCESS_TIME_CAPACITY_TICKS_{{ pr.name }} ( {{ pr.time_capacity_ticks }}U )
 {% endfor %}
 {% endfor %}
 {% if port_regions %}

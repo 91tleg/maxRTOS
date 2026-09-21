@@ -36,7 +36,9 @@
           "name": "control_log",
           "stack_size": "1K",
           "stack_alignment": "1K",
-          "priority": 7
+          "priority": 7,
+          "period_ticks": 40,
+          "time_capacity_ticks": 20
         }
       ]
     },

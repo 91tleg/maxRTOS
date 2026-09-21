@@ -80,6 +80,11 @@ void maxrtos_config_init( void )
         MAXRTOS_HM_ACTION_RESTART_PROCESS ) );
     MAXRTOS_CONFIG_CHECK( maxrtos_hm_set_policy(
         &s_health_monitor,
+        PARTITION_ID_control,
+        MAXRTOS_FAULT_DEADLINE_EXCEEDED,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS ) );
+    MAXRTOS_CONFIG_CHECK( maxrtos_hm_set_policy(
+        &s_health_monitor,
         PARTITION_ID_application,
         MAXRTOS_FAULT_MEMORY_ACCESS,
         MAXRTOS_HM_ACTION_RESTART_PROCESS ) );
@@ -98,8 +103,14 @@ void maxrtos_config_init( void )
         PARTITION_ID_application,
         MAXRTOS_FAULT_DIVIDE_BY_ZERO,
         MAXRTOS_HM_ACTION_RESTART_PROCESS ) );
+    MAXRTOS_CONFIG_CHECK( maxrtos_hm_set_policy(
+        &s_health_monitor,
+        PARTITION_ID_application,
+        MAXRTOS_FAULT_DEADLINE_EXCEEDED,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS ) );
     maxrtos_arch_set_health_monitor( &s_health_monitor );
     maxrtos_arch_fault_handlers_init();
+
 
     /* MPU configuration. */
     MAXRTOS_CONFIG_CHECK( maxrtos_mpu_config_init( &s_mpu_config ) );
@@ -144,7 +155,7 @@ void maxrtos_config_init( void )
         524288U,
         MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE,
         false );
-    maxrtos_arch_mpu_init();
+    maxrtos_arch_mpu_init( false );
 
     {
         static maxrtos_frame_slot_t s_frame_slots[ 2 ];

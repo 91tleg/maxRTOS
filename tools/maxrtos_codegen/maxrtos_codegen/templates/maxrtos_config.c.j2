@@ -80,6 +80,13 @@ void maxrtos_config_init( void )
     maxrtos_arch_set_health_monitor( &s_health_monitor );
     maxrtos_arch_fault_handlers_init();
 
+{% for p in partitions %}
+{% if p.system %}
+    /* System partition: privileged. Application partitions are unprivileged. */
+    maxrtos_arch_set_partition_privileged( PARTITION_ID_{{ p.name }}, true );
+{% endif %}
+{% endfor %}
+
     /* MPU configuration. */
     MAXRTOS_CONFIG_CHECK( maxrtos_mpu_config_init( &s_mpu_config ) );
 
@@ -126,7 +133,7 @@ void maxrtos_config_init( void )
         s_ipc_ports_initialized = true;
     }
 {% endif %}
-    maxrtos_arch_mpu_init();
+    maxrtos_arch_mpu_init( {{ "true" if privileged_default_map else "false" }} );
 
     {
         static maxrtos_frame_slot_t s_frame_slots[ {{ frame_schedule|length }} ];

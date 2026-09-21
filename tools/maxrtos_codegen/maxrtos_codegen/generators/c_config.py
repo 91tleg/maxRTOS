@@ -67,6 +67,7 @@ def _partitions_with_access_enum(
                 mpu_executable=partition.mpu_executable,
                 stack_region=partition.stack_region,
                 processes=partition.processes,
+                system=( partition.type == "system" ),
                 health=[
                     SimpleNamespace(
                         fault=HM_FAULTS[fault],
@@ -159,5 +160,6 @@ def generate_source(cfg: RtosConfig, config_path: str) -> str:
         stack_regions=_stack_regions(cfg),
         mpu_regions=_mpu_regions_with_access_enum(cfg),
         frame_schedule=cfg.frame_schedule,
+        privileged_default_map=cfg.privileged_default_map,
         port_regions=_port_regions_with_mask_expr(cfg),
     )
