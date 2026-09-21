@@ -2,39 +2,30 @@
  * @file mpu_hw.c
  * @brief Cortex-M7 MPU hardware configuration.
  *
- * This module translates validated configuration into MPU register
- * values and performs the required synchronization barriers.
+ * Translates validated MPU configuration into hardware register
+ * settings and performs the required synchronization barriers.
  *
- * MPU regions 0 through 7 are reserved for system-wide memory
- * mappings such as program code, peripherals, and kernel memory.
- *
- * MPU region 8 is a single reusable slot for whichever partition is
- * currently scheduled.
- * 
- * MPU region 9-15 are unused and available for future needs.
+ * MPU regions below MAXRTOS_MPU_PARTITION_REGION are reserved for
+ * system mappings. MAXRTOS_MPU_PARTITION_REGION is reused for the
+ * currently scheduled partition. Remaining regions are statically
+ * assigned to communication ports and are enabled only for their
+ * declared member partitions.
  */
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "maxrtos/types.h"
 #include "maxrtos/arch/cortex_m7/mpu_hw.h"
+#include "maxrtos/arch/cortex_m7/port.h"
 
-#define MAXRTOS_MPU_CTRL ( *( volatile uint32_t * ) 0xE000ED94UL )
-#define MAXRTOS_MPU_RNR  ( *( volatile uint32_t * ) 0xE000ED98UL )
-#define MAXRTOS_MPU_RBAR ( *( volatile uint32_t * ) 0xE000ED9CUL )
-#define MAXRTOS_MPU_RASR ( *( volatile uint32_t * ) 0xE000EDA0UL )
+#define MAXRTOS_MPU_CTRL MAXRTOS_PORT_MPU_CTRL
+#define MAXRTOS_MPU_RNR  MAXRTOS_PORT_MPU_RNR
+#define MAXRTOS_MPU_RBAR MAXRTOS_PORT_MPU_RBAR
+#define MAXRTOS_MPU_RASR MAXRTOS_PORT_MPU_RASR
 
-#define MAXRTOS_MPU_CTRL_ENABLE_BIT ( 1UL << 0U )
-
-#define MAXRTOS_MPU_SYSTEM_REGION_COUNT ( 8U )
-
-#define MAXRTOS_INVALID_PARTITION_ID ( UINT32_MAX )
-
-/* The single reusable slot for the currently-scheduled partition's
- * data region. */
-#define MAXRTOS_MPU_PARTITION_REGION  \
-    ( MAXRTOS_MPU_SYSTEM_REGION_COUNT )
+#define MAXRTOS_MPU_CTRL_ENABLE_BIT  ( UINT32_C( 1 ) << 0U )
 
 /* RASR bit-field positions. */
 #define MAXRTOS_RASR_ENABLE_POS ( 0U )
@@ -51,8 +42,12 @@
 #define MAXRTOS_RASR_AP_READ_ONLY      ( UINT32_C( 6 ) )
 #define MAXRTOS_RASR_AP_READ_WRITE     ( UINT32_C( 3 ) )
 
-/* Default memory attributes for configured partition regions:
- * Normal memory, inner/outer write-back cacheable, and non-shareable. */
+/* Privileged-only AP encodings. */
+#define MAXRTOS_RASR_AP_PRIV_READ_WRITE ( UINT32_C( 1 ) )
+#define MAXRTOS_RASR_AP_PRIV_READ_ONLY  ( UINT32_C( 5 ) )
+
+/* Default memory attributes for configured regions: Normal memory,
+ * inner/outer write-back cacheable, and non-shareable. */
 #define MAXRTOS_RASR_TEX_DEFAULT       ( UINT32_C( 0 ) )
 #define MAXRTOS_RASR_C_DEFAULT         ( UINT32_C( 1 ) )
 #define MAXRTOS_RASR_B_DEFAULT         ( UINT32_C( 1 ) )
@@ -62,6 +57,11 @@
 #define MAXRTOS_RASR_XN_NON_EXECUTABLE ( UINT32_C( 1 ) )
 
 static maxrtos_mpu_config_t const * s_config = NULL;
+
+/* Partition whose region is currently programmed into the partition
+ * slot. No partition is loaded until the first context switch, and
+ * installing a new configuration invalidates whatever was loaded. */
+static uint32_t s_active_partition_id = MAXRTOS_INVALID_PARTITION_ID;
 
 /**
  * @brief Convert a power-of-two region size to the ARM MPU SIZE field.
@@ -119,6 +119,14 @@ static void maxrtos_arch_mpu_program_region(
             ap_field = MAXRTOS_RASR_AP_READ_WRITE;
             break;
 
+        case MAXRTOS_MPU_ACCESS_PRIV_READ_ONLY:
+            ap_field = MAXRTOS_RASR_AP_PRIV_READ_ONLY;
+            break;
+
+        case MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE:
+            ap_field = MAXRTOS_RASR_AP_PRIV_READ_WRITE;
+            break;
+
         case MAXRTOS_MPU_ACCESS_NONE:
         default:
             ap_field = MAXRTOS_RASR_AP_NO_ACCESS;
@@ -129,8 +137,8 @@ static void maxrtos_arch_mpu_program_region(
         MAXRTOS_RASR_XN_EXECUTABLE :
         MAXRTOS_RASR_XN_NON_EXECUTABLE;
 
-    MAXRTOS_MPU_RNR = region_number;
-    MAXRTOS_MPU_RBAR = base_address;
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RNR, region_number );
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RBAR, base_address );
 
     rasr = ( UINT32_C( 1 ) << MAXRTOS_RASR_ENABLE_POS ) |
            ( size_field << MAXRTOS_RASR_SIZE_POS ) |
@@ -142,35 +150,84 @@ static void maxrtos_arch_mpu_program_region(
            ( xn_field << MAXRTOS_RASR_XN_POS );
            /* SRD remains zero, enabling all subregions. */
 
-    MAXRTOS_MPU_RASR = rasr;
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RASR, rasr );
 
-    __asm volatile ( "dsb" );
-    __asm volatile ( "isb" );
+    MAXRTOS_PORT_BARRIER();
+}
+
+static void maxrtos_arch_mpu_disable_region(
+    uint32_t region_number )
+{
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RNR, region_number );
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RASR, 0UL );
+
+    MAXRTOS_PORT_BARRIER();
 }
 
 void maxrtos_arch_mpu_set_config(
     maxrtos_mpu_config_t const * config )
 {
     s_config = config;
+    s_active_partition_id = MAXRTOS_INVALID_PARTITION_ID;
 }
 
 void maxrtos_arch_mpu_init( void )
 {
-    /* Enable the MPU with PRIVDEFENA clear so accesses not
-     * covered by an enabled region are denied. */
-    MAXRTOS_MPU_CTRL = MAXRTOS_MPU_CTRL_ENABLE_BIT;
+    /* Enable the MPU with PRIVDEFENA clear so accesses not covered
+     * by an enabled region are denied, including for privileged
+     * code. */
+    MAXRTOS_PORT_MPU_REG_WRITE(
+        MAXRTOS_MPU_CTRL,
+        MAXRTOS_MPU_CTRL_ENABLE_BIT | ( 1UL << 2U ) );
 
-    __asm volatile ( "dsb" );
-    __asm volatile ( "isb" );
+    MAXRTOS_PORT_BARRIER();
+}
+
+static void maxrtos_arch_mpu_configure_port_regions_for_partition(
+    maxrtos_partition_id_t partition_id )
+{
+    size_t count;
+    size_t i;
+
+    count = maxrtos_mpu_get_port_region_count( s_config );
+
+    for( i = 0U; i < count; i++ )
+    {
+        maxrtos_mpu_port_region_config_t port_region;
+        uint32_t region_number;
+
+        region_number = MAXRTOS_MPU_PARTITION_REGION + 1U + ( uint32_t ) i;
+
+        if( maxrtos_mpu_get_port_region(
+                s_config,
+                i,
+                &port_region ) == MAXRTOS_OK )
+        {
+            bool is_member;
+
+            is_member = ( ( port_region.member_partition_mask &
+                            ( 1UL << ( uint32_t ) partition_id ) ) != 0U );
+
+            if( is_member )
+            {
+                maxrtos_arch_mpu_program_region(
+                    region_number,
+                    port_region.base_address,
+                    port_region.size_bytes,
+                    MAXRTOS_MPU_ACCESS_READ_WRITE,
+                    false );
+            }
+            else
+            {
+                maxrtos_arch_mpu_disable_region( region_number );
+            }
+        }
+    }
 }
 
 static maxrtos_status_t maxrtos_arch_mpu_configure_for_partition(
     maxrtos_partition_id_t partition_id )
 {
-    /* No partition is loaded until the first context switch. */
-    static uint32_t s_active_partition_id =
-        MAXRTOS_INVALID_PARTITION_ID;
-
     maxrtos_status_t status;
     maxrtos_mpu_region_config_t region;
 
@@ -198,6 +255,12 @@ static maxrtos_status_t maxrtos_arch_mpu_configure_for_partition(
         }
     }
 
+    if( status == MAXRTOS_OK )
+    {
+        maxrtos_arch_mpu_configure_port_regions_for_partition(
+            partition_id );
+    }
+
     return status;
 }
 
@@ -210,8 +273,18 @@ maxrtos_status_t maxrtos_arch_mpu_configure_for_next_pcb(
 
     if( next_pcb != NULL )
     {
-        status = maxrtos_arch_mpu_configure_for_partition(
-            next_pcb->partition_id );
+        if( next_pcb->partition_id == MAXRTOS_INVALID_PARTITION_ID )
+        {
+            /* The architecture idle context: privileged and belongs to
+             * no partition, so there is no partition memory to map. The
+             * previously loaded partition region is left as it is. */
+            status = MAXRTOS_OK;
+        }
+        else
+        {
+            status = maxrtos_arch_mpu_configure_for_partition(
+                next_pcb->partition_id );
+        }
     }
 
     return status;
@@ -233,7 +306,9 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
         ( ( base_address % size_bytes ) == 0U ) &&
         ( ( access == MAXRTOS_MPU_ACCESS_NONE ) ||
           ( access == MAXRTOS_MPU_ACCESS_READ_ONLY ) ||
-          ( access == MAXRTOS_MPU_ACCESS_READ_WRITE ) ) )
+          ( access == MAXRTOS_MPU_ACCESS_READ_WRITE ) ||
+          ( access == MAXRTOS_MPU_ACCESS_PRIV_READ_ONLY ) ||
+          ( access == MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE ) ) )
     {
         maxrtos_arch_mpu_program_region(
             region_number,
@@ -246,4 +321,65 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
     }
 
     return status;
+}
+
+bool maxrtos_arch_mpu_partition_owns_range(
+    maxrtos_partition_id_t partition_id,
+    uint32_t address,
+    uint32_t size )
+{
+    bool owns;
+    maxrtos_mpu_region_config_t region;
+
+    owns = false;
+
+    if( ( s_config != NULL ) &&
+        ( size > 0U ) &&
+        ( maxrtos_mpu_get_partition_region(
+              s_config, partition_id, &region ) == MAXRTOS_OK ) &&
+        ( region.access == MAXRTOS_MPU_ACCESS_READ_WRITE ) )
+    {
+        uint32_t end;
+
+        end = address + size;
+
+        /* end < address detects wrap-around. */
+        owns = ( end > address ) &&
+               ( address >= region.base_address ) &&
+               ( end <= ( region.base_address + region.size_bytes ) );
+    }
+
+    return owns;
+}
+
+bool maxrtos_arch_mpu_is_port_member(
+    maxrtos_partition_id_t partition_id,
+    uint32_t address )
+{
+    bool member;
+    size_t count;
+    size_t i;
+
+    member = false;
+
+    if( ( s_config != NULL ) && ( partition_id < MAXRTOS_MAX_PARTITIONS ) )
+    {
+        count = maxrtos_mpu_get_port_region_count( s_config );
+
+        for( i = 0U; ( i < count ) && ( member == false ); i++ )
+        {
+            maxrtos_mpu_port_region_config_t port_region;
+
+            if( ( maxrtos_mpu_get_port_region( s_config, i, &port_region ) ==
+                  MAXRTOS_OK ) &&
+                ( port_region.base_address == address ) &&
+                ( ( port_region.member_partition_mask &
+                    ( 1UL << ( uint32_t ) partition_id ) ) != 0U ) )
+            {
+                member = true;
+            }
+        }
+    }
+
+    return member;
 }

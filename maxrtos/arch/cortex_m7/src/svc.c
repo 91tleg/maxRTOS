@@ -15,23 +15,80 @@
 #include "maxrtos/arch/cortex_m7/svc.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
+#include "maxrtos/arch/cortex_m7/mpu_hw.h"
+#include "maxrtos/arch/cortex_m7/port.h"
+#include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/yield.h"
+#include "maxrtos/kernel/queue_port.h"
+
+static void maxrtos_arch_svc_invalid( void );
+
+static void maxrtos_arch_svc_yield(
+    uint32_t * stacked_args );
+
+static void maxrtos_arch_svc_queue_send(
+    uint32_t * stacked_args );
+
+static void maxrtos_arch_svc_queue_receive(
+    uint32_t * stacked_args );
+
+static void maxrtos_arch_svc_queue_count(
+    uint32_t * stacked_args );
+
+void maxrtos_arch_svc_dispatch(
+    uint32_t * stacked_args,
+    uint8_t svc_number )
+{
+    if( ( stacked_args == NULL ) ||
+        ( svc_number >= ( uint8_t ) MAXRTOS_SVC_COUNT ) )
+    {
+        maxrtos_arch_svc_invalid();
+    }
+
+    switch( ( maxrtos_svc_number_t ) svc_number )
+    {
+        case MAXRTOS_SVC_YIELD:
+        {
+            maxrtos_arch_svc_yield( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_QUEUE_SEND:
+        {
+            maxrtos_arch_svc_queue_send( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_QUEUE_RECEIVE:
+        {
+            maxrtos_arch_svc_queue_receive( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_QUEUE_COUNT:
+        {
+            maxrtos_arch_svc_queue_count( stacked_args );
+            break;
+        }
+
+        default:
+        {
+            maxrtos_arch_svc_invalid();
+            break;
+        }
+    }
+}
 
 /* There is no valid recovery action for a syscall gate that
  * cannot identify what was requested. */
 static void maxrtos_arch_svc_invalid( void )
 {
-    __asm volatile ( "cpsid i" );
-
-    for( ;; )
-    {
-        __asm volatile ( "bkpt #0" );
-    }
+    MAXRTOS_PORT_HALT();
 }
 
 static void maxrtos_arch_svc_yield(
-    uint32_t const * stacked_args )
+    uint32_t * stacked_args )
 {
     maxrtos_process_control_block_t const * current_pcb;
 
@@ -68,28 +125,161 @@ static void maxrtos_arch_svc_yield(
     }
 }
 
-void maxrtos_arch_svc_dispatch(
-    uint32_t const * stacked_args,
-    uint8_t svc_number )
+/* Finish an IPC service call that may have blocked the caller.
+ *
+ * The kernel has already made next_id the RUNNING process and recorded
+ * it as its partition's current process, so only the hardware switch
+ * remains. The blocked caller's own r0 is left untouched: the kernel
+ * delivers the final result when it is resumed (see
+ * maxrtos_arch_apply_resume_result()). */
+static void maxrtos_arch_svc_finish_ipc(
+    uint32_t * stacked_args,
+    maxrtos_status_t status,
+    maxrtos_process_id_t next_id )
 {
-    if( ( stacked_args == NULL ) ||
-        ( svc_number >= ( uint8_t ) MAXRTOS_SVC_COUNT ) )
+    if( status == MAXRTOS_PENDING )
     {
-        maxrtos_arch_svc_invalid();
+        maxrtos_process_control_block_t * next_pcb;
+
+        next_pcb = maxrtos_process_get( next_id );
+
+        if( next_pcb == NULL )
+        {
+            /* The caller is already BLOCKED and there is nothing valid to
+             * switch to. */
+            maxrtos_arch_svc_invalid();
+        }
+        else
+        {
+            maxrtos_arch_set_next_pcb( next_pcb );
+            maxrtos_arch_request_context_switch();
+        }
+    }
+    else
+    {
+        stacked_args[ 0 ] = ( uint32_t ) status;
+    }
+}
+
+static void maxrtos_arch_svc_queue_send(
+    uint32_t * stacked_args )
+{
+    uint32_t port_address;
+    uint32_t message_address;
+    uint32_t message_size;
+    maxrtos_tick_t timeout;
+    maxrtos_process_control_block_t const * current_pcb;
+    maxrtos_partition_table_t * partition_table;
+    maxrtos_process_id_t next_id;
+    maxrtos_status_t status;
+
+    port_address = stacked_args[ 0 ];
+    message_address = stacked_args[ 1 ];
+    message_size = stacked_args[ 2 ];
+    timeout = ( maxrtos_tick_t ) stacked_args[ 3 ];
+
+    current_pcb = maxrtos_arch_get_current_pcb();
+    partition_table = maxrtos_arch_get_partition_table();
+    next_id = MAXRTOS_INVALID_PROCESS_ID;
+
+    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
+    {
+        status = MAXRTOS_ERR_INVALID_STATE;
+    }
+    else if( ( maxrtos_arch_mpu_is_port_member(
+                   current_pcb->partition_id, port_address ) == false ) ||
+             ( maxrtos_arch_mpu_partition_owns_range(
+                   current_pcb->partition_id,
+                   message_address,
+                   message_size ) == false ) )
+    {
+        /* The caller is unprivileged; the kernel must not touch memory it
+         * could not access itself. */
+        status = MAXRTOS_ERR_INVALID_ARG;
+    }
+    else
+    {
+        status = maxrtos_kernel_queue_port_send(
+            ( maxrtos_queue_port_t * ) MAXRTOS_PORT_UADDR_TO_PTR( port_address ),
+            ( void const * ) MAXRTOS_PORT_UADDR_TO_PTR( message_address ),
+            ( size_t ) message_size,
+            timeout,
+            partition_table,
+            current_pcb->id,
+            &next_id );
     }
 
-    switch( ( maxrtos_svc_number_t ) svc_number )
-    {
-        case MAXRTOS_SVC_YIELD:
-        {
-            maxrtos_arch_svc_yield( stacked_args );
-            break;
-        }
+    maxrtos_arch_svc_finish_ipc( stacked_args, status, next_id );
+}
 
-        default:
-        {
-            maxrtos_arch_svc_invalid();
-            break;
-        }
+static void maxrtos_arch_svc_queue_receive(
+    uint32_t * stacked_args )
+{
+    uint32_t port_address;
+    uint32_t buffer_address;
+    uint32_t buffer_size;
+    maxrtos_tick_t timeout;
+    maxrtos_process_control_block_t const * current_pcb;
+    maxrtos_partition_table_t * partition_table;
+    maxrtos_process_id_t next_id;
+    maxrtos_status_t status;
+
+    port_address = stacked_args[ 0 ];
+    buffer_address = stacked_args[ 1 ];
+    buffer_size = stacked_args[ 2 ];
+    timeout = ( maxrtos_tick_t ) stacked_args[ 3 ];
+
+    current_pcb = maxrtos_arch_get_current_pcb();
+    partition_table = maxrtos_arch_get_partition_table();
+    next_id = MAXRTOS_INVALID_PROCESS_ID;
+
+    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
+    {
+        status = MAXRTOS_ERR_INVALID_STATE;
+    }
+    else if( ( maxrtos_arch_mpu_is_port_member(
+                   current_pcb->partition_id, port_address ) == false ) ||
+             ( maxrtos_arch_mpu_partition_owns_range(
+                   current_pcb->partition_id,
+                   buffer_address,
+                   buffer_size ) == false ) )
+    {
+        status = MAXRTOS_ERR_INVALID_ARG;
+    }
+    else
+    {
+        status = maxrtos_kernel_queue_port_receive(
+            ( maxrtos_queue_port_t * ) MAXRTOS_PORT_UADDR_TO_PTR( port_address ),
+            ( void * ) MAXRTOS_PORT_UADDR_TO_PTR( buffer_address ),
+            ( size_t ) buffer_size,
+            timeout,
+            partition_table,
+            current_pcb->id,
+            &next_id );
+    }
+
+    maxrtos_arch_svc_finish_ipc( stacked_args, status, next_id );
+}
+
+static void maxrtos_arch_svc_queue_count(
+    uint32_t * stacked_args )
+{
+    maxrtos_process_control_block_t const * current_pcb;
+    uint32_t port_address;
+
+    port_address = stacked_args[ 0 ];
+    current_pcb = maxrtos_arch_get_current_pcb();
+
+    /* A port the caller may not use reports no messages. */
+    if( ( current_pcb != NULL ) &&
+        ( maxrtos_arch_mpu_is_port_member(
+              current_pcb->partition_id, port_address ) == true ) )
+    {
+        stacked_args[ 0 ] = ( uint32_t ) maxrtos_kernel_queue_port_count(
+            ( maxrtos_queue_port_t const * ) MAXRTOS_PORT_UADDR_TO_PTR( port_address ) );
+    }
+    else
+    {
+        stacked_args[ 0 ] = 0U;
     }
 }

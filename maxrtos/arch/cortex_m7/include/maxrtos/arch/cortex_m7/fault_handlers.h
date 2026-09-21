@@ -80,4 +80,21 @@ void maxrtos_arch_set_partition_table(
  */
 maxrtos_partition_table_t * maxrtos_arch_get_partition_table( void );
 
+/**
+ * @brief Recover from a classified fault of the current process.
+ *
+ * Asks the kernel health monitor for the action configured for the
+ * current process's partition and fault type, and enacts it: IGNORE
+ * returns to the caller, RESTART_PROCESS gives the process a fresh
+ * context and reselects, HALT_PARTITION leaves through the idle context.
+ * A context switch, if any, takes effect when the pending switch runs.
+ * Halts the CPU on an unrecoverable configuration error.
+ *
+ * Called from the fault exception handlers. Hardware independent.
+ *
+ * @param[in] fault_type
+ *     Classification of the fault.
+ */
+void maxrtos_arch_handle_fault( maxrtos_fault_type_t fault_type );
+
 #endif /* MAXRTOS_ARCH_CORTEX_M7_FAULT_HANDLERS_H */

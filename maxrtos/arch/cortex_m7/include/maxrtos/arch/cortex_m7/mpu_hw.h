@@ -3,16 +3,14 @@
  * @brief Cortex-M7 MPU hardware configuration interface.
  *
  * Provides the architecture-specific interface for programming the
- * ARMv7-M MPU. The corresponding mpu.c module contains the
- * platform-independent configuration and validation logic and does
- * not access MPU hardware registers.
+ * ARMv7-M MPU. Configuration and validation are provided by mpu.c.
  *
- * Partition-owned MPU regions use region numbers corresponding to
- * partition IDs. Reserved MPU regions are available for system-wide
- * memory such as code, peripherals, and kernel memory.
+ * The partition region is reused for the currently scheduled
+ * partition. Lower regions are reserved for system mappings and
+ * remaining regions are statically assigned to communication ports.
  *
- * MPU configuration is applied during the PendSV context-switch path
- * before the incoming process context is restored.
+ * MPU configuration is updated by PendSV before restoring the
+ * incoming process context.
  */
 
 #ifndef MAXRTOS_ARCH_CORTEX_M7_MPU_HW_H
@@ -25,42 +23,36 @@
 #include "maxrtos/kernel/process.h"
 
 /**
- * @brief Register the MPU configuration used by this module.
- *
- * The configuration shall remain valid for the lifetime of the MPU
- * hardware configuration.
+ * @brief Register the MPU configuration.
  *
  * @param[in] config
- *     Configuration containing the partition MPU regions.
- *     Must not be NULL.
+ *     MPU configuration. Must not be NULL and shall remain valid for
+ *     the lifetime of the MPU configuration.
  */
 void maxrtos_arch_mpu_set_config(
     maxrtos_mpu_config_t const * config );
 
 /**
- * @brief Enable the Cortex-M7 MPU with deny-by-default semantics.
+ * @brief Initialize the Cortex-M7 MPU.
  *
- * Enables MPU protection and leaves PRIVDEFENA cleared. Reserved
- * system regions shall be configured before enabling the MPU.
+ * Enables the MPU with deny-by-default semantics. Required reserved
+ * regions shall be configured before enabling the MPU.
  *
- * @pre Required reserved MPU regions have been configured.
+ * @pre Required reserved MPU regions are configured.
  * @pre A valid MPU configuration has been registered.
  */
 void maxrtos_arch_mpu_init( void );
 
 /**
- * @brief Configure the MPU for the process about to become current.
+ * @brief Configure the MPU for the incoming process.
  *
- * Extracts the partition ID from the supplied process control block
- * and configures the corresponding MPU region.
- *
- * This function is called by PendSV_Handler after the incoming PCB
- * has been selected and before its processor context is restored.
+ * Configures the reusable partition region and updates static port
+ * region access for the process.
  *
  * @param[in] next_pcb
- *     Process control block about to become current.
- *     If NULL, no MPU configuration is performed.
- * 
+ *     Process control block about to become current. If NULL, no
+ *     configuration is performed.
+ *
  * @return
  *     MAXRTOS_OK on success.
  *     MAXRTOS_ERR_INVALID_ARG if next_pcb is NULL.
@@ -69,36 +61,31 @@ maxrtos_status_t maxrtos_arch_mpu_configure_for_next_pcb(
     maxrtos_process_control_block_t const * next_pcb );
 
 /**
- * @brief Configure a reserved MPU region.
+ * @brief Configure a reserved system MPU region.
  *
- * Programs an MPU region outside the partition-owned region range.
- * This function is intended for one-time system initialization rather
- * than the context-switch path and therefore performs full argument
- * validation.
- *
- * Reserved regions may be used for system-wide memory such as program
- * code, vector tables, peripherals, and kernel memory.
+ * Intended for system initialization, not the context-switch path.
+ * The region must be below MAXRTOS_MPU_PARTITION_REGION.
  *
  * @param[in] region_number
- *     MPU region number. Must satisfy
- *     MAXRTOS_MAX_PARTITIONS <= region_number < 16.
+ *     MPU region number. Must be less than
+ *     MAXRTOS_MPU_PARTITION_REGION.
  *
  * @param[in] base_address
- *     Region base address. Must be aligned to size_bytes.
+ *     Region base address, aligned to size_bytes.
  *
  * @param[in] size_bytes
- *     Region size. Must be a power of two and at least MAXRTOS_MPU_REGION_MIN_SIZE.
+ *     Region size. Must be a power of two and at least
+ *     MAXRTOS_MPU_REGION_MIN_SIZE.
  *
  * @param[in] access
  *     Access permissions for the region.
  *
  * @param[in] executable
- *     true if the region may contain executable memory; false otherwise.
+ *     true if the region may contain executable memory.
  *
  * @return
  *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if any argument violates the
- *     required region constraints.
+ *     MAXRTOS_ERR_INVALID_ARG if any argument is invalid.
  */
 maxrtos_status_t maxrtos_arch_mpu_configure_region(
     uint32_t region_number,
@@ -106,5 +93,32 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
     uint32_t size_bytes,
     maxrtos_mpu_access_t access,
     bool executable );
+
+/**
+ * @brief Check that a byte range lies entirely inside a partition's
+ *        own read-write memory domain.
+ *
+ * Used to validate buffers that a process hands to the kernel: privileged
+ * kernel code must never read or write memory the caller could not
+ * access itself.
+ *
+ * @return
+ *     true if [address, address + size) is non-empty, does not wrap, and
+ *     lies inside the partition's configured region.
+ */
+bool maxrtos_arch_mpu_partition_owns_range(
+    maxrtos_partition_id_t partition_id,
+    uint32_t address,
+    uint32_t size );
+
+/**
+ * @brief Check that address is the base of a static port region that the
+ *        partition is a member of.
+ *
+ * Used to validate port objects passed to kernel IPC services.
+ */
+bool maxrtos_arch_mpu_is_port_member(
+    maxrtos_partition_id_t partition_id,
+    uint32_t address );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_MPU_HW_H */

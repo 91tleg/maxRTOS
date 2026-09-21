@@ -76,6 +76,20 @@ void maxrtos_arch_set_next_pcb(
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void );
 
 /**
+ * @brief Deliver a completed blocking operation's result to a process.
+ *
+ * If the kernel completed an operation the process was blocked in
+ * (ipc_result_pending), writes ipc_result into the process's saved
+ * exception frame as the system-call return value (r0) and clears the
+ * flag. Called by the PendSV handler before the process is restored.
+ *
+ * @param[in,out] pcb
+ *     Process about to be restored. May be NULL.
+ */
+void maxrtos_arch_apply_resume_result(
+    maxrtos_process_control_block_t * pcb );
+
+/**
  * @brief Apply the privilege level for the next process.
  *
  * Updates the Cortex-M CONTROL.nPRIV bit according to the privilege

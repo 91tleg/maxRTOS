@@ -58,6 +58,11 @@ PendSV_Handler:
     ldr     r0, [r0]
     bl      maxrtos_arch_apply_privilege_for_next_pcb
 
+    /* Deliver the result of a completed blocking call, if any. */
+    ldr     r0, =g_maxrtos_next_pcb
+    ldr     r0, [r0]
+    bl      maxrtos_arch_apply_resume_result
+
     ldr     r0, =g_maxrtos_next_pcb
     ldr     r0, [r0]
 

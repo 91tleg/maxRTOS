@@ -14,6 +14,7 @@
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
+#include "maxrtos/arch/cortex_m7/idle.h"
 
 static maxrtos_frame_schedule_t const * s_frame_schedule = NULL;
 static maxrtos_partition_table_t * s_partition_table = NULL;
@@ -38,10 +39,24 @@ void maxrtos_arch_systick( void )
     if( ( s_frame_schedule != NULL ) &&
         ( s_partition_table != NULL ) )
     {
-        if( maxrtos_kernel_on_tick(
-                s_frame_schedule,
-                s_partition_table,
-                &next_id ) == MAXRTOS_OK )
+        maxrtos_status_t tick_status;
+
+        tick_status = maxrtos_kernel_on_tick(
+            s_frame_schedule,
+            s_partition_table,
+            &next_id );
+
+        if( tick_status == MAXRTOS_ERR_PARTITION_HALTED )
+        {
+            /* The slot belongs to a halted partition. Do not let the
+             * previous slot's process keep running in it: park in idle. */
+            if( maxrtos_arch_get_current_pcb() != maxrtos_arch_idle_pcb() )
+            {
+                maxrtos_arch_set_next_pcb( maxrtos_arch_idle_pcb() );
+                maxrtos_arch_request_context_switch();
+            }
+        }
+        else if( tick_status == MAXRTOS_OK )
         {
             maxrtos_process_control_block_t * next_pcb;
             maxrtos_process_control_block_t const * current_pcb;

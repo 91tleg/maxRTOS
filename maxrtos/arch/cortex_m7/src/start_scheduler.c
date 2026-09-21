@@ -24,9 +24,9 @@
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
 #include "maxrtos/arch/cortex_m7/start_scheduler.h"
 #include "maxrtos/arch/cortex_m7/systick.h"
+#include "maxrtos/arch/cortex_m7/port.h"
 
-#define MAXRTOS_START_HALT() \
-    do { for( ;; ) { __asm volatile ( "bkpt #0" ); } } while( 0 )
+#define MAXRTOS_START_HALT() MAXRTOS_PORT_HALT()
 
 void maxrtos_arch_start_scheduler(
     maxrtos_frame_schedule_t const * frame_schedule,
@@ -44,10 +44,7 @@ void maxrtos_arch_start_scheduler(
 
     if( status != MAXRTOS_OK )
     {
-        for( ;; )
-        {
-            __asm volatile ( "bkpt #0" );
-        }
+        MAXRTOS_PORT_HALT();
     }
 
     /* Never returns. */

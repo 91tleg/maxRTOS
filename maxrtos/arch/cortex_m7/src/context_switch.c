@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include "maxrtos/arch/cortex_m7/context_switch.h"
+#include "maxrtos/arch/cortex_m7/idle.h"
 
 /* SCB ICSR: PendSV set-pending bit. */
 #define MAXRTOS_SCB_ICSR \
@@ -126,6 +127,10 @@ maxrtos_status_t maxrtos_arch_init_stack(
         sp[ 15 ] = MAXRTOS_INITIAL_XPSR;
 
         pcb->stack_pointer = ( void * ) sp;
+
+        /* A fresh context has no blocked operation waiting to complete. */
+        pcb->ipc_result_pending = false;
+
         status = MAXRTOS_OK;
     }
 
@@ -182,6 +187,26 @@ void maxrtos_arch_apply_privilege_for_next_pcb(
     }
 }
 
+void maxrtos_arch_apply_resume_result(
+    maxrtos_process_control_block_t * pcb )
+{
+    if( ( pcb != NULL ) &&
+        ( pcb->ipc_result_pending == true ) &&
+        ( pcb->stack_pointer != NULL ) )
+    {
+        uint32_t * frame;
+
+        /* stack_pointer addresses the software-saved r4-r11 block; the
+         * hardware exception frame follows it, starting with r0, which is
+         * the value the process's SVC wrapper returns. */
+        frame = ( uint32_t * ) pcb->stack_pointer;
+        frame[ MAXRTOS_INITIAL_FRAME_WORDS / 2U ] =
+            ( uint32_t ) pcb->ipc_result;
+
+        pcb->ipc_result_pending = false;
+    }
+}
+
 void maxrtos_arch_request_context_switch( void )
 {
     MAXRTOS_SCB_ICSR = MAXRTOS_ICSR_PENDSVSET_BIT;
@@ -205,6 +230,8 @@ void maxrtos_arch_context_switch_init( void )
 
     __asm volatile ( "dsb" );
     __asm volatile ( "isb" );
+
+    maxrtos_arch_idle_init();
 }
 
 void maxrtos_arch_start_first_process(
