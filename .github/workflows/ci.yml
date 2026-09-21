@@ -37,6 +37,130 @@ jobs:
             --test-dir build/tests \
             --output-on-failure
 
+      - name: Requirements traceability
+        run: |
+          python3 maxrtos/tests/sil/tools/traceability.py \
+            build/tests/sil-reports
+
+      - name: Upload SIL reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sil-reports
+          path: build/tests/sil-reports
+
+  sil-coverage:
+    name: SIL Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build gcovr
+
+      - name: Configure
+        run: |
+          cmake \
+            -S maxrtos/tests \
+            -B build/coverage \
+            -G Ninja \
+            -DMAXRTOS_TEST_COVERAGE=ON
+
+      - name: Build and run
+        run: |
+          cmake --build build/coverage -j2
+          ctest --test-dir build/coverage --output-on-failure
+
+      # Production code only: the kernel and the hardware-independent
+      # architecture sources. Files that are pure hardware access (context
+      # switch, fault exception entry, SVC wrappers, mutex) cannot run on the
+      # host and are covered by the QEMU job instead.
+      - name: Coverage gate
+        run: |
+          gcovr \
+            --root . \
+            --object-directory build/coverage \
+            --filter 'maxrtos/kernel/src/' \
+            --filter 'maxrtos/arch/cortex_m7/src/' \
+            --exclude 'maxrtos/arch/cortex_m7/src/(context_switch|fault_handlers|queue_port|yield|mutex)\.c' \
+            --exclude-throw-branches \
+            --fail-under-line 88 \
+            --fail-under-branch 70 \
+            --print-summary \
+            --html-details build/coverage/coverage.html \
+            --xml build/coverage/coverage.xml
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sil-coverage
+          path: |
+            build/coverage/coverage.html
+            build/coverage/coverage.*.html
+            build/coverage/coverage.xml
+
+  sil-sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        sanitizer: [undefined, address]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake \
+            -S maxrtos/tests \
+            -B build/san \
+            -G Ninja \
+            -DMAXRTOS_TEST_SANITIZE=${{ matrix.sanitizer }}
+
+      - name: Build
+        run: cmake --build build/san -j2
+
+      - name: Run tests
+        run: ctest --test-dir build/san --output-on-failure
+
+  sil-mutation:
+    name: SIL Mutation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Configure
+        run: |
+          cmake \
+            -S maxrtos/tests \
+            -B build/mutation \
+            -G Ninja
+
+      # Injects known defects into the kernel/architecture code one at a time
+      # and requires the SIL suites to catch every one.
+      - name: Mutation check
+        run: |
+          python3 maxrtos/tests/sil/tools/mutation_check.py build/mutation
+
   build-nucleo:
     name: Build Nucleo Demo
     runs-on: ubuntu-latest

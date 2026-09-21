@@ -1,7 +1,16 @@
 /**
- * @file test_sil_fault_recovery_soak.c
- * @brief SIL integration/soak test of fault recovery, health monitoring,
- *        and partition/process interaction over simulated faults.
+ * @file test_fault_recovery_soak.c
+ * @brief SIL soak test of the kernel's fault recovery, health monitoring and
+ *        partition/process interaction over thousands of simulated faults.
+ *
+ * Kernel level (no architecture layer): complements test_fault_containment.c,
+ * which drives the same recovery through real exceptions on the virtual
+ * target.
+ *
+ * Requirements
+ *   REQ-FT-009  The kernel returns the configured action for every fault it
+ *               is asked to recover, and repeated recovery never disturbs
+ *               process identity or an unrelated partition.
  *
  * PROVES:
  *   - RESTART_PROCESS repeatedly recovers the same process without
@@ -19,13 +28,13 @@
  *   - That target-specific stack/context recovery works correctly.
  */
 
-#include <assert.h>
-#include <stdio.h>
 
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/fault_recovery.h"
+
+#include "sil_test.h"
 
 #define TEST_STACK_SIZE   ( 128U )
 #define SOAK_ITERATIONS   ( 5000U )
@@ -59,10 +68,10 @@ static void test_restart_process_soak_preserves_identity( void )
     uint32_t iteration;
 
     maxrtos_process_pool_init();
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_hm_set_policy(
             &hm,
             0U,
@@ -70,7 +79,7 @@ static void test_restart_process_soak_preserves_identity( void )
             MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
 
     /* Faulting process: partition 0. */
-    assert(
+    SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_faulting,
             TEST_STACK_SIZE,
@@ -83,7 +92,7 @@ static void test_restart_process_soak_preserves_identity( void )
         MAXRTOS_OK );
 
     /* Partition 1, never faults. */
-    assert(
+    SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_bystander,
             TEST_STACK_SIZE,
@@ -94,18 +103,18 @@ static void test_restart_process_soak_preserves_identity( void )
             NULL,
             &bystander_id ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_partition_add_process(
             &table,
             faulting_id ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_partition_add_process(
             &table,
             bystander_id ) == MAXRTOS_OK );
 
     bystander_pcb_before = maxrtos_process_get( bystander_id );
-    assert( bystander_pcb_before != NULL );
+    SIL_REQUIRE( bystander_pcb_before != NULL );
 
     for( iteration = 0U; iteration < SOAK_ITERATIONS; iteration++ )
     {
@@ -113,15 +122,15 @@ static void test_restart_process_soak_preserves_identity( void )
         maxrtos_process_control_block_t * faulting_pcb;
         maxrtos_process_id_t dispatched_id;
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_partition_dispatch(
                 &table,
                 0U,
                 &dispatched_id ) == MAXRTOS_OK );
 
-        assert( dispatched_id == faulting_id );
+        SIL_REQUIRE( dispatched_id == faulting_id );
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_fault_recovery_handle(
                 &hm,
                 &table,
@@ -129,25 +138,21 @@ static void test_restart_process_soak_preserves_identity( void )
                 MAXRTOS_FAULT_MEMORY_ACCESS,
                 &action ) == MAXRTOS_OK );
 
-        assert( action == MAXRTOS_HM_ACTION_RESTART_PROCESS );
+        SIL_REQUIRE( action == MAXRTOS_HM_ACTION_RESTART_PROCESS );
 
         faulting_pcb = maxrtos_process_get( faulting_id );
-        assert( faulting_pcb != NULL );
-        assert( faulting_pcb->partition_id == 0U );
+        SIL_REQUIRE( faulting_pcb != NULL );
+        SIL_REQUIRE( faulting_pcb->partition_id == 0U );
 
         /* Recovery of partition 0 must not replace or alter the
          * partition 1 process. Pointer identity verifies that
          * the same PCB remains allocated; partition_id verifies
          * that its partition assignment is unchanged. */
         bystander_pcb_after = maxrtos_process_get( bystander_id );
-        assert( bystander_pcb_after == bystander_pcb_before );
-        assert( bystander_pcb_after->partition_id == 1U );
+        SIL_REQUIRE( bystander_pcb_after == bystander_pcb_before );
+        SIL_REQUIRE( bystander_pcb_after->partition_id == 1U );
     }
 
-    printf(
-        "test_restart_process_soak_preserves_identity: PASS "
-        "(%u iterations)\n",
-        SOAK_ITERATIONS );
 }
 
 static void test_ignore_action_does_not_modify_state( void )
@@ -161,17 +166,17 @@ static void test_ignore_action_does_not_modify_state( void )
     uint32_t iteration;
 
     maxrtos_process_pool_init();
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_hm_set_policy(
             &hm,
             0U,
             MAXRTOS_FAULT_BUS_ERROR,
             MAXRTOS_HM_ACTION_IGNORE ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_faulting,
             TEST_STACK_SIZE,
@@ -182,29 +187,29 @@ static void test_ignore_action_does_not_modify_state( void )
             NULL,
             &id ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_partition_add_process(
             &table,
             id ) == MAXRTOS_OK );
 
     pcb_before = maxrtos_process_get( id );
-    assert( pcb_before != NULL );
+    SIL_REQUIRE( pcb_before != NULL );
 
     {
         maxrtos_process_id_t dispatched_id;
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_partition_dispatch(
                 &table,
                 0U,
                 &dispatched_id ) == MAXRTOS_OK );
 
-        assert( dispatched_id == id );
+        SIL_REQUIRE( dispatched_id == id );
     }
 
     for( iteration = 0U; iteration < SOAK_ITERATIONS; iteration++ )
     {
-        assert(
+        SIL_REQUIRE(
             maxrtos_fault_recovery_handle(
                 &hm,
                 &table,
@@ -212,16 +217,12 @@ static void test_ignore_action_does_not_modify_state( void )
                 MAXRTOS_FAULT_BUS_ERROR,
                 &action ) == MAXRTOS_OK );
 
-        assert( action == MAXRTOS_HM_ACTION_IGNORE );
+        SIL_REQUIRE( action == MAXRTOS_HM_ACTION_IGNORE );
 
         pcb_after = maxrtos_process_get( id );
-        assert( pcb_after == pcb_before );
+        SIL_REQUIRE( pcb_after == pcb_before );
     }
 
-    printf(
-        "test_ignore_action_does_not_modify_state: PASS "
-        "(%u iterations)\n",
-        SOAK_ITERATIONS );
 }
 
 static void test_halt_partition_action_reported_correctly( void )
@@ -232,11 +233,11 @@ static void test_halt_partition_action_reported_correctly( void )
     maxrtos_hm_action_t action;
 
     maxrtos_process_pool_init();
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
 
-    assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_faulting,
             TEST_STACK_SIZE,
@@ -247,7 +248,7 @@ static void test_halt_partition_action_reported_correctly( void )
             NULL,
             &id ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_partition_add_process(
             &table,
             id ) == MAXRTOS_OK );
@@ -255,16 +256,16 @@ static void test_halt_partition_action_reported_correctly( void )
     {
         maxrtos_process_id_t dispatched_id;
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_partition_dispatch(
                 &table,
                 0U,
                 &dispatched_id ) == MAXRTOS_OK );
 
-        assert( dispatched_id == id );
+        SIL_REQUIRE( dispatched_id == id );
     }
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_fault_recovery_handle(
             &hm,
             &table,
@@ -272,10 +273,8 @@ static void test_halt_partition_action_reported_correctly( void )
             MAXRTOS_FAULT_ILLEGAL_INSTRUCTION,
             &action ) == MAXRTOS_OK );
 
-    assert( action == MAXRTOS_HM_ACTION_HALT_PARTITION );
+    SIL_REQUIRE( action == MAXRTOS_HM_ACTION_HALT_PARTITION );
 
-    printf(
-        "test_halt_partition_action_reported_correctly: PASS\n" );
 }
 
 static void test_invalid_process_id_rejected_after_soak( void )
@@ -287,17 +286,17 @@ static void test_invalid_process_id_rejected_after_soak( void )
     uint32_t iteration;
 
     maxrtos_process_pool_init();
-    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
-    assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_hm_set_policy(
             &hm,
             0U,
             MAXRTOS_FAULT_MEMORY_ACCESS,
             MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_faulting,
             TEST_STACK_SIZE,
@@ -308,7 +307,7 @@ static void test_invalid_process_id_rejected_after_soak( void )
             NULL,
             &valid_id ) == MAXRTOS_OK );
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_partition_add_process(
             &table,
             valid_id ) == MAXRTOS_OK );
@@ -317,15 +316,15 @@ static void test_invalid_process_id_rejected_after_soak( void )
     {
         maxrtos_process_id_t dispatched_id;
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_partition_dispatch(
                 &table,
                 0U,
                 &dispatched_id ) == MAXRTOS_OK );
 
-        assert( dispatched_id == valid_id );
+        SIL_REQUIRE( dispatched_id == valid_id );
 
-        assert(
+        SIL_REQUIRE(
             maxrtos_fault_recovery_handle(
                 &hm,
                 &table,
@@ -334,7 +333,7 @@ static void test_invalid_process_id_rejected_after_soak( void )
                 &action ) == MAXRTOS_OK );
     }
 
-    assert(
+    SIL_REQUIRE(
         maxrtos_fault_recovery_handle(
             &hm,
             &table,
@@ -342,18 +341,18 @@ static void test_invalid_process_id_rejected_after_soak( void )
             MAXRTOS_FAULT_MEMORY_ACCESS,
             &action ) == MAXRTOS_ERR_INVALID_ID );
 
-    printf(
-        "test_invalid_process_id_rejected_after_soak: PASS\n" );
 }
 
-int main( void )
+static sil_case_t const s_cases[] =
 {
-    test_restart_process_soak_preserves_identity();
-    test_ignore_action_does_not_modify_state();
-    test_halt_partition_action_reported_correctly();
-    test_invalid_process_id_rejected_after_soak();
+    SIL_CASE( test_restart_process_soak_preserves_identity, "REQ-FT-009", "5000 restarts keep process identity and leave a bystander untouched" ),
+    SIL_CASE( test_ignore_action_does_not_modify_state, "REQ-FT-009", "IGNORE leaves process state untouched over 5000 faults" ),
+    SIL_CASE( test_halt_partition_action_reported_correctly, "REQ-FT-009", "HALT_PARTITION is reported for the configured fault class" ),
+    SIL_CASE( test_invalid_process_id_rejected_after_soak, "REQ-FT-009", "An invalid process ID is rejected after recovery activity" ),
+};
 
-    printf( "all SIL fault recovery tests passed\n" );
-
-    return 0;
+int main( int argc, char ** argv )
+{
+    return sil_run_suite( "fault_recovery_soak", s_cases,
+                          sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
 }
