@@ -106,10 +106,12 @@ static void led_ld2_toggle( void )
     GPIOE_ODR ^= ( 1UL << LED_LD2_PIN );
 }
 
-/* IPC is non-blocking (timeout 0). Blocking IPC across partitions is not
- * supported yet: a sender wakes a blocked receiver through its own
- * partition's scheduler context, not the receiver's. */
-#define IPC_NO_WAIT ( 0U )
+/* The sender never waits: if the queue is full the message is dropped. The
+ * receiver blocks until a message arrives. Blocking needs another READY
+ * process in the caller's partition to run meanwhile, which the *_aux
+ * processes provide. */
+#define IPC_SEND_TIMEOUT    ( 0U )
+#define IPC_RECEIVE_TIMEOUT ( MAXRTOS_TIMEOUT_INFINITE )
 
 static maxrtos_queue_port_t * const s_cmd_channel = 
     ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_cmd_channel;
@@ -130,7 +132,7 @@ static void process_control_entry( void * arg )
             ( maxrtos_queue_port_t * ) ( void * ) s_cmd_channel,
             &counter,
             sizeof( counter ),
-            IPC_NO_WAIT );
+            IPC_SEND_TIMEOUT );
         counter++;
 
         for( volatile uint32_t i = 0U; i < 200000UL; i++ )
@@ -156,9 +158,9 @@ static void process_application_entry( void * arg )
                 ( maxrtos_queue_port_t * ) ( void * ) s_cmd_channel,
                 &received,
                 sizeof( received ),
-                IPC_NO_WAIT ) == MAXRTOS_OK )
+                IPC_RECEIVE_TIMEOUT ) == MAXRTOS_OK )
         {
-            
+
         }
 
         for( volatile uint32_t i = 0U; i < 200000UL; i++ )
@@ -232,7 +234,6 @@ int main( void )
             PROCESS_STACK_SIZE_control_main,
             PARTITION_ID_control,
             PROCESS_PRIORITY_control_main,
-            true,
             process_control_entry,
             NULL,
             &id ) != MAXRTOS_OK )
@@ -248,7 +249,6 @@ int main( void )
             PROCESS_STACK_SIZE_control_aux,
             PARTITION_ID_control,
             PROCESS_PRIORITY_control_aux,
-            true,
             process_control_aux_entry,
             NULL,
             &id ) != MAXRTOS_OK )
@@ -264,7 +264,6 @@ int main( void )
             PROCESS_STACK_SIZE_application_main,
             PARTITION_ID_application,
             PROCESS_PRIORITY_application_main,
-            true,
             process_application_entry,
             NULL,
             &id ) != MAXRTOS_OK )
@@ -280,7 +279,6 @@ int main( void )
             PROCESS_STACK_SIZE_application_aux,
             PARTITION_ID_application,
             PROCESS_PRIORITY_application_aux,
-            true,
             process_application_aux_entry,
             NULL,
             &id ) != MAXRTOS_OK )

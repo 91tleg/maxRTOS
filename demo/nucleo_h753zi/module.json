@@ -105,7 +105,8 @@
         "access": "priv_read_write",
         "executable": false
       }
-    ]
+    ],
+    "privileged_default_map": true
   },
   "ports": [
     {
