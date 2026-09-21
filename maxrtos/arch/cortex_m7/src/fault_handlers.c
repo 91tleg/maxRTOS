@@ -34,6 +34,12 @@
 #define MAXRTOS_SHCSR_BUSFAULTENA_BIT   ( 1UL << 17U )
 #define MAXRTOS_SHCSR_USGFAULTENA_BIT   ( 1UL << 18U )
 
+/* HFSR.FORCED: a configurable fault escalated to HardFault (its handler
+ * was disabled, or it occurred at equal or higher exception priority,
+ * e.g. inside an SVC handler). CFSR then identifies the original cause.
+ * HFSR.VECTTBL: vector table read failed; not attributable to a process. */
+#define MAXRTOS_HFSR_FORCED_BIT         ( 1UL << 30U )
+
 /* CFSR.UFSR.DIVBYZERO: indicates that an integer divide-by-zero
  * operation caused the UsageFault exception. */
 #define MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ( 1UL << 25U )
@@ -93,6 +99,16 @@ void BusFault_Handler( void )
         MAXRTOS_FAULT_BUS_ERROR );
 }
 
+static maxrtos_fault_type_t maxrtos_arch_classify_usage_fault( uint32_t cfsr )
+{
+    if( ( cfsr & MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ) != 0U )
+    {
+        return MAXRTOS_FAULT_DIVIDE_BY_ZERO;
+    }
+
+    return MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
+}
+
 void UsageFault_Handler( void )
 {
     uint32_t cfsr;
@@ -101,18 +117,65 @@ void UsageFault_Handler( void )
     cfsr = MAXRTOS_SCB_CFSR;
     maxrtos_arch_record_fault( cfsr );
 
-    if( ( cfsr & MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ) != 0U )
-    {
-        fault_type = MAXRTOS_FAULT_DIVIDE_BY_ZERO;
-    }
-    else
-    {
-        fault_type = MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
-    }
+    fault_type = maxrtos_arch_classify_usage_fault( cfsr );
 
     /* CFSR fault-status bits are write-one-to-clear. Clear the
      * UsageFault status bits that were observed before recovery. */
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_UFSR_MASK;
 
     maxrtos_arch_handle_fault( fault_type );
+}
+
+/*
+ * HardFault: recover an escalated configurable fault, otherwise stop.
+ *
+ * When HFSR.FORCED is set, CFSR names the original MemManage, BusFault
+ * or UsageFault and the same recovery path applies, charged to the
+ * current process. Any other cause (vector table read error, debug
+ * event, or FORCED with no CFSR cause) cannot be attributed to a
+ * process and is not recoverable: the handler spins so a debugger sees
+ * the state in g_maxrtos_arch_last_fault. Continuing would resume the
+ * faulting instruction forever or run on corrupt state.
+ */
+void HardFault_Handler( void )
+{
+    uint32_t cfsr;
+    uint32_t hfsr;
+    maxrtos_fault_type_t fault_type;
+
+    cfsr = MAXRTOS_SCB_CFSR;
+    hfsr = MAXRTOS_SCB_HFSR;
+    maxrtos_arch_record_fault( cfsr );
+
+    if( ( hfsr & MAXRTOS_HFSR_FORCED_BIT ) != 0U )
+    {
+        if( ( cfsr & MAXRTOS_CFSR_MMFSR_MASK ) != 0U )
+        {
+            fault_type = MAXRTOS_FAULT_MEMORY_ACCESS;
+        }
+        else if( ( cfsr & MAXRTOS_CFSR_BFSR_MASK ) != 0U )
+        {
+            fault_type = MAXRTOS_FAULT_BUS_ERROR;
+        }
+        else if( ( cfsr & MAXRTOS_CFSR_UFSR_MASK ) != 0U )
+        {
+            fault_type = maxrtos_arch_classify_usage_fault( cfsr );
+        }
+        else
+        {
+            for( ;; )
+            {
+            }
+        }
+
+        MAXRTOS_SCB_CFSR = cfsr;
+        MAXRTOS_SCB_HFSR = MAXRTOS_HFSR_FORCED_BIT;
+
+        maxrtos_arch_handle_fault( fault_type );
+        return;
+    }
+
+    for( ;; )
+    {
+    }
 }

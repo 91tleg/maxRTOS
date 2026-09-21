@@ -6,8 +6,8 @@
  * toolchain specific. Copy and adapt this file for a real board.
  *
  * Contract with maxRTOS:
- *   - The vector table must point SVC, PendSV, SysTick, MemManage,
- *     BusFault and UsageFault at the arch handlers of the same name.
+ *   - The vector table must point SVC, PendSV, SysTick, HardFault,
+ *     MemManage, BusFault and UsageFault at the arch handlers of the same name.
  *   - __StackTop, __isr_vector_start, _sbss/_ebss and
  *     _sidata/_sdata/_edata come from the generated link.ld.
  */
@@ -21,6 +21,7 @@
     .global __StackTop
 
     .extern main
+    .extern HardFault_Handler
     .extern MemManage_Handler
     .extern BusFault_Handler
     .extern UsageFault_Handler
@@ -33,7 +34,7 @@
     .word __StackTop
     .word Reset_Handler
     .word Default_Handler      /* NMI */
-    .word Default_Handler      /* HardFault */
+    .word HardFault_Handler
     .word MemManage_Handler
     .word BusFault_Handler
     .word UsageFault_Handler

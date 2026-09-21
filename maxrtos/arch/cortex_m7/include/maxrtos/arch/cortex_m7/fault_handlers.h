@@ -27,6 +27,9 @@
  * initialization through the setter functions provided by this
  * interface.
  *
+ * HardFault_Handler recovers escalated configurable faults (HFSR.FORCED)
+ * through the same path and spins on any unattributable cause.
+ *
  * When a partition-halt action is selected, immediate selection of a
  * process in another partition is deferred to the system's scheduling
  * mechanism. The current implementation waits for a subsequent
