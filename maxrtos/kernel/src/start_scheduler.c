@@ -26,7 +26,6 @@ maxrtos_status_t maxrtos_kernel_start_scheduler(
         status = maxrtos_kernel_on_tick(
             frame_schedule,
             partition_table,
-            0U,
             &first_id );
 
         if( status == MAXRTOS_OK )
