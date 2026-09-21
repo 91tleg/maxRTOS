@@ -13,6 +13,7 @@
 #include "maxrtos/arch/cortex_m7/systick.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/timing.h"
 
 #define PORT_BYTES ( 2048U )
 
@@ -119,6 +120,21 @@ void sil_build( sil_system_spec_t const * spec )
     maxrtos_arch_set_health_monitor( &sys->hm );
     maxrtos_arch_fault_handlers_init();
 
+    /* Privilege is production state that outlives one build: start from
+     * "everything unprivileged", then apply the spec, as a reset does. */
+    for( p = 0U; p < MAXRTOS_MAX_PARTITIONS; p++ )
+    {
+        maxrtos_arch_set_partition_privileged( ( maxrtos_partition_id_t ) p, false );
+    }
+
+    for( p = 0U; p < spec->partition_count; p++ )
+    {
+        if( spec->partition[ p ].system )
+        {
+            maxrtos_arch_set_partition_privileged( ( maxrtos_partition_id_t ) p, true );
+        }
+    }
+
     /* One power-of-two, size-aligned MPU domain per partition. */
     SIL_REQUIRE_EQ( maxrtos_mpu_config_init( &sys->mpu ), MAXRTOS_OK );
     sram_cursor = 0U;
@@ -167,7 +183,7 @@ void sil_build( sil_system_spec_t const * spec )
                         MAXRTOS_OK );
     }
 
-    maxrtos_arch_mpu_init();
+    maxrtos_arch_mpu_init( false );
 
     /* Frame schedule, context switching, SysTick wiring. */
     for( i = 0U; i < spec->slot_count; i++ )
@@ -190,9 +206,16 @@ void sil_build( sil_system_spec_t const * spec )
 
             SIL_REQUIRE_EQ( maxrtos_process_create(
                                 stack, SIL_STACK_BYTES, ( maxrtos_partition_id_t ) p,
-                                proc->priority, true, proc->entry, proc->arg,
+                                proc->priority, proc->entry, proc->arg,
                                 &sys->process_id[ p ][ i ] ),
                             MAXRTOS_OK );
+
+            if( ( proc->period != 0U ) || ( proc->time_capacity != 0U ) )
+            {
+                SIL_REQUIRE_EQ( maxrtos_process_set_timing( sys->process_id[ p ][ i ],
+                                                            proc->period, proc->time_capacity ),
+                                MAXRTOS_OK );
+            }
         }
     }
 }

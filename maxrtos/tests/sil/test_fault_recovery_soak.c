@@ -85,7 +85,6 @@ static void test_restart_process_soak_preserves_identity( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 0U,
             5U,
-            true,
             dummy_entry,
             NULL,
             &faulting_id ) ==
@@ -98,7 +97,6 @@ static void test_restart_process_soak_preserves_identity( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 1U,
             5U,
-            true,
             dummy_entry,
             NULL,
             &bystander_id ) == MAXRTOS_OK );
@@ -182,7 +180,6 @@ static void test_ignore_action_does_not_modify_state( void )
             TEST_STACK_SIZE,
             (maxrtos_partition_id_t) 0U,
             5U,
-            true,
             dummy_entry,
             NULL,
             &id ) == MAXRTOS_OK );
@@ -243,7 +240,6 @@ static void test_halt_partition_action_reported_correctly( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 0U,
             5U,
-            true,
             dummy_entry,
             NULL,
             &id ) == MAXRTOS_OK );
@@ -302,7 +298,6 @@ static void test_invalid_process_id_rejected_after_soak( void )
             TEST_STACK_SIZE,
             ( maxrtos_partition_id_t ) 0U,
             5U,
-            true,
             dummy_entry,
             NULL,
             &valid_id ) == MAXRTOS_OK );

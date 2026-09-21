@@ -56,6 +56,28 @@ trustworthy as the simulator beneath it.
 | REQ-SP-006 | Processes of one partition share that partition's memory (partition-level isolation, by design). |
 | REQ-SP-007 | Flash (code and constants) is read-only for every partition. |
 
+## Periodic processes and deadlines
+
+| ID | Requirement |
+|---|---|
+| REQ-DL-001 | A periodic process is released exactly every period, with no jitter or drift. |
+| REQ-DL-002 | A process that completes each release within its time capacity is never reported as missing. |
+| REQ-DL-003 | A process that overruns its time capacity is detected at its deadline and handled by its partition's policy: restarted and re-released, without disturbing anything else. |
+| REQ-DL-004 | The deadline is wall-clock time, not a CPU budget: a process whose partition is not scheduled before its deadline misses it having used no CPU. |
+| REQ-DL-005 | A miss under halt_partition stops that partition and only that partition. |
+| REQ-DL-006 | A process blocked on IPC when its deadline expires is restarted and leaves the wait list. |
+| REQ-DL-007 | While a process waits for its next release and nothing else is ready, the CPU idles instead of running another partition's code in its slot. |
+| REQ-DL-008 | Each fault class keeps its own policy: a deadline miss can be configured independently of memory faults. |
+
+## Privilege
+
+| ID | Requirement |
+|---|---|
+| REQ-PRIV-001 | Application partitions are unprivileged by default: their processes cannot touch kernel memory. |
+| REQ-PRIV-002 | A system partition runs privileged: its processes can use kernel memory that application partitions cannot. |
+| REQ-PRIV-003 | Privilege belongs to the partition: all processes of a partition share it. |
+| REQ-PRIV-004 | With the privileged default map disabled (deny by default), even a privileged process cannot touch memory no region maps, and the failure is contained like any other fault. |
+
 ## Fault containment
 
 | ID | Requirement |

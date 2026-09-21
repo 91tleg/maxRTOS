@@ -69,8 +69,8 @@ MUTATIONS = [
 
     ("halted partition's slot keeps the previous partition running",
      "arch/cortex_m7/src/systick.c",
-     "if( tick_status == MAXRTOS_ERR_PARTITION_HALTED )",
-     "if( false )",
+     "if( ( tick_status == MAXRTOS_ERR_PARTITION_HALTED ) ||",
+     "if( false ||",
      {"fault_containment"}),
 
     ("restart does not reset the process context",
@@ -102,6 +102,54 @@ MUTATIONS = [
      "for( id = 0U; id < ( maxrtos_process_id_t ) MAXRTOS_MAX_PROCESSES; id++ )",
      "for( id = 0U; id < 1U; id++ )",
      {"scheduler_startup", "process_yield", "fault_containment"}),
+
+    ("every partition runs privileged",
+     "arch/cortex_m7/src/privilege.c",
+     "privileged = s_partition_privileged[ partition_id ];",
+     "privileged = true;",
+     {"partition_privilege"}),
+
+    ("periodic wait does not meet the deadline",
+     "kernel/src/timing.c",
+     "/* The release is complete: its deadline is met. */\n            pcb->deadline_time = MAXRTOS_TICK_NONE;",
+     "/* mutated: deadline stays armed */",
+     {"deadline_supervision"}),
+
+    ("deadline misses are never recorded",
+     "kernel/src/timing.c",
+     "s_pending_misses |= ( UINT32_C( 1 ) << id );",
+     "",
+     {"deadline_supervision"}),
+
+    ("periodic release ignores the release point",
+     "kernel/src/timing.c",
+     "( now >= pcb->wake_tick ) )",
+     "( true ) )",
+     {"deadline_supervision"}),
+
+    ("a restarted process does not begin a new release",
+     "kernel/src/fault_recovery.c",
+     "maxrtos_process_rearm_timing( pcb, maxrtos_kernel_tick_now() );",
+     "",
+     {"deadline_supervision"}),
+
+    ("a partition with nothing ready keeps the previous slot's process running",
+     "arch/cortex_m7/src/systick.c",
+     "( tick_status == MAXRTOS_ERR_QUEUE_EMPTY ) )",
+     "false )",
+     {"deadline_supervision", "fault_containment"}),
+
+    ("a blocked process is not taken off its wait list on restart",
+     "kernel/src/fault_recovery.c",
+     "( void ) maxrtos_waitlist_remove( pcb->waitlist, id );",
+     "",
+     {"deadline_supervision"}),
+
+    ("deadline misses are acted on for the wrong fault class",
+     "arch/cortex_m7/src/systick.c",
+     "missed_pcb, MAXRTOS_FAULT_DEADLINE_EXCEEDED );",
+     "missed_pcb, MAXRTOS_FAULT_MEMORY_ACCESS );",
+     {"deadline_supervision"}),
 
     ("major frame off by one tick",
      "kernel/src/tick.c",

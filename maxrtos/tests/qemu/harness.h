@@ -59,7 +59,7 @@ extern char const * emu_fail_reason;
         maxrtos_process_id_t id_;                                    \
         if( maxrtos_process_create( maxrtos_stack_##proc_,           \
                 PROCESS_STACK_SIZE_##proc_, ( partition_ ),          \
-                PROCESS_PRIORITY_##proc_, true, ( entry_ ), NULL,    \
+                PROCESS_PRIORITY_##proc_, ( entry_ ), NULL,    \
                 &id_ ) != MAXRTOS_OK )                               \
         {                                                            \
             emu_fail_reason = "process create failed";               \

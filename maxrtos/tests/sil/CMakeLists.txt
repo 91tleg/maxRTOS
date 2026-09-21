@@ -16,6 +16,7 @@ set(SIL_ARCH_SOURCES
     ${MAXRTOS_ARCH_DIR}/src/systick.c
     ${MAXRTOS_ARCH_DIR}/src/start_scheduler.c
     ${MAXRTOS_ARCH_DIR}/src/idle.c
+    ${MAXRTOS_ARCH_DIR}/src/privilege.c
     ${MAXRTOS_ARCH_DIR}/src/mpu.c
     ${MAXRTOS_ARCH_DIR}/src/mpu_hw.c
     ${MAXRTOS_ARCH_DIR}/src/fault_dispatch.c
@@ -67,3 +68,5 @@ add_sil_test(ipc_queue_port      test_ipc_queue_port.c)
 add_sil_test(spatial_partitioning test_spatial_partitioning.c)
 add_sil_test(fault_containment   test_fault_containment.c)
 add_sil_test(fault_recovery_soak test_fault_recovery_soak.c)
+add_sil_test(partition_privilege test_partition_privilege.c)
+add_sil_test(deadline_supervision test_deadline_supervision.c)

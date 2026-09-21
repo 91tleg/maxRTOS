@@ -1,0 +1,138 @@
+{
+  "module": {
+    "name": "emu_test"
+  },
+  "memory": {
+    "flash": {
+      "origin": "0x00000000",
+      "size": "4M"
+    },
+    "dtcm": {
+      "origin": "0x20000000",
+      "size": "128K"
+    },
+    "sram": {
+      "origin": "0x20080000",
+      "size": "512K"
+    }
+  },
+  "stack_region": "sram",
+  "partitions": [
+    {
+      "id": 0,
+      "name": "control",
+      "mpu": {
+        "access": "read_write",
+        "executable": false
+      },
+      "processes": [
+        {
+          "name": "control_main",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        },
+        {
+          "name": "control_aux",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        }
+      ],
+      "type": "system"
+    },
+    {
+      "id": 1,
+      "name": "application",
+      "mpu": {
+        "access": "read_write",
+        "executable": false
+      },
+      "processes": [
+        {
+          "name": "application_main",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        },
+        {
+          "name": "application_aux",
+          "stack_size": "512B",
+          "stack_alignment": "512B",
+          "priority": 5
+        }
+      ]
+    }
+  ],
+  "schedule": {
+    "major_frame": [
+      {
+        "partition": 0,
+        "duration_ticks": 5
+      },
+      {
+        "partition": 1,
+        "duration_ticks": 3
+      }
+    ]
+  },
+  "mpu": {
+    "regions": [
+      {
+        "number": 0,
+        "base": "0x00000000",
+        "size": "4M",
+        "access": "read_only",
+        "executable": true
+      },
+      {
+        "number": 2,
+        "base": "0x20000000",
+        "size": "128K",
+        "access": "priv_read_write",
+        "executable": false
+      },
+      {
+        "number": 3,
+        "base": "0x20080000",
+        "size": "512K",
+        "access": "priv_read_write",
+        "executable": false
+      }
+    ]
+  },
+  "ports": [
+    {
+      "name": "qa",
+      "size": "1024B",
+      "message_size": "4B",
+      "capacity": 4,
+      "region": "sram",
+      "members": [
+        "control"
+      ]
+    },
+    {
+      "name": "qb",
+      "size": "1024B",
+      "message_size": "4B",
+      "capacity": 4,
+      "region": "sram",
+      "members": [
+        "control",
+        "application"
+      ]
+    },
+    {
+      "name": "results",
+      "size": "2048B",
+      "message_size": "4B",
+      "capacity": 4,
+      "region": "sram",
+      "members": [
+        "control",
+        "application"
+      ]
+    }
+  ]
+}

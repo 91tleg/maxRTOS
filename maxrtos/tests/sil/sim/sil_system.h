@@ -12,6 +12,7 @@
 #ifndef MAXRTOS_SIL_SYSTEM_H
 #define MAXRTOS_SIL_SYSTEM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "maxrtos/arch/cortex_m7/mpu.h"
@@ -40,12 +41,20 @@ typedef struct
     void ( * entry )( void * );
     void * arg;
     uint8_t priority;
+
+    /* Periodic release interval and deadline, in ticks (0 = none). */
+    uint32_t period;
+    uint32_t time_capacity;
 } sil_process_spec_t;
 
 typedef struct
 {
     sil_process_spec_t process[ SIL_MAX_PROCESSES_PER_PARTITION ];
     uint32_t process_count;
+
+    /* A system partition runs privileged; application partitions (the
+     * default) never do. */
+    bool system;
 
     /* Health monitor action per fault class; MAXRTOS_HM_ACTION_COUNT means
      * "use the generator default" (restart_process). */

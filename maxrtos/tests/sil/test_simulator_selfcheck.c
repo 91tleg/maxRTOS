@@ -29,7 +29,7 @@ static void program( uint32_t region, uint32_t base, uint32_t size,
 static void mpu_fresh( void )
 {
     sim_reset();
-    maxrtos_arch_mpu_init();
+    maxrtos_arch_mpu_init( true );
 }
 
 static void test_mpu_ap_encodings( void )
@@ -93,6 +93,21 @@ static void test_mpu_default_map_and_privdefena( void )
     SIL_EXPECT( !sim_mpu_access_ok( 0x40000000UL, 4U, false, false ) );
 }
 
+static void test_mpu_privdefena_clear_denies_unmapped_access_to_everyone( void )
+{
+    sim_reset();
+    maxrtos_arch_mpu_init( false );
+
+    SIL_EXPECT( sim_mpu_enabled() );
+    SIL_EXPECT( !sim_mpu_access_ok( 0x40000000UL, 4U, false, true ) );  /* privileged too */
+    SIL_EXPECT( !sim_mpu_access_ok( 0x40000000UL, 4U, false, false ) );
+
+    /* An explicit privileged region is honoured. */
+    program( 2U, 0x20000000UL, 0x1000UL, MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE );
+    SIL_EXPECT( sim_mpu_access_ok( 0x20000000UL, 4U, true, true ) );
+    SIL_EXPECT( !sim_mpu_access_ok( 0x20000000UL, 4U, true, false ) );
+}
+
 static void test_mpu_highest_numbered_region_wins( void )
 {
     mpu_fresh();
@@ -123,7 +138,7 @@ static void test_mpu_disabled_region_is_ignored( void )
     SIL_EXPECT( sim_mpu_access_ok( 0x20000000UL, 4U, true, false ) );
 
     /* The driver's own disable path writes RASR = 0 for the selected region. */
-    maxrtos_arch_mpu_init();
+    maxrtos_arch_mpu_init( true );
     sim_mpu_write( 1U, 0U );
     sim_mpu_write( 3U, 0U );
     SIL_EXPECT( !sim_mpu_access_ok( 0x20000000UL, 4U, true, false ) );
@@ -276,6 +291,7 @@ static sil_case_t const s_cases[] =
     SIL_CASE( test_mpu_ap_encodings, "SIM-001", "MPU AP encodings decide access as PMSAv7 specifies" ),
     SIL_CASE( test_mpu_boundaries_and_straddling, "SIM-001", "MPU region boundaries, straddling and wrap-around" ),
     SIL_CASE( test_mpu_default_map_and_privdefena, "SIM-001", "PRIVDEFENA gives privileged code the default map only" ),
+    SIL_CASE( test_mpu_privdefena_clear_denies_unmapped_access_to_everyone, "SIM-001", "PRIVDEFENA clear: unmapped access is denied even to privileged code" ),
     SIL_CASE( test_mpu_highest_numbered_region_wins, "SIM-001", "Overlapping regions: the highest number wins" ),
     SIL_CASE( test_mpu_disabled_region_is_ignored, "SIM-001", "A disabled region maps nothing" ),
     SIL_CASE( test_mpu_misaligned_region_is_a_model_violation, "SIM-001", "An illegally programmed region is reported" ),

@@ -23,6 +23,7 @@
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/queue_port.h"
 #include "maxrtos/scheduler.h"
+#include "maxrtos/timing.h"
 #include "maxrtos/yield.h"
 
 #define SIM_MAX_CTX      ( MAXRTOS_MAX_PROCESSES + 2U ) /* + idle + spare */
@@ -446,7 +447,7 @@ static bool current_is_privileged( void )
 {
     maxrtos_process_control_block_t const * pcb = g_maxrtos_current_pcb;
 
-    return ( pcb == NULL ) || !pcb->unprivileged;
+    return ( pcb == NULL ) || maxrtos_arch_partition_is_privileged( pcb->partition_id );
 }
 
 /* PendSV, first half: choose and publish the next context, exactly as the
@@ -723,6 +724,11 @@ static uint32_t sim_svc( uint8_t number, uint32_t r0, uint32_t r1, uint32_t r2, 
     }
 
     return result;
+}
+
+maxrtos_status_t maxrtos_periodic_wait( void )
+{
+    return ( maxrtos_status_t ) sim_svc( MAXRTOS_SVC_PERIODIC_WAIT, 0U, 0U, 0U, 0U );
 }
 
 void maxrtos_yield( void )
