@@ -18,6 +18,7 @@
 
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/dispatch.h"
+#include "maxrtos/kernel/process.h"
 
 maxrtos_status_t maxrtos_partition_table_init(
     maxrtos_partition_table_t * table )

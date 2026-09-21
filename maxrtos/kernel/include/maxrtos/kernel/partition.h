@@ -12,10 +12,10 @@
 
 #include <stdbool.h>
 
-#include "maxrtos/kernel/process.h"
-#include "maxrtos/kernel/scheduler.h"
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
+#include "maxrtos/types.h"
+#include "maxrtos/kernel/scheduler.h"
 
 /**
  * @brief Partition scheduler state.
@@ -45,7 +45,7 @@
  *     A partition is placed in the halted state by the fault recovery
  *     mechanism in response to MAXRTOS_HM_ACTION_HALT_PARTITION.
  */
-typedef struct
+typedef struct maxrtos_partition_table_s
 {
     maxrtos_scheduler_context_t scheduler_ctx[ MAXRTOS_MAX_PARTITIONS ];
     maxrtos_process_id_t current_id[ MAXRTOS_MAX_PARTITIONS ];

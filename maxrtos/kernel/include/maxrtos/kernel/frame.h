@@ -10,12 +10,11 @@
 #ifndef MAXRTOS_KERNEL_FRAME_H
 #define MAXRTOS_KERNEL_FRAME_H
 
-#include <stdint.h>
 #include <stddef.h>
 
-#include "maxrtos/kernel/process.h"
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
+#include "maxrtos/types.h"
 
 /**
  * @brief One entry in the major-frame schedule.
@@ -34,7 +33,7 @@
 typedef struct
 {
     maxrtos_partition_id_t partition_id;
-    uint32_t duration_ticks;
+    maxrtos_tick_t duration_ticks;
 } maxrtos_frame_slot_t;
 
 /**
@@ -57,11 +56,11 @@ typedef struct
  *
  * The schedule contains no runtime execution state.
  */
-typedef struct
+typedef struct maxrtos_frame_schedule_s
 {
     maxrtos_frame_slot_t slots[ MAXRTOS_MAX_FRAME_SLOTS ];
     size_t slot_count;
-    uint32_t major_frame_length_ticks;
+    maxrtos_tick_t major_frame_length_ticks;
 } maxrtos_frame_schedule_t;
 
 /**
@@ -127,7 +126,7 @@ maxrtos_status_t maxrtos_frame_init(
  */
 maxrtos_status_t maxrtos_frame_partition_at_tick(
     maxrtos_frame_schedule_t const * sched,
-    uint32_t tick,
+    maxrtos_tick_t tick,
     maxrtos_partition_id_t * out_partition_id );
 
 #endif /* MAXRTOS_KERNEL_FRAME_H */

@@ -11,7 +11,6 @@
  */
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
 
 #include "maxrtos/kernel/frame.h"
@@ -32,7 +31,7 @@ maxrtos_status_t maxrtos_frame_init(
     {
         size_t i;
         bool valid_slot;
-        uint32_t major_frame_length_ticks;
+        maxrtos_tick_t major_frame_length_ticks;
 
         valid_slot = true;
         major_frame_length_ticks = 0U;
@@ -48,7 +47,7 @@ maxrtos_status_t maxrtos_frame_init(
                 status = MAXRTOS_ERR_INVALID_ARG;
             }
             else if( major_frame_length_ticks >
-                     ( UINT32_MAX - slots[ i ].duration_ticks ) )
+                     ( MAXRTOS_TICK_NONE - slots[ i ].duration_ticks ) )
             {
                 valid_slot = false;
                 status = MAXRTOS_ERR_OVERFLOW;
@@ -78,24 +77,24 @@ maxrtos_status_t maxrtos_frame_init(
 
 maxrtos_status_t maxrtos_frame_partition_at_tick(
     maxrtos_frame_schedule_t const * sched,
-    uint32_t tick,
+    maxrtos_tick_t tick,
     maxrtos_partition_id_t * out_partition_id )
 {
     maxrtos_status_t status;
-    uint32_t start;
 
     status = MAXRTOS_ERR_INVALID_ARG;
-    start = 0U;
 
     if( ( sched != NULL ) &&
         ( sched->major_frame_length_ticks > 0U ) &&
         ( sched->slot_count > 0U ) &&
         ( out_partition_id != NULL ) )
     {
-        uint32_t reduced_tick;
+        maxrtos_tick_t start;
+        maxrtos_tick_t reduced_tick;
         size_t i;
 
         reduced_tick = tick % sched->major_frame_length_ticks;
+        start = 0U;
 
         for( i = 0U;
              ( i < sched->slot_count ) && ( status != MAXRTOS_OK );
@@ -109,7 +108,7 @@ maxrtos_status_t maxrtos_frame_partition_at_tick(
             }
             else
             {
-                start += sched->slots[i].duration_ticks;
+                start += sched->slots[ i ].duration_ticks;
             }
         }
     }
