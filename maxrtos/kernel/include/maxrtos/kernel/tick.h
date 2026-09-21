@@ -60,4 +60,17 @@ maxrtos_status_t maxrtos_kernel_on_tick(
  */
 maxrtos_tick_t maxrtos_kernel_tick_now( void );
 
+/**
+ * @brief Reset the kernel tick to zero.
+ *
+ * The scheduler starts the major frame from tick zero, so this is called
+ * by maxrtos_kernel_start_scheduler() before the first tick is processed.
+ * It is also used to give unit tests a known starting tick.
+ *
+ * Any timed-wait deadline recorded earlier is relative to the old
+ * counter and is not adjusted, so this must not be called while
+ * processes are blocked with timeouts.
+ */
+void maxrtos_kernel_tick_reset( void );
+
 #endif /* MAXRTOS_KERNEL_TICK_H */

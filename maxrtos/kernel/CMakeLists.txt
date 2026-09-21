@@ -5,6 +5,7 @@ add_library(maxrtos_kernel STATIC
     src/dispatch.c
     src/partition.c
     src/queue_port.c
+    src/ipc_block.c
     src/fault_recovery.c
     src/health_monitor.c
     src/tick.c

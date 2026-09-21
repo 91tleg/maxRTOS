@@ -23,6 +23,9 @@ maxrtos_status_t maxrtos_kernel_start_scheduler(
         ( partition_table != NULL ) &&
         ( out_first_pcb != NULL ) )
     {
+        /* The major frame begins at tick zero. */
+        maxrtos_kernel_tick_reset();
+
         status = maxrtos_kernel_on_tick(
             frame_schedule,
             partition_table,

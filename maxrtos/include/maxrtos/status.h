@@ -32,8 +32,16 @@ typedef enum
     /* Partition state errors */
     MAXRTOS_ERR_PARTITION_HALTED,
 
+    /* Scheduling errors */
+    MAXRTOS_ERR_DEADLINE_EXCEEDED,
+
+    MAXRTOS_PENDING,
+
     /* Generic operation errors. */
     MAXRTOS_ERR_NOT_FOUND,
+
+    /* A timed blocking wait expired before the operation could complete. */
+    MAXRTOS_ERR_TIMEOUT,
 } maxrtos_status_t;
 
 #endif /* MAXRTOS_STATUS_H */

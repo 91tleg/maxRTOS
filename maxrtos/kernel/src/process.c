@@ -52,6 +52,7 @@ void maxrtos_process_pool_init( void )
         s_process_pool[ i ].unprivileged = false;
         s_process_pool[ i ].wake_tick = MAXRTOS_TICK_NONE;
         s_process_pool[ i ].waitlist = NULL;
+        s_process_pool[ i ].ipc_result_pending = false;
         s_process_pool[ i ].entry = NULL;
         s_process_pool[ i ].entry_arg = NULL;
         s_process_pool[ i ].partition_id = MAXRTOS_INVALID_PARTITION_ID;
@@ -104,6 +105,7 @@ maxrtos_status_t maxrtos_process_create(
                 pcb->unprivileged = unprivileged;
                 pcb->wake_tick = MAXRTOS_TICK_NONE;
                 pcb->waitlist = NULL;
+                pcb->ipc_result_pending = false;
                 pcb->entry = entry;
                 pcb->entry_arg = entry_arg;
                 pcb->state = MAXRTOS_PROCESS_STATE_READY;

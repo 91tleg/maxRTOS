@@ -109,6 +109,17 @@ typedef struct process_control_block_s
      */
     maxrtos_status_t ipc_result;
 
+    /**
+     * @brief True while ipc_result has not yet been delivered to the
+     *        process.
+     *
+     * Set by the kernel when it completes a blocked operation. The
+     * architecture resume path shall write ipc_result into the process's
+     * system-call return value the next time the process is restored,
+     * and then clear this flag.
+     */
+    bool ipc_result_pending;
+
     maxrtos_process_entry_t entry;
     void * entry_arg;
 } maxrtos_process_control_block_t;

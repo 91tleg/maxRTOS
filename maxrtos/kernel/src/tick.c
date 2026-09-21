@@ -15,6 +15,7 @@
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/kernel/frame.h"
 #include "maxrtos/kernel/partition.h"
+#include "maxrtos/kernel/ipc_block.h"
 
 static maxrtos_tick_t s_current_tick = 0U;
 
@@ -33,6 +34,12 @@ maxrtos_status_t maxrtos_kernel_on_tick(
 
     s_current_tick++;
 
+    /* Resume processes whose timed IPC wait has expired before choosing
+     * what to run, so a timed-out process can run in its own slot. A wait
+     * of N ticks, started when the tick counter read T, expires when the
+     * counter reaches T + N. */
+    ( void ) maxrtos_ipc_expire_timeouts( table, s_current_tick );
+
     if( status == MAXRTOS_OK )
     {
         status = maxrtos_partition_dispatch(
@@ -47,4 +54,9 @@ maxrtos_status_t maxrtos_kernel_on_tick(
 maxrtos_tick_t maxrtos_kernel_tick_now( void )
 {
     return s_current_tick;
+}
+
+void maxrtos_kernel_tick_reset( void )
+{
+    s_current_tick = 0U;
 }
