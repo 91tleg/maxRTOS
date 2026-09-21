@@ -10,6 +10,8 @@
 #ifndef MAXRTOS_ARCH_CORTEX_M7_CONTEXT_SWITCH_H
 #define MAXRTOS_ARCH_CORTEX_M7_CONTEXT_SWITCH_H
 
+#include <stdbool.h>
+
 #include "maxrtos/kernel/process.h"
 
 extern maxrtos_process_control_block_t * g_maxrtos_current_pcb;
@@ -92,12 +94,12 @@ void maxrtos_arch_apply_resume_result(
 /**
  * @brief Apply the privilege level for the next process.
  *
- * Updates the Cortex-M CONTROL.nPRIV bit according to the privilege
- * configuration of the supplied process control block.
- *
- * A process with @c unprivileged set to true is executed in unprivileged
- * Thread mode. A process with @c unprivileged set to false is executed
- * in privileged Thread mode.
+ * Updates the Cortex-M CONTROL.nPRIV bit from the privilege of the
+ * process's partition (see maxrtos_arch_partition_is_privileged()). A
+ * process of an application partition executes in unprivileged Thread
+ * mode; a process of a system partition, and the architecture idle
+ * context (which belongs to no partition), execute in privileged Thread
+ * mode.
  *
  * @param[in] pcb
  *     Process control block describing the privilege level to apply.
@@ -105,6 +107,39 @@ void maxrtos_arch_apply_resume_result(
  */
 void maxrtos_arch_apply_privilege_for_next_pcb(
     maxrtos_process_control_block_t const * pcb );
+
+/**
+ * @brief Declare a partition a system partition (privileged).
+ *
+ * Partitions are unprivileged by default, which is what application
+ * partitions must be: a privileged process can reprogram the MPU, mask
+ * interrupts and, when PRIVDEFENA is set, access all memory, so it is not
+ * isolated at all. Only partitions that hold platform software (for
+ * example a driver partition) are made privileged, and all of their
+ * processes are, since they share one memory domain.
+ *
+ * Called from the generated configuration, before the scheduler starts.
+ *
+ * @param[in] partition_id
+ *     Partition to configure. Ignored if out of range.
+ *
+ * @param[in] privileged
+ *     true to run the partition's processes privileged.
+ */
+void maxrtos_arch_set_partition_privileged(
+    maxrtos_partition_id_t partition_id,
+    bool privileged );
+
+/**
+ * @brief Whether a partition's processes run privileged.
+ *
+ * @return
+ *     true if partition_id was declared a system partition, or is
+ *     MAXRTOS_INVALID_PARTITION_ID (the architecture idle context).
+ *     false otherwise, including for out-of-range identifiers.
+ */
+bool maxrtos_arch_partition_is_privileged(
+    maxrtos_partition_id_t partition_id );
 
 /**
  * @brief Request a context switch.

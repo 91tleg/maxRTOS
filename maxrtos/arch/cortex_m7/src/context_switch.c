@@ -168,7 +168,7 @@ void maxrtos_arch_apply_privilege_for_next_pcb(
             :
             : "memory" );
 
-        if( pcb->unprivileged == true )
+        if( maxrtos_arch_partition_is_privileged( pcb->partition_id ) == false )
         {
             control |= MAXRTOS_CONTROL_NPRIV;   /* CONTROL.nPRIV = 1 */
         }

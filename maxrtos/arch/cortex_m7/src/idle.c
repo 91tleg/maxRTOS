@@ -38,7 +38,6 @@ void maxrtos_arch_idle_init( void )
     s_idle_pcb.partition_id = MAXRTOS_INVALID_PARTITION_ID;
     s_idle_pcb.state = MAXRTOS_PROCESS_STATE_RUNNING;
     s_idle_pcb.priority = 0U;
-    s_idle_pcb.unprivileged = false;
     s_idle_pcb.stack_base = s_idle_stack;
     s_idle_pcb.stack_size = MAXRTOS_IDLE_STACK_SIZE;
     s_idle_pcb.wake_tick = MAXRTOS_TICK_NONE;

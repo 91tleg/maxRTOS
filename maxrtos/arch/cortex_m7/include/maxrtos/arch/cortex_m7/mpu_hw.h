@@ -35,13 +35,26 @@ void maxrtos_arch_mpu_set_config(
 /**
  * @brief Initialize the Cortex-M7 MPU.
  *
- * Enables the MPU with deny-by-default semantics. Required reserved
- * regions shall be configured before enabling the MPU.
+ * Enables the MPU. Required reserved regions shall be configured before
+ * enabling the MPU.
+ *
+ * @param[in] privileged_default_map
+ *     Value of MPU_CTRL.PRIVDEFENA.
+ *     false: deny by default. Every access, privileged or not, must be
+ *     permitted by an enabled region, so the kernel's own code, data and
+ *     stacks need explicit privileged regions (the generator checks the
+ *     ones it knows about). This is the isolation model the design
+ *     intends.
+ *     true: privileged code may also use the default memory map wherever
+ *     no region applies, so anything privileged (including a system
+ *     partition) can reach all memory the MPU does not cover, and a
+ *     missing region goes unnoticed. Use only as a stopgap while a
+ *     missing region is being found.
  *
  * @pre Required reserved MPU regions are configured.
  * @pre A valid MPU configuration has been registered.
  */
-void maxrtos_arch_mpu_init( void );
+void maxrtos_arch_mpu_init( bool privileged_default_map );
 
 /**
  * @brief Configure the MPU for the incoming process.

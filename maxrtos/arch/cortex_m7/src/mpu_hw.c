@@ -26,6 +26,7 @@
 #define MAXRTOS_MPU_RASR MAXRTOS_PORT_MPU_RASR
 
 #define MAXRTOS_MPU_CTRL_ENABLE_BIT  ( UINT32_C( 1 ) << 0U )
+#define MAXRTOS_MPU_CTRL_PRIVDEFENA_BIT ( UINT32_C( 1 ) << 2U )
 
 /* RASR bit-field positions. */
 #define MAXRTOS_RASR_ENABLE_POS ( 0U )
@@ -171,14 +172,18 @@ void maxrtos_arch_mpu_set_config(
     s_active_partition_id = MAXRTOS_INVALID_PARTITION_ID;
 }
 
-void maxrtos_arch_mpu_init( void )
+void maxrtos_arch_mpu_init( bool privileged_default_map )
 {
-    /* Enable the MPU with PRIVDEFENA clear so accesses not covered
-     * by an enabled region are denied, including for privileged
-     * code. */
-    MAXRTOS_PORT_MPU_REG_WRITE(
-        MAXRTOS_MPU_CTRL,
-        MAXRTOS_MPU_CTRL_ENABLE_BIT | ( 1UL << 2U ) );
+    uint32_t ctrl;
+
+    ctrl = MAXRTOS_MPU_CTRL_ENABLE_BIT;
+
+    if( privileged_default_map == true )
+    {
+        ctrl |= MAXRTOS_MPU_CTRL_PRIVDEFENA_BIT;
+    }
+
+    MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_CTRL, ctrl );
 
     MAXRTOS_PORT_BARRIER();
 }
@@ -357,16 +362,16 @@ bool maxrtos_arch_mpu_is_port_member(
     uint32_t address )
 {
     bool member;
-    size_t count;
-    size_t i;
 
     member = false;
 
     if( ( s_config != NULL ) && ( partition_id < MAXRTOS_MAX_PARTITIONS ) )
     {
+        size_t count;
+
         count = maxrtos_mpu_get_port_region_count( s_config );
 
-        for( i = 0U; ( i < count ) && ( member == false ); i++ )
+        for( size_t i = 0U; ( i < count ) && ( member == false ); i++ )
         {
             maxrtos_mpu_port_region_config_t port_region;
 

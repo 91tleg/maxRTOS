@@ -4,10 +4,12 @@ add_library(maxrtos_arch_cortex_m7 STATIC
     src/fault_handlers.c
     src/fault_dispatch.c
     src/idle.c
+    src/privilege.c
     src/mpu.c
     src/mpu_hw.c
     src/systick.c
     src/yield.c
+    src/timing.c
     src/svc.c
     src/svc.S
     src/start_scheduler.c

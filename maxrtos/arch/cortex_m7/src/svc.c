@@ -15,12 +15,14 @@
 #include "maxrtos/arch/cortex_m7/svc.h"
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
+#include "maxrtos/arch/cortex_m7/idle.h"
 #include "maxrtos/arch/cortex_m7/mpu_hw.h"
 #include "maxrtos/arch/cortex_m7/port.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/yield.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/timing.h"
 
 static void maxrtos_arch_svc_invalid( void );
 
@@ -34,6 +36,9 @@ static void maxrtos_arch_svc_queue_receive(
     uint32_t * stacked_args );
 
 static void maxrtos_arch_svc_queue_count(
+    uint32_t * stacked_args );
+
+static void maxrtos_arch_svc_periodic_wait(
     uint32_t * stacked_args );
 
 void maxrtos_arch_svc_dispatch(
@@ -69,6 +74,12 @@ void maxrtos_arch_svc_dispatch(
         case MAXRTOS_SVC_QUEUE_COUNT:
         {
             maxrtos_arch_svc_queue_count( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_PERIODIC_WAIT:
+        {
+            maxrtos_arch_svc_periodic_wait( stacked_args );
             break;
         }
 
@@ -281,5 +292,57 @@ static void maxrtos_arch_svc_queue_count(
     else
     {
         stacked_args[ 0 ] = 0U;
+    }
+}
+
+static void maxrtos_arch_svc_periodic_wait(
+    uint32_t * stacked_args )
+{
+    maxrtos_process_control_block_t const * current_pcb;
+    maxrtos_partition_table_t * partition_table;
+    maxrtos_process_id_t next_id;
+    maxrtos_status_t status;
+
+    current_pcb = maxrtos_arch_get_current_pcb();
+    partition_table = maxrtos_arch_get_partition_table();
+    next_id = MAXRTOS_INVALID_PROCESS_ID;
+
+    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
+    {
+        status = MAXRTOS_ERR_INVALID_STATE;
+    }
+    else
+    {
+        status = maxrtos_kernel_periodic_wait(
+            partition_table, current_pcb->id, &next_id );
+    }
+
+    if( status == MAXRTOS_PENDING )
+    {
+        maxrtos_process_control_block_t * next_pcb;
+
+        /* The caller is BLOCKED until its next release, and its result is
+         * delivered when it resumes. No other process may be READY, in which
+         * case the CPU idles until the release or the end of the slot. */
+        if( next_id == MAXRTOS_INVALID_PROCESS_ID )
+        {
+            next_pcb = maxrtos_arch_idle_pcb();
+        }
+        else
+        {
+            next_pcb = maxrtos_process_get( next_id );
+        }
+
+        if( next_pcb == NULL )
+        {
+            maxrtos_arch_svc_invalid();
+        }
+
+        maxrtos_arch_set_next_pcb( next_pcb );
+        maxrtos_arch_request_context_switch();
+    }
+    else
+    {
+        stacked_args[ 0 ] = ( uint32_t ) status;
     }
 }

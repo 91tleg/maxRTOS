@@ -37,8 +37,11 @@
 #ifndef MAXRTOS_ARCH_CORTEX_M7_FAULT_HANDLERS_H
 #define MAXRTOS_ARCH_CORTEX_M7_FAULT_HANDLERS_H
 
+#include <stdint.h>
+
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/partition.h"
+#include "maxrtos/kernel/process.h"
 
 /**
  * @brief Enable configurable fault exceptions and divide-by-zero
@@ -51,6 +54,25 @@
  * before process execution begins.
  */
 void maxrtos_arch_fault_handlers_init( void );
+
+/**
+ * @brief Status of the most recent fault exception.
+ *
+ * Captured by the fault exception handlers before the status bits are
+ * cleared. Intended for a debugger: after an unexpected fault, read
+ * g_maxrtos_arch_last_fault. mmfar is the refused data address of a memory
+ * fault (0 if not valid), which identifies a missing MPU region directly.
+ */
+typedef struct
+{
+    uint32_t cfsr;  /* Configurable Fault Status Register */
+    uint32_t hfsr;  /* HardFault Status Register */
+    uint32_t mmfar; /* MemManage Fault Address, if valid */
+    uint32_t bfar;  /* BusFault Address, if valid */
+    uint32_t count; /* faults taken since reset */
+} maxrtos_arch_fault_info_t;
+
+extern volatile maxrtos_arch_fault_info_t g_maxrtos_arch_last_fault;
 
 /**
  * @brief Register the health-monitor instance used by fault recovery.
@@ -96,5 +118,24 @@ maxrtos_partition_table_t * maxrtos_arch_get_partition_table( void );
  *     Classification of the fault.
  */
 void maxrtos_arch_handle_fault( maxrtos_fault_type_t fault_type );
+
+/**
+ * @brief Recover from a fault attributed to a given process.
+ *
+ * Like maxrtos_arch_handle_fault(), for a process that need not be the
+ * running one, such as a deadline miss of a process that is ready or
+ * blocked. A restarted process that is not running gets a fresh context and
+ * is dispatched normally; a halt of its partition also parks the CPU in the
+ * idle context if the running process belongs to that partition.
+ *
+ * @param[in] faulting_pcb
+ *     The process the fault is charged to. Shall not be NULL.
+ *
+ * @param[in] fault_type
+ *     Classification of the fault.
+ */
+void maxrtos_arch_handle_process_fault(
+    maxrtos_process_control_block_t * faulting_pcb,
+    maxrtos_fault_type_t fault_type );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_FAULT_HANDLERS_H */

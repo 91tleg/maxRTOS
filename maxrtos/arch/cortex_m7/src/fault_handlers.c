@@ -16,6 +16,14 @@
 #define MAXRTOS_SCB_CCR   ( *( volatile uint32_t * ) 0xE000ED14UL )
 #define MAXRTOS_SCB_SHCSR ( *( volatile uint32_t * ) 0xE000ED24UL )
 #define MAXRTOS_SCB_CFSR  ( *( volatile uint32_t * ) 0xE000ED28UL )
+#define MAXRTOS_SCB_HFSR  ( *( volatile uint32_t * ) 0xE000ED2CUL )
+#define MAXRTOS_SCB_MMFAR ( *( volatile uint32_t * ) 0xE000ED34UL )
+#define MAXRTOS_SCB_BFAR  ( *( volatile uint32_t * ) 0xE000ED38UL )
+
+/* CFSR.MMFSR.MMARVALID and CFSR.BFSR.BFARVALID: the fault address
+ * registers hold the faulting data address. */
+#define MAXRTOS_CFSR_MMARVALID_BIT      ( 1UL << 7U )
+#define MAXRTOS_CFSR_BFARVALID_BIT      ( 1UL << 15U )
 
 /* CCR.DIV_0_TRP: enable UsageFault generation for integer
  * divide-by-zero operations. */
@@ -35,6 +43,20 @@
 #define MAXRTOS_CFSR_BFSR_MASK          ( 0x0000FF00UL )
 #define MAXRTOS_CFSR_UFSR_MASK          ( 0xFFFF0000UL )
 
+/* The most recent fault, kept where a debugger can read it. */
+volatile maxrtos_arch_fault_info_t g_maxrtos_arch_last_fault;
+
+static void maxrtos_arch_record_fault( uint32_t cfsr )
+{
+    g_maxrtos_arch_last_fault.cfsr = cfsr;
+    g_maxrtos_arch_last_fault.hfsr = MAXRTOS_SCB_HFSR;
+    g_maxrtos_arch_last_fault.mmfar =
+        ( ( cfsr & MAXRTOS_CFSR_MMARVALID_BIT ) != 0U ) ? MAXRTOS_SCB_MMFAR : 0U;
+    g_maxrtos_arch_last_fault.bfar =
+        ( ( cfsr & MAXRTOS_CFSR_BFARVALID_BIT ) != 0U ) ? MAXRTOS_SCB_BFAR : 0U;
+    g_maxrtos_arch_last_fault.count++;
+}
+
 void maxrtos_arch_fault_handlers_init( void )
 {
     MAXRTOS_SCB_SHCSR |=
@@ -50,6 +72,7 @@ void MemManage_Handler( void )
     uint32_t cfsr;
 
     cfsr = MAXRTOS_SCB_CFSR;
+    maxrtos_arch_record_fault( cfsr );
 
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_MMFSR_MASK;
 
@@ -62,6 +85,7 @@ void BusFault_Handler( void )
     uint32_t cfsr;
 
     cfsr = MAXRTOS_SCB_CFSR;
+    maxrtos_arch_record_fault( cfsr );
 
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_BFSR_MASK;
 
@@ -75,6 +99,7 @@ void UsageFault_Handler( void )
     maxrtos_fault_type_t fault_type;
 
     cfsr = MAXRTOS_SCB_CFSR;
+    maxrtos_arch_record_fault( cfsr );
 
     if( ( cfsr & MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ) != 0U )
     {
