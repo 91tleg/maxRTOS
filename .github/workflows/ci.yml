@@ -161,6 +161,50 @@ jobs:
         run: |
           python3 maxrtos/tests/sil/tools/mutation_check.py build/mutation
 
+  qemu:
+    name: QEMU Emulation Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            qemu-system-arm \
+            python3-jinja2 \
+            cmake \
+            ninja-build
+
+      - name: Show tool versions
+        run: |
+          arm-none-eabi-gcc --version | head -1
+          qemu-system-arm --version | head -1
+
+      - name: Configure
+        run: |
+          cmake \
+            -S maxrtos/tests/qemu \
+            -B build/qemu \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi.cmake
+
+      - name: Build
+        run: |
+          cmake \
+            --build build/qemu \
+            -j2
+
+      - name: Run tests
+        run: |
+          ctest \
+            --test-dir build/qemu \
+            --output-on-failure
+
   build-nucleo:
     name: Build Nucleo Demo
     runs-on: ubuntu-latest
