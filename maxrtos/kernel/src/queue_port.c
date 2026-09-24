@@ -68,33 +68,6 @@ size_t maxrtos_kernel_queue_port_count(
     return count;
 }
 
-/* Convert a relative timeout into an absolute wake tick. */
-static maxrtos_status_t maxrtos_queue_port_wake_tick(
-    maxrtos_tick_t timeout,
-    maxrtos_tick_t * out_wake_tick )
-{
-    maxrtos_status_t status;
-    maxrtos_tick_t now;
-
-    status = MAXRTOS_OK;
-    now = maxrtos_kernel_tick_now();
-
-    if( timeout == MAXRTOS_TIMEOUT_INFINITE )
-    {
-        *out_wake_tick = MAXRTOS_TICK_NONE;
-    }
-    else if( timeout >= ( MAXRTOS_TICK_NONE - now ) )
-    {
-        status = MAXRTOS_ERR_OVERFLOW;
-    }
-    else
-    {
-        *out_wake_tick = now + timeout;
-    }
-
-    return status;
-}
-
 maxrtos_status_t maxrtos_kernel_queue_port_send(
     maxrtos_queue_port_t * port,
     void const * message,
@@ -157,7 +130,7 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
             maxrtos_tick_t wake_tick;
 
             wake_tick = MAXRTOS_TICK_NONE;
-            status = maxrtos_queue_port_wake_tick( timeout, &wake_tick );
+            status = maxrtos_kernel_tick_after( timeout, &wake_tick );
 
             if( status == MAXRTOS_OK )
             {
@@ -252,7 +225,7 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
             maxrtos_tick_t wake_tick;
 
             wake_tick = MAXRTOS_TICK_NONE;
-            status = maxrtos_queue_port_wake_tick( timeout, &wake_tick );
+            status = maxrtos_kernel_tick_after( timeout, &wake_tick );
 
             if( status == MAXRTOS_OK )
             {
@@ -282,6 +255,10 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
                      * receive would. */
                 }
             }
+        }
+        else
+        {
+            /* Non-blocking receive, or an error: return the status. */
         }
     }
 

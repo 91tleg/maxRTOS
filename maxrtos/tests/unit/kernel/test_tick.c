@@ -330,6 +330,60 @@ static void test_on_tick_propagates_queue_empty( void )
     printf( "test_on_tick_propagates_queue_empty: PASS\n" );
 }
 
+static void test_tick_after_converts_timeouts( void )
+{
+    maxrtos_tick_t wake;
+
+    maxrtos_process_pool_init();
+    maxrtos_kernel_tick_reset();
+
+    assert( maxrtos_kernel_tick_after( 5U, NULL ) ==
+            MAXRTOS_ERR_INVALID_ARG );
+
+    assert( maxrtos_kernel_tick_after( 5U, &wake ) == MAXRTOS_OK );
+    assert( wake == 5U );
+
+    assert( maxrtos_kernel_tick_after( 0U, &wake ) == MAXRTOS_OK );
+    assert( wake == 0U );
+
+    assert( maxrtos_kernel_tick_after(
+                MAXRTOS_TIMEOUT_INFINITE, &wake ) == MAXRTOS_OK );
+    assert( wake == MAXRTOS_TICK_NONE );
+
+    /* now + timeout must stay below the "no timeout" sentinel. */
+    assert( maxrtos_kernel_tick_after(
+                MAXRTOS_TICK_NONE - 1U, &wake ) == MAXRTOS_OK );
+    assert( wake == MAXRTOS_TICK_NONE - 1U );
+
+    printf( "test_tick_after_converts_timeouts: PASS\n" );
+}
+
+static void test_tick_after_overflow_rejected( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_frame_schedule_t sched;
+    maxrtos_frame_slot_t slots[ 1 ] = { { 0U, 10U } };
+    maxrtos_process_id_t out;
+    maxrtos_tick_t wake;
+
+    maxrtos_process_pool_init();
+    maxrtos_kernel_tick_reset();
+    assert( maxrtos_partition_table_init( &table ) == MAXRTOS_OK );
+    assert( maxrtos_frame_init( &sched, slots, 1U ) == MAXRTOS_OK );
+
+    /* Advance to tick 1; the tick is observable only through this. */
+    ( void ) maxrtos_kernel_on_tick( &sched, &table, &out );
+    assert( maxrtos_kernel_tick_now() == 1U );
+
+    assert( maxrtos_kernel_tick_after(
+                MAXRTOS_TICK_NONE - 1U, &wake ) == MAXRTOS_ERR_OVERFLOW );
+    assert( maxrtos_kernel_tick_after(
+                MAXRTOS_TICK_NONE - 2U, &wake ) == MAXRTOS_OK );
+    assert( wake == MAXRTOS_TICK_NONE - 1U );
+
+    printf( "test_tick_after_overflow_rejected: PASS\n" );
+}
+
 int main( void )
 {
     test_tick_now_initial_value();
@@ -338,6 +392,8 @@ int main( void )
     test_on_tick_single_partition_resumes_correctly();
     test_on_tick_switches_partitions_at_frame_boundary();
     test_on_tick_propagates_queue_empty();
+    test_tick_after_converts_timeouts();
+    test_tick_after_overflow_rejected();
 
     printf( "all tick tests passed\n" );
 
