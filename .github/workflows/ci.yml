@@ -173,12 +173,38 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc-arm-none-eabi \
-            binutils-arm-none-eabi \
-            qemu-system-arm \
             python3-jinja2 \
             cmake \
             ninja-build
+
+      - name: Install Arm GNU toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.2.Rel1'
+
+      - name: Cache QEMU
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/qemu-10.1.0
+          key: qemu-10.1.0-arm-softmmu-${{ runner.os }}
+
+      - name: Build QEMU 10.1.0
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y \
+            libglib2.0-dev libpixman-1-dev pkg-config python3-venv
+          curl -fsSL https://download.qemu.org/qemu-10.1.0.tar.xz | tar -xJ
+          cd qemu-10.1.0
+          ./configure \
+            --target-list=arm-softmmu \
+            --prefix=$HOME/qemu-10.1.0 \
+            --disable-docs --disable-werror
+          make -j$(nproc)
+          make install
+
+      - name: Add QEMU to PATH
+        run: echo "$HOME/qemu-10.1.0/bin" >> "$GITHUB_PATH"
 
       - name: Show tool versions
         run: |
@@ -217,11 +243,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc-arm-none-eabi \
-            binutils-arm-none-eabi \
             python3-pip \
             cmake \
             ninja-build
+
+      - name: Install Arm GNU toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.2.Rel1'
 
       - name: Install codegen
         run: |
