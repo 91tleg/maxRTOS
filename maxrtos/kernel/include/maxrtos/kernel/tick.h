@@ -21,9 +21,8 @@
 
 #include "maxrtos/status.h"
 #include "maxrtos/types.h"
-
-typedef struct maxrtos_frame_schedule_s maxrtos_frame_schedule_t;
-typedef struct maxrtos_partition_table_s maxrtos_partition_table_t;
+#include "maxrtos/kernel/frame.h"
+#include "maxrtos/kernel/partition.h"
 
 /**
  * @brief Select the active partition and dispatch a process within it.
@@ -59,6 +58,26 @@ maxrtos_status_t maxrtos_kernel_on_tick(
  * use this value when calculating timed-wait deadlines.
  */
 maxrtos_tick_t maxrtos_kernel_tick_now( void );
+
+/**
+ * @brief Convert a relative timeout into an absolute wake tick.
+ *
+ * @param[in] timeout
+ *     Ticks to wait, or MAXRTOS_TIMEOUT_INFINITE for no deadline.
+ *
+ * @param[out] out_wake_tick
+ *     Receives now + timeout, or MAXRTOS_TICK_NONE for an infinite
+ *     timeout.
+ *
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ARG if out_wake_tick is NULL.
+ *     MAXRTOS_ERR_OVERFLOW if the wake tick would reach
+ *     MAXRTOS_TICK_NONE.
+ */
+maxrtos_status_t maxrtos_kernel_tick_after(
+    maxrtos_tick_t timeout,
+    maxrtos_tick_t * out_wake_tick );
 
 /**
  * @brief Reset the kernel tick to zero.

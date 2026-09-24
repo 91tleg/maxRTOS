@@ -57,6 +57,35 @@ maxrtos_status_t maxrtos_kernel_on_tick(
     return status;
 }
 
+maxrtos_status_t maxrtos_kernel_tick_after(
+    maxrtos_tick_t timeout,
+    maxrtos_tick_t * out_wake_tick )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( out_wake_tick != NULL )
+    {
+        status = MAXRTOS_OK;
+
+        if( timeout == MAXRTOS_TIMEOUT_INFINITE )
+        {
+            *out_wake_tick = MAXRTOS_TICK_NONE;
+        }
+        else if( timeout >= ( MAXRTOS_TICK_NONE - s_current_tick ) )
+        {
+            status = MAXRTOS_ERR_OVERFLOW;
+        }
+        else
+        {
+            *out_wake_tick = s_current_tick + timeout;
+        }
+    }
+
+    return status;
+}
+
 maxrtos_tick_t maxrtos_kernel_tick_now( void )
 {
     return s_current_tick;

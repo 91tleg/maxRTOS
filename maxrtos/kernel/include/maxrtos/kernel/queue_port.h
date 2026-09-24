@@ -17,6 +17,7 @@
 #include <stdint.h>
 
 #include "maxrtos/status.h"
+#include "maxrtos/queue_port.h"
 #include "maxrtos/config.h"
 #include "maxrtos/types.h"
 #include "maxrtos/kernel/internal/fifo.h"
@@ -39,7 +40,7 @@
  * @field waiting_senders
  *     Processes blocked waiting for space.
  */
-typedef struct maxrtos_queue_port_s
+struct maxrtos_queue_port_s
 {
     uint8_t buffer[
         MAXRTOS_MAX_QUEUE_CAPACITY *
@@ -49,7 +50,7 @@ typedef struct maxrtos_queue_port_s
 
     maxrtos_waitlist_t waiting_receivers;
     maxrtos_waitlist_t waiting_senders;
-} maxrtos_queue_port_t;
+};
 
 /**
  * @brief Initialize a queuing port.
