@@ -160,7 +160,6 @@ maxrtos_status_t maxrtos_ipc_timeout_current(
 {
     maxrtos_status_t status;
     maxrtos_process_control_block_t * pcb;
-    bool removed;
 
     status = MAXRTOS_ERR_INVALID_ARG;
     pcb = NULL;
@@ -168,6 +167,8 @@ maxrtos_status_t maxrtos_ipc_timeout_current(
     if( ( waitlist != NULL ) &&
         ( out_op != NULL ) )
     {
+        bool removed;
+
         removed = maxrtos_waitlist_remove(
             waitlist,
             id );

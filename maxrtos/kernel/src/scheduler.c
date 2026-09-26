@@ -13,6 +13,8 @@
 #include <stdbool.h>
 
 #include "maxrtos/kernel/scheduler.h"
+#include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/waitlist.h"
 
 static size_t maxrtos_scheduler_queue_tail(
     maxrtos_ready_queue_t const * queue )

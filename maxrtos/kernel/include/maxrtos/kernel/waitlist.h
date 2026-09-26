@@ -111,6 +111,31 @@ bool maxrtos_waitlist_remove(
     maxrtos_process_id_t id );
 
 /**
+ * @brief Read the entry at a position without removing it.
+ *
+ * Position 0 is the front (longest waiting). Lets a primitive choose a
+ * waiter by a rule other than FIFO and then remove it by identifier.
+ *
+ * @param[in] list
+ *     Wait list to query.
+ *
+ * @param[in] index
+ *     Position, less than the entry count.
+ *
+ * @param[out] out_id
+ *     Receives the process identifier at index.
+ *
+ * @return
+ *     MAXRTOS_OK if out_id was set.
+ *     MAXRTOS_ERR_INVALID_ARG if list or out_id is NULL.
+ *     MAXRTOS_ERR_NOT_FOUND if index is not less than the entry count.
+ */
+maxrtos_status_t maxrtos_waitlist_get(
+    maxrtos_waitlist_t const * list,
+    size_t index,
+    maxrtos_process_id_t * out_id );
+
+/**
  * @brief Return the current number of entries in a wait list.
  *
  * @param[in] list

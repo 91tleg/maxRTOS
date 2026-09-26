@@ -12,12 +12,17 @@
 #include <stddef.h>
 
 #include "maxrtos/status.h"
+#include "maxrtos/types.h"
 
 typedef enum
 {
     MAXRTOS_IPC_OP_NONE = 0,
     MAXRTOS_IPC_OP_QUEUE_SEND,
     MAXRTOS_IPC_OP_QUEUE_RECEIVE,
+    MAXRTOS_IPC_OP_MUTEX_LOCK,
+    MAXRTOS_IPC_OP_SEMAPHORE_WAIT,
+    MAXRTOS_IPC_OP_BUFFER_SEND,
+    MAXRTOS_IPC_OP_BUFFER_RECEIVE,
 } maxrtos_ipc_operation_kind_t;
 
 /**
@@ -46,6 +51,30 @@ typedef struct
             void * out_message;
             size_t buffer_size;
         } queue_receive;
+
+        struct
+        {
+            maxrtos_mutex_id_t id;
+        } mutex_lock;
+
+        struct
+        {
+            maxrtos_semaphore_id_t id;
+        } semaphore_wait;
+
+        struct
+        {
+            maxrtos_buffer_id_t id;
+            void const * message;
+            size_t message_size;
+        } buffer_send;
+
+        struct
+        {
+            maxrtos_buffer_id_t id;
+            void * out_message;
+            size_t buffer_size;
+        } buffer_receive;
 
         /* Future IPC operation payloads shall be added as distinct types. */
     } payload;

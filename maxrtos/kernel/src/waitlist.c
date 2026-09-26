@@ -127,6 +127,31 @@ bool maxrtos_waitlist_remove(
     return removed;
 }
 
+maxrtos_status_t maxrtos_waitlist_get(
+    maxrtos_waitlist_t const * list,
+    size_t index,
+    maxrtos_process_id_t * out_id )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( list != NULL ) && ( out_id != NULL ) )
+    {
+        if( index < list->count )
+        {
+            *out_id = list->items[ index ];
+            status = MAXRTOS_OK;
+        }
+        else
+        {
+            status = MAXRTOS_ERR_NOT_FOUND;
+        }
+    }
+
+    return status;
+}
+
 size_t maxrtos_waitlist_count(
     maxrtos_waitlist_t const * list )
 {

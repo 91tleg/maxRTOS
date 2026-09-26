@@ -19,8 +19,7 @@
 #include "maxrtos/status.h"
 #include "maxrtos/types.h"
 #include "maxrtos/kernel/ipc_operation.h"
-
-typedef struct maxrtos_waitlist_s maxrtos_waitlist_t;
+#include "maxrtos/kernel/waitlist.h"
 
 /**
  * @brief Process execution state.

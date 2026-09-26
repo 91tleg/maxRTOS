@@ -10,6 +10,7 @@
 #include <stddef.h>
 
 #include "maxrtos/kernel/health_monitor.h"
+#include "maxrtos/kernel/process.h"
 
 maxrtos_status_t maxrtos_hm_init(
     maxrtos_health_monitor_t * hm )

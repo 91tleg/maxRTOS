@@ -17,10 +17,11 @@
 #ifndef MAXRTOS_KERNEL_FAULT_RECOVERY_H
 #define MAXRTOS_KERNEL_FAULT_RECOVERY_H
 
+#include "maxrtos/status.h"
+#include "maxrtos/types.h"
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/health_monitor.h"
-#include "maxrtos/status.h"
 
 /**
  * @brief Enact the health-monitor recovery action for a fault.

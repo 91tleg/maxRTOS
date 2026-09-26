@@ -35,6 +35,18 @@ add_executable(maxrtos_kernel_test_fault_recovery test_fault_recovery.c)
 target_link_libraries(maxrtos_kernel_test_fault_recovery PRIVATE maxrtos_kernel)
 add_test(NAME kernel_fault_recovery_tests COMMAND maxrtos_kernel_test_fault_recovery)
 
+add_executable(maxrtos_kernel_test_mutex test_mutex.c)
+target_link_libraries(maxrtos_kernel_test_mutex PRIVATE maxrtos_kernel)
+add_test(NAME kernel_mutex_tests COMMAND maxrtos_kernel_test_mutex)
+
+add_executable(maxrtos_kernel_test_semaphore test_semaphore.c)
+target_link_libraries(maxrtos_kernel_test_semaphore PRIVATE maxrtos_kernel)
+add_test(NAME kernel_semaphore_tests COMMAND maxrtos_kernel_test_semaphore)
+
+add_executable(maxrtos_kernel_test_buffer test_buffer.c)
+target_link_libraries(maxrtos_kernel_test_buffer PRIVATE maxrtos_kernel)
+add_test(NAME kernel_buffer_tests COMMAND maxrtos_kernel_test_buffer)
+
 add_executable(maxrtos_kernel_test_tick test_tick.c)
 target_link_libraries(maxrtos_kernel_test_tick PRIVATE maxrtos_kernel)
 add_test(NAME kernel_tick_tests COMMAND maxrtos_kernel_test_tick)

@@ -18,9 +18,9 @@
 #ifndef MAXRTOS_KERNEL_HEALTH_MONITOR_H
 #define MAXRTOS_KERNEL_HEALTH_MONITOR_H
 
-#include "maxrtos/kernel/process.h"
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
+#include "maxrtos/types.h"
 
 /**
  * @brief Fault classifications supported by the health monitor.
@@ -76,7 +76,7 @@ typedef enum
  *     policy[p][f] contains the recovery action for fault type f
  *     occurring in partition p.
  */
-typedef struct
+typedef struct maxrtos_health_monitor_s
 {
     maxrtos_hm_action_t policy[ MAXRTOS_MAX_PARTITIONS ][ MAXRTOS_FAULT_COUNT ];
 } maxrtos_health_monitor_t;

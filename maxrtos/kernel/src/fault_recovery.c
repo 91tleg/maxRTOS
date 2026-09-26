@@ -11,6 +11,7 @@
 
 #include "maxrtos/kernel/fault_recovery.h"
 #include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/kernel/timing.h"
@@ -28,6 +29,10 @@ static maxrtos_status_t maxrtos_fault_recovery_restart(
 
     pcb = maxrtos_process_get( id );
     status = MAXRTOS_OK;
+
+    /* A restarted process forgets what it held: release its mutexes so its
+     * partition peers are not locked out forever. */
+    maxrtos_kernel_mutex_release_all( table, id );
 
     if( pcb == NULL )
     {

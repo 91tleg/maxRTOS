@@ -30,4 +30,35 @@ typedef uint32_t maxrtos_partition_id_t;
 #define MAXRTOS_INVALID_PARTITION_ID \
     ( ( maxrtos_partition_id_t ) UINT32_MAX )
 
+/* Handle for a kernel-owned mutex, as returned by maxrtos_mutex_create(). */
+typedef uint32_t maxrtos_mutex_id_t;
+
+/* Sentinel mutex ID indicating that no mutex is selected. */
+#define MAXRTOS_INVALID_MUTEX_ID \
+    ( ( maxrtos_mutex_id_t ) UINT32_MAX )
+
+/* Handle for a kernel-owned semaphore, as returned by
+ * maxrtos_semaphore_create(). */
+typedef uint32_t maxrtos_semaphore_id_t;
+
+/* Sentinel semaphore ID indicating that no semaphore is selected. */
+#define MAXRTOS_INVALID_SEMAPHORE_ID \
+    ( ( maxrtos_semaphore_id_t ) UINT32_MAX )
+
+/* Handle for a kernel-owned buffer, as returned by
+ * maxrtos_buffer_create(). */
+typedef uint32_t maxrtos_buffer_id_t;
+
+/* Sentinel buffer ID indicating that no buffer is selected. */
+#define MAXRTOS_INVALID_BUFFER_ID \
+    ( ( maxrtos_buffer_id_t ) UINT32_MAX )
+
+/* Order in which blocked processes are released when a blocking IPC
+ * primitive has capacity for one of them (ARINC 653 QUEUING_DISCIPLINE). */
+typedef enum
+{
+    MAXRTOS_QUEUING_FIFO = 0,
+    MAXRTOS_QUEUING_PRIORITY,
+} maxrtos_queuing_discipline_t;
+
 #endif /* MAXRTOS_TYPES_H */

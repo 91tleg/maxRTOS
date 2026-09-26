@@ -14,6 +14,9 @@ add_library(maxrtos_arch_cortex_m7 STATIC
     src/svc.S
     src/start_scheduler.c
     src/queue_port.c
+    src/mutex.c
+    src/semaphore.c
+    src/buffer.c
 )
 
 target_include_directories(maxrtos_arch_cortex_m7

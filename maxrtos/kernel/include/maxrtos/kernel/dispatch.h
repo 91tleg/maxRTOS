@@ -13,9 +13,9 @@
 #ifndef MAXRTOS_KERNEL_DISPATCH_H
 #define MAXRTOS_KERNEL_DISPATCH_H
 
-#include "maxrtos/kernel/process.h"
-#include "maxrtos/kernel/scheduler.h"
 #include "maxrtos/status.h"
+#include "maxrtos/types.h"
+#include "maxrtos/kernel/scheduler.h"
 
 /**
  * @brief Select and dispatch the next READY process.

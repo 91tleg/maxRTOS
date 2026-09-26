@@ -82,6 +82,27 @@
 #endif /* MAXRTOS_MAX_BUFFER_CAPACITY */
 
 /**
+ * @brief Maximum number of mutexes in the kernel mutex pool.
+ */
+#ifndef MAXRTOS_MAX_MUTEXES
+    #define MAXRTOS_MAX_MUTEXES ( 8U )
+#endif /* MAXRTOS_MAX_MUTEXES */
+
+/**
+ * @brief Maximum number of semaphores in the kernel semaphore pool.
+ */
+#ifndef MAXRTOS_MAX_SEMAPHORES
+    #define MAXRTOS_MAX_SEMAPHORES ( 8U )
+#endif /* MAXRTOS_MAX_SEMAPHORES */
+
+/**
+ * @brief Maximum number of buffers in the kernel buffer pool.
+ */
+#ifndef MAXRTOS_MAX_BUFFERS
+    #define MAXRTOS_MAX_BUFFERS ( 8U )
+#endif /* MAXRTOS_MAX_BUFFERS */
+
+/**
  * @brief Maximum number of processes that may simultaneously block on
  *        one blocking primitive.
  */

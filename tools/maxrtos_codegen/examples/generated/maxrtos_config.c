@@ -19,7 +19,10 @@
 #include "maxrtos/arch/cortex_m7/mpu_hw.h"
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
 #include "maxrtos/kernel/health_monitor.h"
+#include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/semaphore.h"
+#include "maxrtos/kernel/buffer.h"
 
 #define MAXRTOS_CONFIG_HALT() \
     do { for( ;; ) { __asm volatile ( "bkpt #0" ); } } while( 0 )
@@ -51,6 +54,9 @@ static bool s_ipc_ports_initialized = false;
 void maxrtos_config_init( void )
 {
     maxrtos_process_pool_init();
+    maxrtos_mutex_pool_init();
+    maxrtos_semaphore_pool_init();
+    maxrtos_buffer_pool_init();
     MAXRTOS_CONFIG_CHECK( maxrtos_partition_table_init( &s_partition_table ) );
     maxrtos_arch_set_partition_table( &s_partition_table );
 

@@ -15,7 +15,8 @@
 
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
-#include "maxrtos/kernel/process.h"
+#include "maxrtos/types.h"
+#include "maxrtos/kernel/waitlist.h"
 
 /**
  * @brief FIFO ready queue for a single priority level.
@@ -38,7 +39,7 @@ typedef struct
  * The scheduler does not own process control blocks. Process storage
  * is maintained by the process-management subsystem.
  */
-typedef struct
+typedef struct maxrtos_scheduler_context_s
 {
     maxrtos_ready_queue_t queues[ MAXRTOS_MAX_PRIORITY + 1U ];
 } maxrtos_scheduler_context_t;

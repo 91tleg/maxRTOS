@@ -10,6 +10,8 @@
 #include <stddef.h>
 
 #include "maxrtos/kernel/dispatch.h"
+#include "maxrtos/kernel/process.h"
+#include "maxrtos/kernel/scheduler.h"
 
 maxrtos_status_t maxrtos_kernel_dispatch(
     maxrtos_scheduler_context_t * ctx,
