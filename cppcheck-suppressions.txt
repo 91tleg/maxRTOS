@@ -15,7 +15,10 @@ misra-c2012-2.5:maxrtos/include/maxrtos/types.h
 # function referenced from one translation unit only.
 misra-c2012-8.7:maxrtos/kernel/src/*
 misra-c2012-8.7:maxrtos/arch/cortex_m7/src/*
+# maxrtos_kernel_mutex_owner() is only flagged once mutex.c calls it itself, so
+# this entry has no match before then.
 staticFunction:maxrtos/kernel/src/mutex.c
+unmatchedSuppression:maxrtos/kernel/src/mutex.c
 staticFunction:maxrtos/arch/cortex_m7/src/start_scheduler.c
 # cppcheck reads a GCC inline assembly statement (__asm volatile) as a call
 # to an undeclared function.
