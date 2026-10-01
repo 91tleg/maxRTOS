@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "maxrtos/kernel/mutex.h"
@@ -73,6 +74,11 @@ static maxrtos_status_t lock(
 static maxrtos_process_state_t state_of( maxrtos_process_id_t id )
 {
     return maxrtos_process_get( id )->state;
+}
+
+static uint8_t priority_of( maxrtos_process_id_t id )
+{
+    return maxrtos_process_get( id )->priority;
 }
 
 static void test_create_binds_partition_and_exhausts_pool( void )
@@ -441,6 +447,261 @@ static void test_release_all_hands_off_or_unlocks( void )
     printf( "test_release_all_hands_off_or_unlocks: PASS\n" );
 }
 
+/* Classic inversion: L holds the lock, H wants it, and two CPU-bound
+ * medium-priority processes would keep L off the CPU forever. */
+static void test_holder_inherits_priority_and_is_not_starved( void )
+{
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_process_id_t m1;
+    maxrtos_process_id_t m2;
+    maxrtos_process_id_t next;
+    size_t i;
+    bool l_ran;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    h = make_process( 0U, 1U );
+    m1 = make_process( 0U, 5U );
+    m2 = make_process( 0U, 5U );
+
+    assert( dispatch( 0U ) == h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
+            MAXRTOS_PENDING );
+
+    /* L now runs at H's priority, so it is picked ahead of M1 and M2. */
+    assert( priority_of( l ) == 1U );
+    assert( next == l );
+
+    /* However the medium processes rotate, L keeps getting the CPU. */
+    l_ran = false;
+
+    for( i = 0U; i < 6U; i++ )
+    {
+        if( dispatch( 0U ) == l )
+        {
+            l_ran = true;
+        }
+    }
+
+    assert( l_ran == true );
+    ( void ) m1;
+    ( void ) m2;
+
+    printf( "test_holder_inherits_priority_and_is_not_starved: PASS\n" );
+}
+
+static void test_unlock_restores_base_priority( void )
+{
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    h = make_process( 0U, 1U );
+    assert( dispatch( 0U ) == h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
+            MAXRTOS_PENDING );
+    assert( next == l );
+    assert( priority_of( l ) == 1U );
+
+    assert( maxrtos_kernel_mutex_unlock( m, &s_table, l ) == MAXRTOS_OK );
+    assert( maxrtos_kernel_mutex_owner( m ) == h );
+    assert( priority_of( l ) == 9U );
+    assert( priority_of( h ) == 1U );
+    assert( maxrtos_process_get( l )->base_priority == 9U );
+
+    printf( "test_unlock_restores_base_priority: PASS\n" );
+}
+
+/* A lower-priority waiter must not drag the holder down, and an
+ * uncontended lock changes nothing. */
+static void test_lower_priority_waiter_does_not_change_holder( void )
+{
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t hi;
+    maxrtos_process_id_t lo;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
+
+    hi = make_process( 0U, 2U );
+    assert( dispatch( 0U ) == hi );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, hi, &next ) == MAXRTOS_OK );
+    assert( priority_of( hi ) == 2U );
+
+    lo = make_process( 0U, 8U );
+    assert( dispatch( 0U ) == lo );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, lo, &next ) ==
+            MAXRTOS_PENDING );
+    assert( priority_of( hi ) == 2U );
+    assert( priority_of( lo ) == 8U );
+
+    printf( "test_lower_priority_waiter_does_not_change_holder: PASS\n" );
+}
+
+/* H waits on M, M waits on L: L must run at H's priority. */
+static void test_inheritance_is_transitive( void )
+{
+    maxrtos_mutex_id_t m1;
+    maxrtos_mutex_id_t m2;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t mid;
+    maxrtos_process_id_t h;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m1 ) == MAXRTOS_OK );
+    assert( maxrtos_mutex_create( 0U, &m2 ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    mid = make_process( 0U, 5U );
+    assert( dispatch( 0U ) == mid );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) ==
+            MAXRTOS_OK );
+    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) ==
+            MAXRTOS_PENDING );
+    assert( next == l );
+    assert( priority_of( l ) == 5U );
+
+    h = make_process( 0U, 1U );
+    assert( dispatch( 0U ) == h );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
+            MAXRTOS_PENDING );
+    assert( priority_of( mid ) == 1U );
+    assert( priority_of( l ) == 1U );
+
+    /* Unwinding: L releases m1 to mid, which then releases m2 to h. */
+    assert( maxrtos_kernel_mutex_unlock( m1, &s_table, l ) == MAXRTOS_OK );
+    assert( maxrtos_kernel_mutex_owner( m1 ) == mid );
+    assert( priority_of( l ) == 9U );
+    assert( priority_of( mid ) == 1U );
+
+    assert( dispatch( 0U ) == mid );
+    assert( maxrtos_kernel_mutex_unlock( m2, &s_table, mid ) == MAXRTOS_OK );
+    assert( maxrtos_kernel_mutex_owner( m2 ) == h );
+    assert( priority_of( mid ) == 5U );
+
+    printf( "test_inheritance_is_transitive: PASS\n" );
+}
+
+/* Holding two contended mutexes: releasing one keeps the boost the other
+ * still demands. */
+static void test_boost_follows_remaining_waiters( void )
+{
+    maxrtos_mutex_id_t m1;
+    maxrtos_mutex_id_t m2;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h1;
+    maxrtos_process_id_t h3;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m1 ) == MAXRTOS_OK );
+    assert( maxrtos_mutex_create( 0U, &m2 ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    h1 = make_process( 0U, 1U );
+    h3 = make_process( 0U, 3U );
+
+    assert( dispatch( 0U ) == h1 );
+    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, h1, &next ) ==
+            MAXRTOS_PENDING );
+    assert( next == l );
+    assert( priority_of( l ) == 1U );
+
+    assert( dispatch( 0U ) == h3 );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, h3, &next ) ==
+            MAXRTOS_PENDING );
+    assert( next == l );
+    assert( priority_of( l ) == 1U );
+
+    assert( maxrtos_kernel_mutex_unlock( m1, &s_table, l ) == MAXRTOS_OK );
+    assert( priority_of( l ) == 3U );
+
+    assert( maxrtos_kernel_mutex_unlock( m2, &s_table, l ) == MAXRTOS_OK );
+    assert( priority_of( l ) == 9U );
+
+    printf( "test_boost_follows_remaining_waiters: PASS\n" );
+}
+
+/* A waiter that gives up (timeout) stops boosting the holder. */
+static void test_timeout_drops_the_boost( void )
+{
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    h = make_process( 0U, 1U );
+    assert( dispatch( 0U ) == h );
+    assert( lock( m, 3U, h, &next ) == MAXRTOS_PENDING );
+    assert( priority_of( l ) == 1U );
+
+    assert( maxrtos_ipc_expire_timeouts( &s_table, 3U ) == 1U );
+    assert( priority_of( l ) == 9U );
+    assert( maxrtos_kernel_mutex_owner( m ) == l );
+
+    printf( "test_timeout_drops_the_boost: PASS\n" );
+}
+
+/* A boosted holder that is restarted by fault recovery comes back at its
+ * configured priority. */
+static void test_release_all_restores_base_priority( void )
+{
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_process_id_t next;
+
+    setup();
+    assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
+
+    l = make_process( 0U, 9U );
+    assert( dispatch( 0U ) == l );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
+
+    h = make_process( 0U, 1U );
+    assert( dispatch( 0U ) == h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
+            MAXRTOS_PENDING );
+    assert( priority_of( l ) == 1U );
+
+    maxrtos_kernel_mutex_release_all( &s_table, l );
+    assert( maxrtos_kernel_mutex_owner( m ) == h );
+    assert( priority_of( l ) == 9U );
+
+    printf( "test_release_all_restores_base_priority: PASS\n" );
+}
+
 int main( void )
 {
     test_create_binds_partition_and_exhausts_pool();
@@ -454,6 +715,13 @@ int main( void )
     test_equal_priority_waiters_are_fifo();
     test_timed_lock_expires_and_leaves_wait_list();
     test_release_all_hands_off_or_unlocks();
+    test_holder_inherits_priority_and_is_not_starved();
+    test_unlock_restores_base_priority();
+    test_lower_priority_waiter_does_not_change_holder();
+    test_inheritance_is_transitive();
+    test_boost_follows_remaining_waiters();
+    test_timeout_drops_the_boost();
+    test_release_all_restores_base_priority();
 
     printf( "all mutex tests passed\n" );
 

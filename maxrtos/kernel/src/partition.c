@@ -182,3 +182,63 @@ maxrtos_status_t maxrtos_partition_block_and_dispatch(
  
     return status;
 }
+
+maxrtos_status_t maxrtos_partition_set_process_priority(
+    maxrtos_partition_table_t * table,
+    maxrtos_process_id_t id,
+    uint8_t priority )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( table != NULL ) && ( priority <= MAXRTOS_MAX_PRIORITY ) )
+    {
+        maxrtos_process_control_block_t * pcb;
+
+        pcb = maxrtos_process_get( id );
+
+        if( pcb == NULL )
+        {
+            status = MAXRTOS_ERR_INVALID_ID;
+        }
+        else if( pcb->partition_id >= MAXRTOS_MAX_PARTITIONS )
+        {
+            status = MAXRTOS_ERR_INVALID_ARG;
+        }
+        else
+        {
+            maxrtos_scheduler_context_t * ctx;
+            uint8_t old_priority;
+            bool queued;
+
+            ctx = &table->scheduler_ctx[ pcb->partition_id ];
+            old_priority = pcb->priority;
+
+            /* A READY process is not necessarily queued (one that was
+             * created but never registered is not), so the removal
+             * result says whether it has to be put back. */
+            queued = ( pcb->state == MAXRTOS_PROCESS_STATE_READY ) &&
+                     ( maxrtos_scheduler_remove_process( ctx, id ) ==
+                       MAXRTOS_OK );
+
+            pcb->priority = priority;
+            status = MAXRTOS_OK;
+
+            if( queued )
+            {
+                status = maxrtos_scheduler_add_process( ctx, id );
+
+                if( status != MAXRTOS_OK )
+                {
+                    /* The slot just freed in the old queue is still
+                     * there, so this cannot fail. */
+                    pcb->priority = old_priority;
+                    ( void ) maxrtos_scheduler_add_process( ctx, id );
+                }
+            }
+        }
+    }
+
+    return status;
+}

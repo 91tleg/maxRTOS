@@ -22,11 +22,22 @@
  *  - When a process is restarted by fault recovery, every mutex it
  *    owns is released (handed to a waiter if there is one).
  *
- * There is no priority inheritance or ceiling. The partition
- * scheduler hands the CPU to the next READY process on every tick and
- * yield, so a lock holder never keeps the CPU against a lower-priority
- * process and unbounded priority inversion cannot build up; the cost
- * of a low-priority holder is bounded by its own progress per tick.
+ * Priority inheritance: while a process holds a mutex that a more
+ * urgent process is waiting for, the holder runs at the waiter's
+ * priority (maxrtos_process_control_block_t::priority; the configured
+ * base_priority is unchanged). Without it, a medium-priority process
+ * can keep a low-priority holder off the CPU indefinitely, because the
+ * scheduler always prefers the best other READY process on a tick or
+ * yield, and the high-priority waiter is blocked for as long. The
+ * inherited priority
+ *  - is transitive: if the holder is itself blocked on another mutex,
+ *    that mutex's holder inherits too;
+ *  - is the most urgent of all waiters on all mutexes the holder owns,
+ *    so it falls back step by step as mutexes are released;
+ *  - ends when the waiter gets the mutex, times out or is restarted, and
+ *    when a holder is restarted by fault recovery.
+ * A mutex has no ceiling and no static configuration; nothing changes
+ * for processes that never contend.
  *
  * Like queue ports, a lock that would have to wait when no other
  * process in the caller's partition is READY cannot block (there
@@ -104,6 +115,9 @@ maxrtos_status_t maxrtos_mutex_create(
  *     the mutex belongs to another partition.
  *     MAXRTOS_ERR_INVALID_STATE if the caller already owns the mutex.
  *     MAXRTOS_ERR_POOL_FULL if the wait list is full.
+ *     MAXRTOS_ERR_QUEUE_FULL if the holder could not be raised to the
+ *     caller's priority because the ready queue of that priority is
+ *     full. The caller is not blocked.
  *     MAXRTOS_ERR_OVERFLOW if timeout would overflow the tick counter.
  *     MAXRTOS_ERR_INVALID_ARG if table or out_next_id is NULL.
  */
@@ -152,6 +166,19 @@ maxrtos_status_t maxrtos_kernel_mutex_unlock(
 void maxrtos_kernel_mutex_release_all(
     maxrtos_partition_table_t * table,
     maxrtos_process_id_t process_id );
+
+/**
+ * @brief Recompute the inherited priority of every mutex owner.
+ *
+ * Called when a waiter leaves a mutex wait list other than through
+ * unlock: a timed-out lock or a waiter restarted by fault recovery.
+ * Owners that were raised only for that waiter drop back.
+ *
+ * @param[in,out] table
+ *     Partition table.
+ */
+void maxrtos_kernel_mutex_refresh_priorities(
+    maxrtos_partition_table_t * table );
 
 /**
  * @brief Return the owner of a mutex.

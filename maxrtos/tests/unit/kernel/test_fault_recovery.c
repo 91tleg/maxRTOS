@@ -8,6 +8,7 @@
 
 #include "maxrtos/kernel/fault_recovery.h"
 #include "maxrtos/kernel/health_monitor.h"
+#include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/process.h"
 
@@ -302,6 +303,87 @@ static void test_handle_restart_process_resets_current_id_correctly( void )
     printf( "test_handle_restart_process_resets_current_id_correctly: PASS\n" );
 }
 
+/* Common setup: L (priority 9) holds a mutex, H (priority 1) waits for it,
+ * so L runs at priority 1 and H is BLOCKED. */
+static void contend(
+    maxrtos_partition_table_t * table,
+    maxrtos_health_monitor_t * hm,
+    maxrtos_mutex_id_t * m,
+    maxrtos_process_id_t * l,
+    maxrtos_process_id_t * h )
+{
+    maxrtos_process_id_t out;
+
+    reset_all( table, hm );
+    maxrtos_mutex_pool_init();
+    assert( maxrtos_mutex_create( 0U, m ) == MAXRTOS_OK );
+    assert( maxrtos_hm_set_policy(
+                hm, 0U, MAXRTOS_FAULT_DIVIDE_BY_ZERO,
+                MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
+
+    *l = make_ready_process( 0U, 9U );
+    assert( maxrtos_partition_add_process( table, *l ) == MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( table, 0U, &out ) == MAXRTOS_OK );
+    assert( maxrtos_kernel_mutex_lock(
+                *m, MAXRTOS_TIMEOUT_INFINITE, table, *l, &out ) ==
+            MAXRTOS_OK );
+
+    *h = make_ready_process( 0U, 1U );
+    assert( maxrtos_partition_add_process( table, *h ) == MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( table, 0U, &out ) == MAXRTOS_OK );
+    assert( out == *h );
+    assert( maxrtos_kernel_mutex_lock(
+                *m, MAXRTOS_TIMEOUT_INFINITE, table, *h, &out ) ==
+            MAXRTOS_PENDING );
+    assert( out == *l );
+    assert( maxrtos_process_get( *l )->priority == 1U );
+}
+
+static void test_restart_of_waiter_drops_holder_boost( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_health_monitor_t hm;
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_hm_action_t action;
+
+    contend( &table, &hm, &m, &l, &h );
+
+    assert( maxrtos_fault_recovery_handle(
+                &hm, &table, h, MAXRTOS_FAULT_DIVIDE_BY_ZERO, &action ) ==
+            MAXRTOS_OK );
+
+    assert( maxrtos_process_get( h )->state == MAXRTOS_PROCESS_STATE_READY );
+    assert( maxrtos_kernel_mutex_owner( m ) == l );
+    assert( maxrtos_process_get( l )->priority == 9U );
+
+    printf( "test_restart_of_waiter_drops_holder_boost: PASS\n" );
+}
+
+static void test_restart_of_boosted_holder_restores_base_priority( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_health_monitor_t hm;
+    maxrtos_mutex_id_t m;
+    maxrtos_process_id_t l;
+    maxrtos_process_id_t h;
+    maxrtos_hm_action_t action;
+
+    contend( &table, &hm, &m, &l, &h );
+
+    assert( maxrtos_fault_recovery_handle(
+                &hm, &table, l, MAXRTOS_FAULT_DIVIDE_BY_ZERO, &action ) ==
+            MAXRTOS_OK );
+
+    /* The mutex went to h; l is back in the queue at its own priority. */
+    assert( maxrtos_kernel_mutex_owner( m ) == h );
+    assert( maxrtos_process_get( l )->state == MAXRTOS_PROCESS_STATE_READY );
+    assert( maxrtos_process_get( l )->priority == 9U );
+
+    printf( "test_restart_of_boosted_holder_restores_base_priority: PASS\n" );
+}
+
 int main( void )
 {
     test_handle_rejects_null_args();
@@ -310,6 +392,9 @@ int main( void )
     test_handle_halt_partition_sets_flag_and_blocks_dispatch();
     test_handle_halt_does_not_affect_other_partitions();
     test_handle_restart_process_resets_current_id_correctly();
+
+    test_restart_of_waiter_drops_holder_boost();
+    test_restart_of_boosted_holder_restores_base_priority();
 
     printf( "all fault recovery tests passed\n" );
 

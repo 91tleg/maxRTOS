@@ -60,6 +60,9 @@ static maxrtos_status_t maxrtos_fault_recovery_restart(
             ( void ) maxrtos_waitlist_remove( pcb->waitlist, id );
         }
 
+        /* If it was waiting for a mutex, the holder was raised for it. */
+        maxrtos_kernel_mutex_refresh_priorities( table );
+
         pcb->waitlist = NULL;
         pcb->wake_tick = MAXRTOS_TICK_NONE;
         pcb->ipc_operation.kind = MAXRTOS_IPC_OP_NONE;
