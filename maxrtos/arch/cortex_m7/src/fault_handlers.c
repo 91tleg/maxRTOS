@@ -8,6 +8,7 @@
  * kernel for the recovery action and enacts it.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "maxrtos/arch/cortex_m7/fault_handlers.h"
@@ -101,12 +102,16 @@ void BusFault_Handler( void )
 
 static maxrtos_fault_type_t maxrtos_arch_classify_usage_fault( uint32_t cfsr )
 {
+    maxrtos_fault_type_t fault_type;
+
+    fault_type = MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
+
     if( ( cfsr & MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ) != 0U )
     {
-        return MAXRTOS_FAULT_DIVIDE_BY_ZERO;
+        fault_type = MAXRTOS_FAULT_DIVIDE_BY_ZERO;
     }
 
-    return MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
+    return fault_type;
 }
 
 void UsageFault_Handler( void )
@@ -124,6 +129,42 @@ void UsageFault_Handler( void )
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_UFSR_MASK;
 
     maxrtos_arch_handle_fault( fault_type );
+}
+
+/* Work out which configurable fault escalated to a HardFault. Returns
+ * false if the HardFault has no such cause. */
+static bool maxrtos_arch_classify_hard_fault(
+    uint32_t cfsr,
+    uint32_t hfsr,
+    maxrtos_fault_type_t * out_type )
+{
+    bool attributable;
+
+    attributable = true;
+    *out_type = MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
+
+    if( ( hfsr & MAXRTOS_HFSR_FORCED_BIT ) == 0U )
+    {
+        attributable = false;
+    }
+    else if( ( cfsr & MAXRTOS_CFSR_MMFSR_MASK ) != 0U )
+    {
+        *out_type = MAXRTOS_FAULT_MEMORY_ACCESS;
+    }
+    else if( ( cfsr & MAXRTOS_CFSR_BFSR_MASK ) != 0U )
+    {
+        *out_type = MAXRTOS_FAULT_BUS_ERROR;
+    }
+    else if( ( cfsr & MAXRTOS_CFSR_UFSR_MASK ) != 0U )
+    {
+        *out_type = maxrtos_arch_classify_usage_fault( cfsr );
+    }
+    else
+    {
+        attributable = false;
+    }
+
+    return attributable;
 }
 
 /*
@@ -145,37 +186,21 @@ void HardFault_Handler( void )
 
     cfsr = MAXRTOS_SCB_CFSR;
     hfsr = MAXRTOS_SCB_HFSR;
+    fault_type = MAXRTOS_FAULT_ILLEGAL_INSTRUCTION;
     maxrtos_arch_record_fault( cfsr );
 
-    if( ( hfsr & MAXRTOS_HFSR_FORCED_BIT ) != 0U )
+    if( maxrtos_arch_classify_hard_fault( cfsr, hfsr, &fault_type ) )
     {
-        if( ( cfsr & MAXRTOS_CFSR_MMFSR_MASK ) != 0U )
-        {
-            fault_type = MAXRTOS_FAULT_MEMORY_ACCESS;
-        }
-        else if( ( cfsr & MAXRTOS_CFSR_BFSR_MASK ) != 0U )
-        {
-            fault_type = MAXRTOS_FAULT_BUS_ERROR;
-        }
-        else if( ( cfsr & MAXRTOS_CFSR_UFSR_MASK ) != 0U )
-        {
-            fault_type = maxrtos_arch_classify_usage_fault( cfsr );
-        }
-        else
-        {
-            for( ;; )
-            {
-            }
-        }
-
+        /* Clear what was observed (write-one-to-clear) before recovery. */
         MAXRTOS_SCB_CFSR = cfsr;
         MAXRTOS_SCB_HFSR = MAXRTOS_HFSR_FORCED_BIT;
 
         maxrtos_arch_handle_fault( fault_type );
-        return;
     }
-
-    for( ;; )
+    else
     {
+        for( ;; )
+        {
+        }
     }
 }

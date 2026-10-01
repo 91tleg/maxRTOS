@@ -17,9 +17,6 @@
  * when SysTick or SVC interrupts the idle loop. */
 #define MAXRTOS_IDLE_STACK_SIZE ( 256U )
 
-static uint8_t s_idle_stack[ MAXRTOS_IDLE_STACK_SIZE ]
-    __attribute__(( aligned( 8 ) ));
-
 static maxrtos_process_control_block_t s_idle_pcb;
 
 static void maxrtos_arch_idle_entry( void * arg )
@@ -34,6 +31,11 @@ static void maxrtos_arch_idle_entry( void * arg )
 
 void maxrtos_arch_idle_init( void )
 {
+    /* Only the idle context uses this stack; it lives here, not at file
+     * scope. */
+    static uint8_t s_idle_stack[ MAXRTOS_IDLE_STACK_SIZE ]
+        __attribute__(( aligned( 8 ) ));
+
     s_idle_pcb.id = MAXRTOS_INVALID_PROCESS_ID;
     s_idle_pcb.partition_id = MAXRTOS_INVALID_PARTITION_ID;
     s_idle_pcb.state = MAXRTOS_PROCESS_STATE_RUNNING;

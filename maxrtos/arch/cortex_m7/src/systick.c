@@ -93,5 +93,9 @@ void maxrtos_arch_systick( void )
                 maxrtos_arch_request_context_switch();
             }
         }
+        else
+        {
+            /* Any other status leaves the running process as it is. */
+        }
     }
 }
