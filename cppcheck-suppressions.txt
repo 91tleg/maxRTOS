@@ -5,5 +5,23 @@ misra-c2012-11.6:maxrtos/arch/cortex_m7/*
 misra-c2012-18.4:maxrtos/arch/cortex_m7/*
 misra-c2012-8.4:maxrtos/arch/cortex_m7/*
 misra-c2012-19.2:maxrtos/kernel/include/maxrtos/kernel/ipc_operation.h
-nullPointerRedundantCheck:maxrtos/arch/cortex_m7/src/fault_handlers.c
 nullPointerRedundantCheck:maxrtos/arch/cortex_m7/src/fault_dispatch.c
+# Public entry point called by the application, outside the analyzed sources.
+misra-c2012-8.7:maxrtos/arch/cortex_m7/src/start_scheduler.c
+# Public sentinel values for applications; the analyzed sources do not use them.
+misra-c2012-2.5:maxrtos/include/maxrtos/types.h
+# Public API. Its callers (applications, the generated configuration, tests
+# and assembly) are outside the analyzed sources, so cppcheck sees each
+# function referenced from one translation unit only.
+misra-c2012-8.7:maxrtos/kernel/src/*
+misra-c2012-8.7:maxrtos/arch/cortex_m7/src/*
+staticFunction:maxrtos/kernel/src/mutex.c
+staticFunction:maxrtos/arch/cortex_m7/src/start_scheduler.c
+# cppcheck reads a GCC inline assembly statement (__asm volatile) as a call
+# to an undeclared function.
+misra-c2012-17.3:maxrtos/arch/cortex_m7/*
+# SVC wrappers pass their pointers to the kernel in a register, which writes
+# through them (out_message, status). They cannot be const.
+constParameterPointer:maxrtos/arch/cortex_m7/src/buffer.c
+constParameterPointer:maxrtos/arch/cortex_m7/src/queue_port.c
+constParameterPointer:maxrtos/arch/cortex_m7/src/semaphore.c

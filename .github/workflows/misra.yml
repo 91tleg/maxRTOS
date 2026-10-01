@@ -14,17 +14,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Cppcheck
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cppcheck
+          sudo apt-get install -y cmake ninja-build
 
+      # apt ships a different Cppcheck version than the one the suppressions
+      # and sources are checked against, and upstream publishes no Linux
+      # binary, so build the pinned release from source (cached).
+      - name: Cache Cppcheck
+        id: cppcheck-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/cppcheck-2.20.0
+          key: cppcheck-2.20.0-${{ runner.os }}
+
+      - name: Build Cppcheck 2.20.0
+        if: steps.cppcheck-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL https://github.com/danmar/cppcheck/archive/refs/tags/2.20.0.tar.gz | tar -xz
+          cmake \
+            -S cppcheck-2.20.0 \
+            -B build/cppcheck \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=$HOME/cppcheck-2.20.0
+          cmake --build build/cppcheck -j$(nproc)
+          cmake --install build/cppcheck
+
+      - name: Add Cppcheck to PATH
+        run: echo "$HOME/cppcheck-2.20.0/bin" >> "$GITHUB_PATH"
+
+      - name: Show tool versions
+        run: cppcheck --version
+
+      # -D__asm(x)= drops the register binding in `register T r __asm("r0")`,
+      # which Cppcheck cannot parse; without it the SVC wrappers are skipped.
       - name: Run MISRA analysis
         run: |
-          MISRA_ADDON="$(dpkg -L cppcheck | grep '/misra.py$')"
+          MISRA_ADDON="$(find "$HOME/cppcheck-2.20.0" -name misra.py | head -n 1)"
 
           cppcheck \
             --enable=all \
+            "-D__asm(x)=" \
             --addon="$MISRA_ADDON" \
             --error-exitcode=1 \
             --suppress=missingIncludeSystem \
