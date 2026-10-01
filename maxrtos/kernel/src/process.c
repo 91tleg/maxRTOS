@@ -52,6 +52,7 @@ void maxrtos_process_pool_init( void )
         s_process_pool[ i ].stack_base = NULL;
         s_process_pool[ i ].stack_size = 0U;
         s_process_pool[ i ].priority = 0U;
+        s_process_pool[ i ].base_priority = 0U;
         s_process_pool[ i ].wake_tick = MAXRTOS_TICK_NONE;
         s_process_pool[ i ].waitlist = NULL;
         s_process_pool[ i ].ipc_result_pending = false;
@@ -109,6 +110,7 @@ maxrtos_status_t maxrtos_process_create(
                 pcb->stack_size = stack_size;
                 pcb->stack_pointer = &stack_base[ stack_size ];
                 pcb->priority = priority;
+                pcb->base_priority = priority;
                 pcb->wake_tick = MAXRTOS_TICK_NONE;
                 pcb->waitlist = NULL;
                 pcb->ipc_result_pending = false;

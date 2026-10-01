@@ -11,6 +11,7 @@
 #define MAXRTOS_KERNEL_PARTITION_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
@@ -233,5 +234,38 @@ maxrtos_status_t maxrtos_partition_ready_process(
     maxrtos_partition_table_t * table,
     maxrtos_partition_id_t partition_id,
     maxrtos_process_id_t id );
+
+/**
+ * @brief Change a process's effective priority.
+ *
+ * Sets the priority the scheduler orders the process by. If the process
+ * is waiting in a ready queue it is moved to the queue of the new
+ * priority (at its tail); in any other state only the stored priority
+ * changes. base_priority is not touched.
+ *
+ * Used by priority inheritance; the configured priority of a process
+ * never changes.
+ *
+ * @param[in,out] table
+ *     Partition table. Must not be NULL.
+ *
+ * @param[in] id
+ *     Process to change.
+ *
+ * @param[in] priority
+ *     New effective priority, 0 through MAXRTOS_MAX_PRIORITY.
+ *
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ARG if table is NULL or priority is out of
+ *     range.
+ *     MAXRTOS_ERR_INVALID_ID if id is invalid.
+ *     MAXRTOS_ERR_QUEUE_FULL if the ready queue of the new priority is
+ *     full. The process keeps its old priority and queue position.
+ */
+maxrtos_status_t maxrtos_partition_set_process_priority(
+    maxrtos_partition_table_t * table,
+    maxrtos_process_id_t id,
+    uint8_t priority );
 
 #endif /* MAXRTOS_KERNEL_PARTITION_H */

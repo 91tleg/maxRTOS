@@ -19,6 +19,7 @@
 #include "maxrtos/kernel/waitlist.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/dispatch.h"
+#include "maxrtos/kernel/mutex.h"
 
 /**
  * @brief Clear the blocked IPC state of a process.
@@ -247,8 +248,10 @@ size_t maxrtos_ipc_expire_timeouts(
     maxrtos_tick_t now )
 {
     size_t resumed;
+    bool mutex_waiter_left;
 
     resumed = 0U;
+    mutex_waiter_left = false;
 
     if( table != NULL )
     {
@@ -274,8 +277,19 @@ size_t maxrtos_ipc_expire_timeouts(
                           table, id, MAXRTOS_ERR_TIMEOUT ) == MAXRTOS_OK ) )
                 {
                     resumed++;
+
+                    if( op.kind == MAXRTOS_IPC_OP_MUTEX_LOCK )
+                    {
+                        mutex_waiter_left = true;
+                    }
                 }
             }
+        }
+
+        /* A holder was raised for a waiter that has just given up. */
+        if( mutex_waiter_left == true )
+        {
+            maxrtos_kernel_mutex_refresh_priorities( table );
         }
     }
 

@@ -724,6 +724,112 @@ static void test_block_and_dispatch_does_not_change_other_partition(
         "test_block_and_dispatch_does_not_change_other_partition: PASS\n" );
 }
 
+static void test_set_priority_rejects_bad_args( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_process_id_t a;
+
+    reset_all( &table );
+    a = make_ready_process( 0U, 5U );
+
+    assert( maxrtos_partition_set_process_priority( NULL, a, 1U ) ==
+            MAXRTOS_ERR_INVALID_ARG );
+    assert( maxrtos_partition_set_process_priority(
+                &table, a, MAXRTOS_MAX_PRIORITY + 1U ) ==
+            MAXRTOS_ERR_INVALID_ARG );
+    assert( maxrtos_partition_set_process_priority(
+                &table, MAXRTOS_INVALID_PROCESS_ID, 1U ) ==
+            MAXRTOS_ERR_INVALID_ID );
+
+    printf( "test_set_priority_rejects_bad_args: PASS\n" );
+}
+
+static void test_set_priority_moves_queued_process( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t b;
+    maxrtos_process_id_t out;
+
+    reset_all( &table );
+    a = make_ready_process( 0U, 5U );
+    b = make_ready_process( 0U, 3U );
+    assert( maxrtos_partition_add_process( &table, a ) == MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, b ) == MAXRTOS_OK );
+
+    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
+            MAXRTOS_OK );
+    assert( maxrtos_process_get( a )->priority == 1U );
+    assert( maxrtos_process_get( a )->base_priority == 5U );
+
+    /* a now outranks b, and is in the queue exactly once. */
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
+    assert( out == a );
+    assert( maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) ==
+            1U );
+
+    printf( "test_set_priority_moves_queued_process: PASS\n" );
+}
+
+static void test_set_priority_leaves_unqueued_process_unqueued( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t out;
+
+    reset_all( &table );
+    a = make_ready_process( 0U, 5U );
+
+    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
+            MAXRTOS_OK );
+    assert( maxrtos_process_get( a )->priority == 1U );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) ==
+            MAXRTOS_ERR_QUEUE_EMPTY );
+
+    printf( "test_set_priority_leaves_unqueued_process_unqueued: PASS\n" );
+}
+
+static void test_set_priority_full_queue_keeps_old_priority( void )
+{
+    maxrtos_partition_table_t table;
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t out;
+    size_t i;
+
+    reset_all( &table );
+
+    for( i = 0U; i < MAXRTOS_MAX_READY_PER_PRIORITY; i++ )
+    {
+        assert( maxrtos_partition_add_process(
+                    &table, make_ready_process( 0U, 1U ) ) == MAXRTOS_OK );
+    }
+
+    a = make_ready_process( 0U, 5U );
+    assert( maxrtos_partition_add_process( &table, a ) == MAXRTOS_OK );
+
+    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
+            MAXRTOS_ERR_QUEUE_FULL );
+    assert( maxrtos_process_get( a )->priority == 5U );
+    assert( maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) ==
+            MAXRTOS_MAX_READY_PER_PRIORITY + 1U );
+
+    /* Still queued at its old priority: drain the others, then a runs. */
+    for( i = 0U; i < MAXRTOS_MAX_READY_PER_PRIORITY; i++ )
+    {
+        assert( maxrtos_partition_dispatch( &table, 0U, &out ) ==
+                MAXRTOS_OK );
+        assert( maxrtos_process_get( out )->priority == 1U );
+        assert( maxrtos_process_set_state(
+                    out, MAXRTOS_PROCESS_STATE_SUSPENDED ) == MAXRTOS_OK );
+        table.current_id[ 0 ] = MAXRTOS_INVALID_PROCESS_ID;
+    }
+
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
+    assert( out == a );
+
+    printf( "test_set_priority_full_queue_keeps_old_priority: PASS\n" );
+}
+
 int main( void )
 {
     test_table_init_rejects_null();
@@ -748,6 +854,11 @@ int main( void )
     test_block_and_dispatch_rejects_empty_ready_queue();
     test_block_and_dispatch_blocks_current_and_runs_next();
     test_block_and_dispatch_does_not_change_other_partition();
+
+    test_set_priority_rejects_bad_args();
+    test_set_priority_moves_queued_process();
+    test_set_priority_leaves_unqueued_process_unqueued();
+    test_set_priority_full_queue_keeps_old_priority();
 
     printf( "all partition tests passed\n" );
 

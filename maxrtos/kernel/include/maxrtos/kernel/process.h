@@ -60,7 +60,20 @@ typedef struct process_control_block_s
 
     maxrtos_process_id_t id;
     maxrtos_partition_id_t partition_id;
+
+    /**
+     * @brief Effective priority: the one the scheduler and the IPC
+     *        wait lists order by. 0 is the highest.
+     *
+     * Equals base_priority unless the process holds a mutex that a
+     * higher-priority process is waiting for, in which case it is
+     * raised to that waiter's priority (priority inheritance). Only
+     * the kernel's mutex code changes it after creation.
+     */
     uint8_t priority;
+
+    /** @brief Configured priority, as passed to maxrtos_process_create(). */
+    uint8_t base_priority;
     maxrtos_process_state_t state;
 
     /**
