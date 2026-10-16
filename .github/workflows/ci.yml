@@ -163,8 +163,12 @@ jobs:
           python3 maxrtos/tests/sil/tools/mutation_check.py build/mutation
 
   qemu:
-    name: QEMU Emulation Tests
+    name: QEMU Emulation Tests (${{ matrix.opt }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        opt: ["-O0", "-O2"]
 
     steps:
       - name: Checkout
@@ -218,7 +222,8 @@ jobs:
             -S maxrtos/tests/qemu \
             -B build/qemu \
             -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi.cmake
+            -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi.cmake \
+            -DMAXRTOS_OPT_LEVEL=${{ matrix.opt }}
 
       - name: Build
         run: |
