@@ -77,3 +77,9 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 | SIL | Kernel and arch code on a virtual Cortex-M7 | [tests/sil/README.md](maxrtos/tests/sil/README.md) |
 | QEMU | Real firmware on `mps2-an500`; the exit code is the verdict | [tests/qemu/README.md](maxrtos/tests/qemu/README.md) |
 | HIL | Board tests | `maxrtos/tests/hil` |
+| Benchmark | Context-switch latency on the NUCLEO-H753ZI | [bench/README.md](maxrtos/tests/hil/bench/README.md), [results](maxrtos/tests/hil/bench/RESULTS.md) |
+
+## Performance
+
+Yield to a partition peer takes 764 cycles on average (1.6 µs) at 480 MHz, -O2, caches on.
+Full tables, including 64 MHz and caches off: [RESULTS.md](maxrtos/tests/hil/bench/RESULTS.md).
