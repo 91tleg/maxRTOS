@@ -96,6 +96,8 @@ static uint32_t maxrtos_mpu_encode_size_field(
     return size_field;
 }
 
+/* Program one region. Callers issue MAXRTOS_PORT_BARRIER() once after the
+ * last region they change, not after each. */
 static void maxrtos_arch_mpu_program_region(
     uint32_t region_number,
     uint32_t base_address,
@@ -152,8 +154,6 @@ static void maxrtos_arch_mpu_program_region(
            /* SRD remains zero, enabling all subregions. */
 
     MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RASR, rasr );
-
-    MAXRTOS_PORT_BARRIER();
 }
 
 static void maxrtos_arch_mpu_disable_region(
@@ -161,8 +161,6 @@ static void maxrtos_arch_mpu_disable_region(
 {
     MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RNR, region_number );
     MAXRTOS_PORT_MPU_REG_WRITE( MAXRTOS_MPU_RASR, 0UL );
-
-    MAXRTOS_PORT_BARRIER();
 }
 
 void maxrtos_arch_mpu_set_config(
@@ -238,6 +236,8 @@ static maxrtos_status_t maxrtos_arch_mpu_configure_for_partition(
 
     if( ( uint32_t ) partition_id == s_active_partition_id )
     {
+        /* Same partition as the last switch (a yield or rotation inside
+         * it): its domain and port regions are already loaded. */
         status = MAXRTOS_OK;
     }
     else
@@ -256,14 +256,13 @@ static maxrtos_status_t maxrtos_arch_mpu_configure_for_partition(
                 region.access,
                 region.executable );
 
+            maxrtos_arch_mpu_configure_port_regions_for_partition(
+                partition_id );
+
+            MAXRTOS_PORT_BARRIER();
+
             s_active_partition_id = ( uint32_t ) partition_id;
         }
-    }
-
-    if( status == MAXRTOS_OK )
-    {
-        maxrtos_arch_mpu_configure_port_regions_for_partition(
-            partition_id );
     }
 
     return status;
@@ -321,6 +320,8 @@ maxrtos_status_t maxrtos_arch_mpu_configure_region(
             size_bytes,
             access,
             executable );
+
+        MAXRTOS_PORT_BARRIER();
 
         status = MAXRTOS_OK;
     }
