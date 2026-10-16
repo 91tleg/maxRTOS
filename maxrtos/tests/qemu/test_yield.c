@@ -13,7 +13,10 @@
 enum { C_CONTROL_MAIN, C_CONTROL_AUX, C_APPLICATION_MAIN, C_APPLICATION_AUX };
 
 #define MIN_COUNT ( 50U )
-#define MAX_SKEW  ( 2U )
+/* Skew allowed at the start, plus one per tick: a tick can preempt a process
+ * between its increment and its yield and rotate to the peer, which then gets
+ * one extra turn. A yield that does nothing would skew by thousands. */
+#define BASE_SKEW ( 2U )
 
 
 static void control_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_CONTROL_MAIN ]++; maxrtos_yield(); } }
@@ -41,10 +44,11 @@ int emu_test_poll( uint32_t tick )
     uint32_t a0 = EMU_RES[ C_APPLICATION_MAIN ];
     uint32_t a1 = EMU_RES[ C_APPLICATION_AUX ];
 
-    ( void ) tick;
+    /* Alternation keeps each pair within a step of each other, plus at most
+     * one step per tick. */
+    uint32_t const max_skew = BASE_SKEW + tick;
 
-    /* Strict alternation keeps each pair within a step of each other. */
-    if( ( skew( c0, c1 ) > MAX_SKEW ) || ( skew( a0, a1 ) > MAX_SKEW ) )
+    if( ( skew( c0, c1 ) > max_skew ) || ( skew( a0, a1 ) > max_skew ) )
     {
         return EMU_FAILED( "a process ran ahead of its partition peer" );
     }
