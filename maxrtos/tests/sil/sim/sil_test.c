@@ -111,9 +111,7 @@ static void write_junit(
 
         ( void ) fprintf( out, "  <testcase classname=\"%s\" name=\"%s\" time=\"%.6f\">\n",
                           suite, cases[ i ].name, results[ i ].seconds );
-        ( void ) fprintf( out, "    <properties>\n      <property name=\"requirement\" value=\"%s\"/>\n",
-                          cases[ i ].requirement );
-        ( void ) fprintf( out, "      <property name=\"title\" value=\"" );
+        ( void ) fprintf( out, "    <properties>\n      <property name=\"title\" value=\"" );
         xml_escape( out, cases[ i ].title );
         ( void ) fprintf( out, "\"/>\n    </properties>\n" );
 
@@ -183,7 +181,7 @@ int sil_run_suite(
         ran++;
         s_current = &results[ i ];
 
-        ( void ) printf( "[ RUN      ] %s  (%s)\n", cases[ i ].name, cases[ i ].requirement );
+        ( void ) printf( "[ RUN      ] %s\n", cases[ i ].name );
         ( void ) clock_gettime( CLOCK_MONOTONIC, &t0 );
 
         if( setjmp( s_case_jump ) == 0 )

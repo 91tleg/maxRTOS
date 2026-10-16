@@ -288,17 +288,17 @@ static void test_scheduler_start_without_processes_halts( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_mpu_ap_encodings, "SIM-001", "MPU AP encodings decide access as PMSAv7 specifies" ),
-    SIL_CASE( test_mpu_boundaries_and_straddling, "SIM-001", "MPU region boundaries, straddling and wrap-around" ),
-    SIL_CASE( test_mpu_default_map_and_privdefena, "SIM-001", "PRIVDEFENA gives privileged code the default map only" ),
-    SIL_CASE( test_mpu_privdefena_clear_denies_unmapped_access_to_everyone, "SIM-001", "PRIVDEFENA clear: unmapped access is denied even to privileged code" ),
-    SIL_CASE( test_mpu_highest_numbered_region_wins, "SIM-001", "Overlapping regions: the highest number wins" ),
-    SIL_CASE( test_mpu_disabled_region_is_ignored, "SIM-001", "A disabled region maps nothing" ),
-    SIL_CASE( test_mpu_misaligned_region_is_a_model_violation, "SIM-001", "An illegally programmed region is reported" ),
-    SIL_CASE( test_memory_map_translation, "SIM-002", "Virtual/host address translation" ),
-    SIL_CASE( test_virtual_clock_is_exact_and_deterministic, "SIM-003", "Virtual time is exact and runs are bit-identical" ),
-    SIL_CASE( test_run_can_be_resumed_in_slices, "SIM-003", "Slicing a run does not change its outcome" ),
-    SIL_CASE( test_scheduler_start_without_processes_halts, "SIM-004", "Start-up with nothing to run halts and is reported" ),
+    SIL_CASE( test_mpu_ap_encodings, "MPU AP encodings decide access as PMSAv7 specifies" ),
+    SIL_CASE( test_mpu_boundaries_and_straddling, "MPU region boundaries, straddling and wrap-around" ),
+    SIL_CASE( test_mpu_default_map_and_privdefena, "PRIVDEFENA gives privileged code the default map only" ),
+    SIL_CASE( test_mpu_privdefena_clear_denies_unmapped_access_to_everyone, "PRIVDEFENA clear: unmapped access is denied even to privileged code" ),
+    SIL_CASE( test_mpu_highest_numbered_region_wins, "Overlapping regions: the highest number wins" ),
+    SIL_CASE( test_mpu_disabled_region_is_ignored, "A disabled region maps nothing" ),
+    SIL_CASE( test_mpu_misaligned_region_is_a_model_violation, "An illegally programmed region is reported" ),
+    SIL_CASE( test_memory_map_translation, "Virtual/host address translation" ),
+    SIL_CASE( test_virtual_clock_is_exact_and_deterministic, "Virtual time is exact and runs are bit-identical" ),
+    SIL_CASE( test_run_can_be_resumed_in_slices, "Slicing a run does not change its outcome" ),
+    SIL_CASE( test_scheduler_start_without_processes_halts, "Start-up with nothing to run halts and is reported" ),
 };
 
 int main( int argc, char ** argv )

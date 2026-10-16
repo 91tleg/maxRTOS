@@ -2,20 +2,20 @@
  * @file test_ipc_queue_port.c
  * @brief SIL: queuing ports through the real SVC path, MPU and scheduler.
  *
- * Requirements
- *   REQ-IPC-001  A blocked receive returns exactly the message sent, whether
- *                the sender is in the same partition or another one.
- *   REQ-IPC-002  A timed wait expires no earlier than its timeout, returns
- *                MAXRTOS_ERR_TIMEOUT, and leaves the port consistent.
- *   REQ-IPC-003  A stream through a bounded queue between partitions loses,
- *                duplicates and reorders nothing, with both sides blocking.
- *   REQ-IPC-004  A full queue rejects a non-blocking send, and a blocked
- *                sender is admitted, in order, when a slot frees.
- *   REQ-IPC-005  The kernel never dereferences a pointer the caller could not
- *                access itself: kernel memory, another partition's memory,
- *                non-member ports and malformed ranges are rejected, and
- *                nothing is read, written or disturbed.
- *   REQ-IPC-006  A message whose size differs from the port's is rejected.
+ * Verifies
+ * - A blocked receive returns exactly the message sent, whether
+ *   the sender is in the same partition or another one.
+ * - A timed wait expires no earlier than its timeout, returns
+ *   MAXRTOS_ERR_TIMEOUT, and leaves the port consistent.
+ * - A stream through a bounded queue between partitions loses,
+ *   duplicates and reorders nothing, with both sides blocking.
+ * - A full queue rejects a non-blocking send, and a blocked
+ *   sender is admitted, in order, when a slot frees.
+ * - The kernel never dereferences a pointer the caller could not
+ *   access itself: kernel memory, another partition's memory,
+ *   non-member ports and malformed ranges are rejected, and
+ *   nothing is read, written or disturbed.
+ * - A message whose size differs from the port's is rejected.
  */
 
 #include "sil_system.h"
@@ -80,7 +80,7 @@ static void build_ipc_system(
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-001: blocking receive                                             */
+/* blocking receive */
 /* ------------------------------------------------------------------------ */
 
 static volatile maxrtos_status_t s_status;
@@ -167,7 +167,7 @@ static void test_blocked_receive_across_partitions( void )
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-002: timed wait                                                   */
+/* timed wait */
 /* ------------------------------------------------------------------------ */
 
 #define TIMEOUT_TICKS ( 7U )
@@ -211,7 +211,7 @@ static void test_timed_receive_expires_and_leaves_port_consistent( void )
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-003: stream between partitions                                    */
+/* stream between partitions */
 /* ------------------------------------------------------------------------ */
 
 #define STREAM_LENGTH ( 500U )
@@ -287,7 +287,7 @@ static void test_stream_between_partitions_loses_nothing( void )
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-004: capacity and blocked senders                                 */
+/* capacity and blocked senders */
 /* ------------------------------------------------------------------------ */
 
 static volatile maxrtos_status_t s_fill_status[ 4 ];
@@ -379,7 +379,7 @@ static void test_full_queue_rejects_and_blocked_sender_is_admitted_in_order( voi
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-005: hostile pointers                                             */
+/* hostile pointers */
 /* ------------------------------------------------------------------------ */
 
 enum
@@ -508,7 +508,7 @@ static void test_kernel_rejects_hostile_pointers( void )
 }
 
 /* ------------------------------------------------------------------------ */
-/* REQ-IPC-006: message size                                                 */
+/* message size */
 /* ------------------------------------------------------------------------ */
 
 static volatile maxrtos_status_t s_size_status[ 3 ];
@@ -542,13 +542,13 @@ static void test_wrong_message_size_is_rejected( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_blocked_receive_same_partition, "REQ-IPC-001", "Blocked receive returns the message (sender in the same partition)" ),
-    SIL_CASE( test_blocked_receive_across_partitions, "REQ-IPC-001", "Blocked receive returns the message (sender in another partition)" ),
-    SIL_CASE( test_timed_receive_expires_and_leaves_port_consistent, "REQ-IPC-002", "A timed receive expires on time with TIMEOUT and leaves the port intact" ),
-    SIL_CASE( test_stream_between_partitions_loses_nothing, "REQ-IPC-003", "500 messages across partitions: none lost, duplicated or reordered" ),
-    SIL_CASE( test_full_queue_rejects_and_blocked_sender_is_admitted_in_order, "REQ-IPC-004", "Full queue rejects; a blocked sender is admitted in FIFO order" ),
-    SIL_CASE( test_kernel_rejects_hostile_pointers, "REQ-IPC-005", "Hostile pointers are rejected and nothing is touched" ),
-    SIL_CASE( test_wrong_message_size_is_rejected, "REQ-IPC-006", "A message of the wrong size is rejected" ),
+    SIL_CASE( test_blocked_receive_same_partition, "Blocked receive returns the message (sender in the same partition)" ),
+    SIL_CASE( test_blocked_receive_across_partitions, "Blocked receive returns the message (sender in another partition)" ),
+    SIL_CASE( test_timed_receive_expires_and_leaves_port_consistent, "A timed receive expires on time with TIMEOUT and leaves the port intact" ),
+    SIL_CASE( test_stream_between_partitions_loses_nothing, "500 messages across partitions: none lost, duplicated or reordered" ),
+    SIL_CASE( test_full_queue_rejects_and_blocked_sender_is_admitted_in_order, "Full queue rejects; a blocked sender is admitted in FIFO order" ),
+    SIL_CASE( test_kernel_rejects_hostile_pointers, "Hostile pointers are rejected and nothing is touched" ),
+    SIL_CASE( test_wrong_message_size_is_rejected, "A message of the wrong size is rejected" ),
 };
 
 int main( int argc, char ** argv )

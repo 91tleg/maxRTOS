@@ -74,6 +74,6 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 | Level | What it runs | Docs |
 |---|---|---|
 | Unit | Kernel logic on the host | `maxrtos/tests/unit` |
-| SIL | Kernel and arch code on a virtual Cortex-M7 | [tests/sil/README.md](maxrtos/tests/sil/README.md), [REQUIREMENTS.md](maxrtos/tests/sil/REQUIREMENTS.md) |
+| SIL | Kernel and arch code on a virtual Cortex-M7 | [tests/sil/README.md](maxrtos/tests/sil/README.md) |
 | QEMU | Real firmware on `mps2-an500`; the exit code is the verdict | [tests/qemu/README.md](maxrtos/tests/qemu/README.md) |
 | HIL | Board tests | `maxrtos/tests/hil` |

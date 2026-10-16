@@ -7,10 +7,10 @@
  * which drives the same recovery through real exceptions on the virtual
  * target.
  *
- * Requirements
- *   REQ-FT-009  The kernel returns the configured action for every fault it
- *               is asked to recover, and repeated recovery never disturbs
- *               process identity or an unrelated partition.
+ * Verifies
+ * - The kernel returns the configured action for every fault it
+ *   is asked to recover, and repeated recovery never disturbs
+ *   process identity or an unrelated partition.
  *
  * PROVES:
  *   - RESTART_PROCESS repeatedly recovers the same process without
@@ -340,10 +340,10 @@ static void test_invalid_process_id_rejected_after_soak( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_restart_process_soak_preserves_identity, "REQ-FT-009", "5000 restarts keep process identity and leave a bystander untouched" ),
-    SIL_CASE( test_ignore_action_does_not_modify_state, "REQ-FT-009", "IGNORE leaves process state untouched over 5000 faults" ),
-    SIL_CASE( test_halt_partition_action_reported_correctly, "REQ-FT-009", "HALT_PARTITION is reported for the configured fault class" ),
-    SIL_CASE( test_invalid_process_id_rejected_after_soak, "REQ-FT-009", "An invalid process ID is rejected after recovery activity" ),
+    SIL_CASE( test_restart_process_soak_preserves_identity, "5000 restarts keep process identity and leave a bystander untouched" ),
+    SIL_CASE( test_ignore_action_does_not_modify_state, "IGNORE leaves process state untouched over 5000 faults" ),
+    SIL_CASE( test_halt_partition_action_reported_correctly, "HALT_PARTITION is reported for the configured fault class" ),
+    SIL_CASE( test_invalid_process_id_rejected_after_soak, "An invalid process ID is rejected after recovery activity" ),
 };
 
 int main( int argc, char ** argv )

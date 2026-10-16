@@ -2,14 +2,14 @@
  * @file test_scheduler_startup.c
  * @brief SIL: maxrtos_scheduler_start() and the first dispatch.
  *
- * Requirements
- *   REQ-BOOT-001  Every READY process created before start is registered with
- *                 its partition and gets to run.
- *   REQ-BOOT-002  Processes that are not READY (suspended) are never run.
- *   REQ-BOOT-003  The major frame starts at tick zero with the first slot's
- *                 partition, and that partition's memory is mapped before
- *                 any of its code executes.
- *   REQ-BOOT-004  Starting with no runnable process stops safely and says why.
+ * Verifies
+ * - Every READY process created before start is registered with
+ *   its partition and gets to run.
+ * - Processes that are not READY (suspended) are never run.
+ * - The major frame starts at tick zero with the first slot's
+ *   partition, and that partition's memory is mapped before
+ *   any of its code executes.
+ * - Starting with no runnable process stops safely and says why.
  */
 
 #include "sil_system.h"
@@ -45,7 +45,6 @@ static void reset_counters( void )
     }
 }
 
-/* REQ-BOOT-001 */
 static void test_all_created_processes_are_registered_and_run( void )
 {
     sil_system_spec_t spec;
@@ -70,7 +69,6 @@ static void test_all_created_processes_are_registered_and_run( void )
     sim_shutdown();
 }
 
-/* REQ-BOOT-002 */
 static void test_suspended_process_is_never_run( void )
 {
     sil_system_spec_t spec;
@@ -98,7 +96,6 @@ static void test_suspended_process_is_never_run( void )
     sim_shutdown();
 }
 
-/* REQ-BOOT-003 */
 static void probe_entry( void * arg )
 {
     ( void ) arg;
@@ -162,7 +159,6 @@ static void test_frame_begins_at_tick_zero_with_the_first_slot( void )
     sim_shutdown();
 }
 
-/* REQ-BOOT-004 */
 static void test_start_without_runnable_processes_stops_safely( void )
 {
     sil_system_spec_t spec;
@@ -181,11 +177,11 @@ static void test_start_without_runnable_processes_stops_safely( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_all_created_processes_are_registered_and_run, "REQ-BOOT-001", "All created READY processes are registered and run" ),
-    SIL_CASE( test_suspended_process_is_never_run, "REQ-BOOT-002", "A suspended process is not registered and never runs" ),
-    SIL_CASE( test_first_dispatch_maps_the_first_partitions_memory, "REQ-BOOT-003", "The first partition's memory is mapped before its code runs" ),
-    SIL_CASE( test_frame_begins_at_tick_zero_with_the_first_slot, "REQ-BOOT-003", "The major frame starts at tick zero with the first slot" ),
-    SIL_CASE( test_start_without_runnable_processes_stops_safely, "REQ-BOOT-004", "No runnable process: safe stop with a reason" ),
+    SIL_CASE( test_all_created_processes_are_registered_and_run, "All created READY processes are registered and run" ),
+    SIL_CASE( test_suspended_process_is_never_run, "A suspended process is not registered and never runs" ),
+    SIL_CASE( test_first_dispatch_maps_the_first_partitions_memory, "The first partition's memory is mapped before its code runs" ),
+    SIL_CASE( test_frame_begins_at_tick_zero_with_the_first_slot, "The major frame starts at tick zero with the first slot" ),
+    SIL_CASE( test_start_without_runnable_processes_stops_safely, "No runnable process: safe stop with a reason" ),
 };
 
 int main( int argc, char ** argv )

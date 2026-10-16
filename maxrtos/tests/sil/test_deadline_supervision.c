@@ -1,32 +1,32 @@
 /**
  * @file test_deadline_supervision.c
  * @brief SIL: periodic release and deadline supervision (ARINC 653 PERIOD and
- *        TIME_CAPACITY), from the tick through the health monitor to the
- *        recovery the architecture layer enacts.
+ *   TIME_CAPACITY), from the tick through the health monitor to the
+ *   recovery the architecture layer enacts.
  *
  * The schedule is the usual 8-tick major frame: partition 0 owns ticks 0..4,
  * partition 1 owns ticks 5..7.
  *
- * Requirements
- *   REQ-DL-001  A periodic process is released exactly every period, with no
- *               jitter or drift.
- *   REQ-DL-002  A process that completes each release within its time capacity
- *               is never reported as missing.
- *   REQ-DL-003  A process that overruns its time capacity is detected at its
- *               deadline and handled by its partition's policy: restarted and
- *               re-released, without disturbing anything else.
- *   REQ-DL-004  The deadline is wall-clock time, not a CPU budget: a process
- *               whose partition is not scheduled before its deadline misses it
- *               having used no CPU.
- *   REQ-DL-005  A miss under halt_partition stops that partition and only that
- *               partition.
- *   REQ-DL-006  A process blocked on IPC when its deadline expires is restarted
- *               and leaves the wait list.
- *   REQ-DL-007  While a process waits for its next release and nothing else is
- *               ready, the CPU idles instead of running another partition's
- *               code in its slot.
- *   REQ-DL-008  Each fault class keeps its own policy: a deadline miss can be
- *               configured independently of memory faults.
+ * Verifies
+ * - A periodic process is released exactly every period, with no
+ *   jitter or drift.
+ * - A process that completes each release within its time capacity
+ *   is never reported as missing.
+ * - A process that overruns its time capacity is detected at its
+ *   deadline and handled by its partition's policy: restarted and
+ *   re-released, without disturbing anything else.
+ * - The deadline is wall-clock time, not a CPU budget: a process
+ *   whose partition is not scheduled before its deadline misses it
+ *   having used no CPU.
+ * - A miss under halt_partition stops that partition and only that
+ *   partition.
+ * - A process blocked on IPC when its deadline expires is restarted
+ *   and leaves the wait list.
+ * - While a process waits for its next release and nothing else is
+ *   ready, the CPU idles instead of running another partition's
+ *   code in its slot.
+ * - Each fault class keeps its own policy: a deadline miss can be
+ *   configured independently of memory faults.
  */
 
 #include "sil_system.h"
@@ -133,7 +133,6 @@ static void build_periodic( void ( * entry )( void * ), uint32_t period, uint32_
     sil_build( &spec );
 }
 
-/* REQ-DL-001 */
 static void test_periodic_release_is_exact( void )
 {
     uint32_t i;
@@ -156,7 +155,6 @@ static void test_periodic_release_is_exact( void )
     sim_shutdown();
 }
 
-/* REQ-DL-002 */
 static void test_completing_within_the_capacity_never_misses( void )
 {
     reset();
@@ -170,7 +168,6 @@ static void test_completing_within_the_capacity_never_misses( void )
     sim_shutdown();
 }
 
-/* REQ-DL-003 */
 static void test_an_overrun_is_detected_and_the_process_restarted( void )
 {
     uint32_t misses;
@@ -200,7 +197,6 @@ static void test_an_overrun_is_detected_and_the_process_restarted( void )
     sim_shutdown();
 }
 
-/* REQ-DL-004 */
 static void test_the_deadline_is_wall_clock_not_a_cpu_budget( void )
 {
     sil_system_spec_t spec;
@@ -222,7 +218,6 @@ static void test_the_deadline_is_wall_clock_not_a_cpu_budget( void )
     sim_shutdown();
 }
 
-/* REQ-DL-005 */
 static void test_halt_on_a_miss_stops_only_that_partition( void )
 {
     sil_system_spec_t spec;
@@ -260,7 +255,6 @@ static void test_halt_on_a_miss_stops_only_that_partition( void )
     sim_shutdown();
 }
 
-/* REQ-DL-006 */
 static volatile uint32_t s_wait_returned;
 
 static void blocked_receiver( void * arg )
@@ -325,7 +319,6 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     sim_shutdown();
 }
 
-/* REQ-DL-007 */
 static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void )
 {
     uint32_t frame;
@@ -357,7 +350,6 @@ static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void 
     sim_shutdown();
 }
 
-/* REQ-DL-007 */
 static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition( void )
 {
     sil_system_spec_t spec;
@@ -394,7 +386,6 @@ static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition( 
     sim_shutdown();
 }
 
-/* REQ-DL-008 */
 static void memory_faulter( void * arg )
 {
     ( void ) arg;
@@ -441,15 +432,15 @@ static void test_a_deadline_miss_has_its_own_policy( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_periodic_release_is_exact, "REQ-DL-001", "A periodic process is released exactly every period" ),
-    SIL_CASE( test_completing_within_the_capacity_never_misses, "REQ-DL-002", "Completing within the time capacity never reports a miss" ),
-    SIL_CASE( test_an_overrun_is_detected_and_the_process_restarted, "REQ-DL-003", "An overrun is detected at its deadline; the process is restarted and re-released" ),
-    SIL_CASE( test_the_deadline_is_wall_clock_not_a_cpu_budget, "REQ-DL-004", "A starved process misses its deadline having used no CPU" ),
-    SIL_CASE( test_halt_on_a_miss_stops_only_that_partition, "REQ-DL-005", "halt_partition on a miss stops only that partition" ),
-    SIL_CASE( test_a_blocked_process_that_misses_is_restarted_off_the_wait_list, "REQ-DL-006", "A process blocked on IPC that misses is restarted off the wait list" ),
-    SIL_CASE( test_the_cpu_idles_while_a_lone_process_waits_for_its_release, "REQ-DL-007", "The CPU idles while a lone process waits for its release" ),
-    SIL_CASE( test_a_slot_with_nothing_ready_does_not_run_the_previous_partition, "REQ-DL-007", "A slot with nothing ready idles instead of running the previous partition" ),
-    SIL_CASE( test_a_deadline_miss_has_its_own_policy, "REQ-DL-008", "A deadline miss follows its own policy, independent of memory faults" ),
+    SIL_CASE( test_periodic_release_is_exact, "A periodic process is released exactly every period" ),
+    SIL_CASE( test_completing_within_the_capacity_never_misses, "Completing within the time capacity never reports a miss" ),
+    SIL_CASE( test_an_overrun_is_detected_and_the_process_restarted, "An overrun is detected at its deadline; the process is restarted and re-released" ),
+    SIL_CASE( test_the_deadline_is_wall_clock_not_a_cpu_budget, "A starved process misses its deadline having used no CPU" ),
+    SIL_CASE( test_halt_on_a_miss_stops_only_that_partition, "halt_partition on a miss stops only that partition" ),
+    SIL_CASE( test_a_blocked_process_that_misses_is_restarted_off_the_wait_list, "A process blocked on IPC that misses is restarted off the wait list" ),
+    SIL_CASE( test_the_cpu_idles_while_a_lone_process_waits_for_its_release, "The CPU idles while a lone process waits for its release" ),
+    SIL_CASE( test_a_slot_with_nothing_ready_does_not_run_the_previous_partition, "A slot with nothing ready idles instead of running the previous partition" ),
+    SIL_CASE( test_a_deadline_miss_has_its_own_policy, "A deadline miss follows its own policy, independent of memory faults" ),
 };
 
 int main( int argc, char ** argv )

@@ -8,16 +8,16 @@
  * memory through the model, so a violation raises a real fault through the
  * production recovery path.
  *
- * Requirements
- *   REQ-SP-001  A process can use its own partition's memory.
- *   REQ-SP-002  A process cannot read or write another partition's memory.
- *   REQ-SP-003  A process cannot read or write kernel memory.
- *   REQ-SP-004  An IPC port's memory is accessible only to member partitions.
- *   REQ-SP-005  The MPU maps exactly the running partition's memory and the
- *               ports it is a member of, and follows every partition switch.
- *   REQ-SP-006  Processes of one partition share that partition's memory
- *               (partition-level isolation, by design).
- *   REQ-SP-007  Flash (code and constants) is read-only for every partition.
+ * Verifies
+ * - A process can use its own partition's memory.
+ * - A process cannot read or write another partition's memory.
+ * - A process cannot read or write kernel memory.
+ * - An IPC port's memory is accessible only to member partitions.
+ * - The MPU maps exactly the running partition's memory and the
+ *   ports it is a member of, and follows every partition switch.
+ * - Processes of one partition share that partition's memory
+ *   (partition-level isolation, by design).
+ * - Flash (code and constants) is read-only for every partition.
  */
 
 #include "sil_system.h"
@@ -84,7 +84,6 @@ static uint32_t domain_probe( uint32_t partition, uint32_t stack_index )
     return sil_system()->domain_base[ partition ] + ( stack_index * SIL_STACK_BYTES ) + PROBE_OFFSET;
 }
 
-/* ---- REQ-SP-001 / REQ-SP-006 ------------------------------------------- */
 
 static void own_memory_user( void * arg )
 {
@@ -251,7 +250,7 @@ static void test_flash_is_read_only_for_partitions( void )
     sim_shutdown();
 }
 
-/* ---- REQ-SP-004: ports ---------------------------------------------------- */
+/* ---- ports ---- */
 
 static void test_port_memory_is_reserved_for_member_partitions( void )
 {
@@ -302,7 +301,7 @@ static void test_members_can_use_their_port_memory( void )
     sim_shutdown();
 }
 
-/* ---- REQ-SP-005: the MPU follows the running partition ---------------------- */
+/* ---- the MPU follows the running partition ---- */
 
 static void idle_process( void * arg )
 {
@@ -378,14 +377,14 @@ static void test_mpu_maps_exactly_the_running_partition( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_process_can_use_its_own_partitions_memory, "REQ-SP-001", "A process reads and writes its own partition's memory" ),
-    SIL_CASE( test_foreign_partition_memory_is_inaccessible, "REQ-SP-002", "Read and write of another partition's memory fault; memory unchanged" ),
-    SIL_CASE( test_kernel_memory_is_inaccessible, "REQ-SP-003", "Read and write of kernel memory fault; memory unchanged" ),
-    SIL_CASE( test_port_memory_is_reserved_for_member_partitions, "REQ-SP-004", "A non-member cannot touch a port's memory" ),
-    SIL_CASE( test_members_can_use_their_port_memory, "REQ-SP-004", "A member can use its port's memory" ),
-    SIL_CASE( test_mpu_maps_exactly_the_running_partition, "REQ-SP-005", "The MPU maps exactly the running partition and its ports on every switch" ),
-    SIL_CASE( test_peer_processes_share_their_partitions_memory, "REQ-SP-006", "Peer processes share their partition's memory domain" ),
-    SIL_CASE( test_flash_is_read_only_for_partitions, "REQ-SP-007", "Flash is read-only for every partition" ),
+    SIL_CASE( test_process_can_use_its_own_partitions_memory, "A process reads and writes its own partition's memory" ),
+    SIL_CASE( test_foreign_partition_memory_is_inaccessible, "Read and write of another partition's memory fault; memory unchanged" ),
+    SIL_CASE( test_kernel_memory_is_inaccessible, "Read and write of kernel memory fault; memory unchanged" ),
+    SIL_CASE( test_port_memory_is_reserved_for_member_partitions, "A non-member cannot touch a port's memory" ),
+    SIL_CASE( test_members_can_use_their_port_memory, "A member can use its port's memory" ),
+    SIL_CASE( test_mpu_maps_exactly_the_running_partition, "The MPU maps exactly the running partition and its ports on every switch" ),
+    SIL_CASE( test_peer_processes_share_their_partitions_memory, "Peer processes share their partition's memory domain" ),
+    SIL_CASE( test_flash_is_read_only_for_partitions, "Flash is read-only for every partition" ),
 };
 
 int main( int argc, char ** argv )

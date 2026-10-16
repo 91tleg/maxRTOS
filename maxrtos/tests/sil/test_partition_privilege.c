@@ -2,15 +2,15 @@
  * @file test_partition_privilege.c
  * @brief SIL: privilege is a property of the partition, never of a process.
  *
- * Requirements
- *   REQ-PRIV-001  Application partitions are unprivileged by default: their
- *                 processes cannot touch kernel memory.
- *   REQ-PRIV-002  A system partition runs privileged: its processes can use
- *                 kernel memory that application partitions cannot.
- *   REQ-PRIV-003  All processes of a partition share its privilege.
- *   REQ-PRIV-004  With the privileged default map disabled (deny by default),
- *                 even a privileged process cannot touch memory no region
- *                 maps, and the failure is contained like any other fault.
+ * Verifies
+ * - Application partitions are unprivileged by default: their
+ *   processes cannot touch kernel memory.
+ * - A system partition runs privileged: its processes can use
+ *   kernel memory that application partitions cannot.
+ * - All processes of a partition share its privilege.
+ * - With the privileged default map disabled (deny by default),
+ *   even a privileged process cannot touch memory no region
+ *   maps, and the failure is contained like any other fault.
  *
  * The build runs with PRIVDEFENA clear (see sil_system.c), so these also show
  * that the kernel itself needs nothing beyond its explicit regions.
@@ -76,7 +76,6 @@ static void reset( void )
     s_progress = 0U;
 }
 
-/* REQ-PRIV-001 */
 static void test_application_partition_is_unprivileged_by_default( void )
 {
     sil_system_spec_t spec;
@@ -101,7 +100,6 @@ static void test_application_partition_is_unprivileged_by_default( void )
     sim_shutdown();
 }
 
-/* REQ-PRIV-002 */
 static void test_system_partition_runs_privileged( void )
 {
     sil_system_spec_t spec;
@@ -127,7 +125,6 @@ static void test_system_partition_runs_privileged( void )
     sim_shutdown();
 }
 
-/* REQ-PRIV-003 */
 static void test_every_process_of_a_partition_shares_its_privilege( void )
 {
     sil_system_spec_t spec;
@@ -155,7 +152,6 @@ static void test_every_process_of_a_partition_shares_its_privilege( void )
     sim_shutdown();
 }
 
-/* REQ-PRIV-004 */
 static void test_privileged_process_cannot_touch_unmapped_memory( void )
 {
     sil_system_spec_t spec;
@@ -178,10 +174,10 @@ static void test_privileged_process_cannot_touch_unmapped_memory( void )
 
 static sil_case_t const s_cases[] =
 {
-    SIL_CASE( test_application_partition_is_unprivileged_by_default, "REQ-PRIV-001", "An application partition cannot touch kernel memory" ),
-    SIL_CASE( test_system_partition_runs_privileged, "REQ-PRIV-002", "A system partition can use kernel memory" ),
-    SIL_CASE( test_every_process_of_a_partition_shares_its_privilege, "REQ-PRIV-003", "Privilege is per partition: all its processes share it" ),
-    SIL_CASE( test_privileged_process_cannot_touch_unmapped_memory, "REQ-PRIV-004", "Deny by default: privileged code faults on unmapped memory" ),
+    SIL_CASE( test_application_partition_is_unprivileged_by_default, "An application partition cannot touch kernel memory" ),
+    SIL_CASE( test_system_partition_runs_privileged, "A system partition can use kernel memory" ),
+    SIL_CASE( test_every_process_of_a_partition_shares_its_privilege, "Privilege is per partition: all its processes share it" ),
+    SIL_CASE( test_privileged_process_cannot_touch_unmapped_memory, "Deny by default: privileged code faults on unmapped memory" ),
 };
 
 int main( int argc, char ** argv )

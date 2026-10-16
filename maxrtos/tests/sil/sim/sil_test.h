@@ -4,10 +4,8 @@
  *
  * Unlike assert(), the checks here are never compiled out by NDEBUG, so a
  * release build cannot silently pass. Each test case carries the ID of the
- * requirement it verifies; the runner prints a result line per case, writes
- * a JUnit XML report (--junit <file>) whose test cases carry a `requirement`
- * property, and exits non-zero on any failure. That report feeds the
- * requirements traceability check (tools/traceability.py).
+ * title; the runner prints a result line per case, writes
+ * a JUnit XML report (--junit <file>), and exits non-zero on any failure.
  *
  * Checks must be made on the test (bench) thread. Simulated processes
  * record what they observe in shared variables and the bench judges them.
@@ -22,13 +20,12 @@
 typedef struct
 {
     char const * name;
-    char const * requirement; /* e.g. "REQ-TP-001" */
     char const * title;
     void ( * run )( void );
 } sil_case_t;
 
-#define SIL_CASE( function_, requirement_, title_ ) \
-    { #function_, ( requirement_ ), ( title_ ), ( function_ ) }
+#define SIL_CASE( function_, title_ ) \
+    { #function_, ( title_ ), ( function_ ) }
 
 /**
  * Run all cases of a suite. Recognised arguments:
