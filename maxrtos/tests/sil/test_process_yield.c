@@ -29,10 +29,44 @@ static void record( uint8_t who )
     }
 }
 
-static void tracer_a( void * arg ) { ( void ) arg; for( ;; ) { record( 'A' ); s_count[ 0 ]++; maxrtos_yield(); } }
-static void tracer_b( void * arg ) { ( void ) arg; for( ;; ) { record( 'B' ); s_count[ 1 ]++; maxrtos_yield(); } }
-static void counter_c( void * arg ) { ( void ) arg; for( ;; ) { s_count[ 2 ]++; maxrtos_yield(); } }
-static void counter_d( void * arg ) { ( void ) arg; for( ;; ) { s_count[ 3 ]++; maxrtos_yield(); } }
+static void tracer_a( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        record( 'A' );
+        s_count[ 0 ]++;
+        maxrtos_yield();
+    }
+}
+static void tracer_b( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        record( 'B' );
+        s_count[ 1 ]++;
+        maxrtos_yield();
+    }
+}
+static void counter_c( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        s_count[ 2 ]++;
+        maxrtos_yield();
+    }
+}
+static void counter_d( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        s_count[ 3 ]++;
+        maxrtos_yield();
+    }
+}
 
 static void reset( void )
 {
@@ -163,17 +197,29 @@ static void test_lone_process_can_yield_indefinitely( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_equal_priority_processes_alternate, "Equal-priority peers alternate on yield; no starvation, repeats bounded by ticks" ),
-    SIL_CASE( test_yield_does_not_move_time_between_partitions, "Yield does not shift time across a partition boundary" ),
-    SIL_CASE( test_lone_process_can_yield_indefinitely, "A lone process can yield indefinitely without stalling" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_equal_priority_processes_alternate,
+        "Equal-priority peers alternate on yield; no starvation, repeats "
+        "bounded by ticks" ),
+    SIL_CASE(
+        test_yield_does_not_move_time_between_partitions,
+        "Yield does not shift time across a partition boundary" ),
+    SIL_CASE(
+        test_lone_process_can_yield_indefinitely,
+        "A lone process can yield indefinitely without stalling" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "process_yield", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "process_yield",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

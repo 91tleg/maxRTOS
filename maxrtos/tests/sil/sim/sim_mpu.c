@@ -54,7 +54,9 @@ uint32_t sim_mpu_write_count( void )
     return s_mpu.writes;
 }
 
-void sim_mpu_write( uint32_t reg, uint32_t value )
+void sim_mpu_write(
+    uint32_t reg,
+    uint32_t value )
 {
     s_mpu.writes++;
 
@@ -85,13 +87,14 @@ void sim_mpu_write( uint32_t reg, uint32_t value )
                 r->ap = ( value >> 24U ) & 0x7U;
                 r->xn = ( ( value >> 28U ) & 1U ) != 0U;
                 r->size = ( size_field >= 4U && size_field < 31U )
-                              ? ( 2UL << size_field ) : 0U;
+                              ? ( 2UL << size_field )
+                              : 0U;
                 r->base = s_mpu.rbar_shadow[ s_mpu.rnr ] & 0xFFFFFFE0UL;
 
                 /* The architecture requires base to be size aligned; a
                  * driver bug here would be UNPREDICTABLE on silicon. */
-                if( r->enabled && ( ( r->size == 0U ) ||
-                                    ( ( r->base % r->size ) != 0U ) ) )
+                if( r->enabled &&
+                    ( ( r->size == 0U ) || ( ( r->base % r->size ) != 0U ) ) )
                 {
                     sim_report_model_violation(
                         "MPU region programmed with a base not aligned "
@@ -112,19 +115,34 @@ bool sim_mpu_enabled( void )
     return ( s_mpu.ctrl & CTRL_ENABLE ) != 0U;
 }
 
-static bool ap_permits( uint32_t ap, bool write, bool privileged )
+static bool ap_permits(
+    uint32_t ap,
+    bool write,
+    bool privileged )
 {
     bool permitted;
 
     switch( ap )
     {
-        case 1U: permitted = privileged; break;                      /* priv RW */
-        case 2U: permitted = privileged || !write; break;            /* priv RW, user RO */
-        case 3U: permitted = true; break;                            /* full */
-        case 5U: permitted = privileged && !write; break;            /* priv RO */
+        case 1U:
+            permitted = privileged;
+            break; /* priv RW */
+        case 2U:
+            permitted = privileged || !write;
+            break; /* priv RW, user RO */
+        case 3U:
+            permitted = true;
+            break; /* full */
+        case 5U:
+            permitted = privileged && !write;
+            break; /* priv RO */
         case 6U:
-        case 7U: permitted = !write; break;                          /* RO */
-        default: permitted = false; break;                           /* none */
+        case 7U:
+            permitted = !write;
+            break; /* RO */
+        default:
+            permitted = false;
+            break; /* none */
     }
 
     return permitted;
@@ -215,7 +233,8 @@ bool sim_mpu_access_ok(
     {
         int idx = find_region( a );
         uint32_t boundary = next_boundary( a );
-        uint32_t segment_last = ( boundary == 0U ) ? 0xFFFFFFFFUL : ( boundary - 1U );
+        uint32_t segment_last =
+            ( boundary == 0U ) ? 0xFFFFFFFFUL : ( boundary - 1U );
 
         if( idx < 0 )
         {

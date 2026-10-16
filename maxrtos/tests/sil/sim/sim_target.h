@@ -78,10 +78,15 @@ void sim_report_model_violation( char const * message );
 /* --- Virtual memory ---------------------------------------------------- */
 
 /** Map [virtual_base, virtual_base + size) to fresh zeroed host memory. */
-void * sim_mem_map( char const * name, uint32_t virtual_base, uint32_t size );
+void * sim_mem_map(
+    char const * name,
+    uint32_t virtual_base,
+    uint32_t size );
 
 /** Host pointer for a virtual range, or NULL if not fully mapped. */
-void * sim_mem_ptr( uint32_t address, uint32_t length );
+void * sim_mem_ptr(
+    uint32_t address,
+    uint32_t length );
 
 /** Virtual address of a host pointer into mapped memory (0 if unmapped). */
 uint32_t sim_ptr_to_uaddr( void const * pointer );
@@ -99,23 +104,35 @@ void sim_entry_spin( void * arg );
  * are checked against the MPU. A denied access raises a MemManage fault
  * and returns false (only if the fault action lets the context continue).
  */
-bool sim_write32( uint32_t address, uint32_t value );
-bool sim_read32( uint32_t address, uint32_t * out_value );
+bool sim_write32(
+    uint32_t address,
+    uint32_t value );
+bool sim_read32(
+    uint32_t address,
+    uint32_t * out_value );
 
 /** Raise a fault of the given class on the running context. */
 void sim_fault( maxrtos_fault_type_t type );
 
 /** Raw register-level system calls: what a process could pass in r0-r3. */
 maxrtos_status_t sim_queue_send_raw(
-    uint32_t port, uint32_t message, uint32_t size, uint32_t timeout );
+    uint32_t port,
+    uint32_t message,
+    uint32_t size,
+    uint32_t timeout );
 maxrtos_status_t sim_queue_receive_raw(
-    uint32_t port, uint32_t buffer, uint32_t size, uint32_t timeout );
+    uint32_t port,
+    uint32_t buffer,
+    uint32_t size,
+    uint32_t timeout );
 uint32_t sim_queue_count_raw( uint32_t port );
 
 /* --- Environment control and observation ---------------------------------- */
 
 /** Raise `type` on whichever context is running when tick `tick` is taken. */
-void sim_inject_fault_at_tick( uint32_t tick, maxrtos_fault_type_t type );
+void sim_inject_fault_at_tick(
+    uint32_t tick,
+    maxrtos_fault_type_t type );
 
 /** SysTick exceptions taken so far. */
 uint32_t sim_tick( void );
@@ -126,7 +143,8 @@ uint32_t sim_tick( void );
  */
 int32_t sim_partition_at_tick( uint32_t tick );
 
-/** Process running after tick `tick`, or MAXRTOS_INVALID_PROCESS_ID for idle. */
+/** Process running after tick `tick`, or MAXRTOS_INVALID_PROCESS_ID for idle.
+ */
 maxrtos_process_id_t sim_process_at_tick( uint32_t tick );
 
 /** Number of context switches performed. */
@@ -142,9 +160,15 @@ bool sim_mpu_enabled( void );
 uint32_t sim_mpu_write_count( void );
 
 bool sim_mpu_access_ok(
-    uint32_t address, uint32_t length, bool write, bool privileged );
+    uint32_t address,
+    uint32_t length,
+    bool write,
+    bool privileged );
 
 bool sim_mpu_region_info(
-    uint32_t region, uint32_t * base, uint32_t * size, uint32_t * access );
+    uint32_t region,
+    uint32_t * base,
+    uint32_t * size,
+    uint32_t * access );
 
 #endif /* MAXRTOS_SIL_SIM_TARGET_H */

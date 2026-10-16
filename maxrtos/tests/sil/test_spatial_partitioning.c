@@ -25,7 +25,7 @@
 
 #include "maxrtos/yield.h"
 
-#define CANARY ( 0xC0FFEE42UL )
+#define CANARY       ( 0xC0FFEE42UL )
 #define PROBE_OFFSET ( 64U ) /* inside a stack's unused low end */
 
 static volatile uint32_t s_attempts;
@@ -47,7 +47,7 @@ static void watcher( void * arg )
     }
 }
 
-static void build_two( void ( * p0_main )( void * ) )
+static void build_two( void ( *p0_main )( void * ) )
 {
     sil_system_spec_t spec;
 
@@ -79,11 +79,13 @@ static void reset( void )
 }
 
 /* Address of a probe word in the given partition's domain. */
-static uint32_t domain_probe( uint32_t partition, uint32_t stack_index )
+static uint32_t domain_probe(
+    uint32_t partition,
+    uint32_t stack_index )
 {
-    return sil_system()->domain_base[ partition ] + ( stack_index * SIL_STACK_BYTES ) + PROBE_OFFSET;
+    return sil_system()->domain_base[ partition ] +
+           ( stack_index * SIL_STACK_BYTES ) + PROBE_OFFSET;
 }
-
 
 static void own_memory_user( void * arg )
 {
@@ -92,7 +94,10 @@ static void own_memory_user( void * arg )
     ( void ) arg;
 
     s_ok_write = sim_write32( domain_probe( 0U, 0U ), 0x11112222UL ) ? 1U : 0U;
-    s_ok_readback = ( sim_read32( domain_probe( 0U, 0U ), &value ) && ( value == 0x11112222UL ) ) ? 1U : 0U;
+    s_ok_readback = ( sim_read32( domain_probe( 0U, 0U ), &value ) &&
+                      ( value == 0x11112222UL ) )
+                        ? 1U
+                        : 0U;
 
     /* The peer process's stack lives in the same domain. */
     s_ok_read = sim_write32( domain_probe( 0U, 1U ), 0x33334444UL ) ? 1U : 0U;
@@ -136,7 +141,8 @@ static void test_peer_processes_share_their_partitions_memory( void )
     sim_shutdown();
 }
 
-/* ---- Denied accesses ------------------------------------------------------ */
+/* ---- Denied accesses ------------------------------------------------------
+ */
 
 static volatile uint32_t s_target_address;
 static volatile uint32_t s_do_write;
@@ -167,7 +173,9 @@ static void trespasser( void * arg )
 }
 
 /* Run a trespass against `address`; return the canary word (or NULL). */
-static uint32_t * run_trespass( uint32_t address, uint32_t is_write )
+static uint32_t * run_trespass(
+    uint32_t address,
+    uint32_t is_write )
 {
     uint32_t * word;
 
@@ -278,8 +286,12 @@ static void member_port_user( void * arg )
     ( void ) arg;
 
     /* Port 0's members: partition 0 (this one). */
-    s_ok_write = sim_write32( sys->port_address[ 0 ] + 1024U, 0xAAAA5555UL ) ? 1U : 0U;
-    s_ok_readback = ( sim_read32( sys->port_address[ 0 ] + 1024U, &value ) && ( value == 0xAAAA5555UL ) ) ? 1U : 0U;
+    s_ok_write =
+        sim_write32( sys->port_address[ 0 ] + 1024U, 0xAAAA5555UL ) ? 1U : 0U;
+    s_ok_readback = ( sim_read32( sys->port_address[ 0 ] + 1024U, &value ) &&
+                      ( value == 0xAAAA5555UL ) )
+                        ? 1U
+                        : 0U;
     s_done = 1U;
 
     for( ;; )
@@ -357,8 +369,11 @@ static void test_mpu_maps_exactly_the_running_partition( void )
         for( port = 0U; port < 3U; port++ )
         {
             uint32_t port_base;
-            bool mapped = sim_mpu_region_info( 9U + port, &port_base, &size, &access );
-            bool member = ( ( ( uint32_t ) spec.port[ port ].member_mask >> p ) & 1U ) != 0U;
+            bool mapped =
+                sim_mpu_region_info( 9U + port, &port_base, &size, &access );
+            bool member =
+                ( ( ( uint32_t ) spec.port[ port ].member_mask >> p ) & 1U ) !=
+                0U;
 
             SIL_REQUIRE( mapped == member );
 
@@ -375,22 +390,45 @@ static void test_mpu_maps_exactly_the_running_partition( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_process_can_use_its_own_partitions_memory, "A process reads and writes its own partition's memory" ),
-    SIL_CASE( test_foreign_partition_memory_is_inaccessible, "Read and write of another partition's memory fault; memory unchanged" ),
-    SIL_CASE( test_kernel_memory_is_inaccessible, "Read and write of kernel memory fault; memory unchanged" ),
-    SIL_CASE( test_port_memory_is_reserved_for_member_partitions, "A non-member cannot touch a port's memory" ),
-    SIL_CASE( test_members_can_use_their_port_memory, "A member can use its port's memory" ),
-    SIL_CASE( test_mpu_maps_exactly_the_running_partition, "The MPU maps exactly the running partition and its ports on every switch" ),
-    SIL_CASE( test_peer_processes_share_their_partitions_memory, "Peer processes share their partition's memory domain" ),
-    SIL_CASE( test_flash_is_read_only_for_partitions, "Flash is read-only for every partition" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_process_can_use_its_own_partitions_memory,
+        "A process reads and writes its own partition's memory" ),
+    SIL_CASE(
+        test_foreign_partition_memory_is_inaccessible,
+        "Read and write of another partition's memory fault; memory "
+        "unchanged" ),
+    SIL_CASE(
+        test_kernel_memory_is_inaccessible,
+        "Read and write of kernel memory fault; memory unchanged" ),
+    SIL_CASE(
+        test_port_memory_is_reserved_for_member_partitions,
+        "A non-member cannot touch a port's memory" ),
+    SIL_CASE(
+        test_members_can_use_their_port_memory,
+        "A member can use its port's memory" ),
+    SIL_CASE(
+        test_mpu_maps_exactly_the_running_partition,
+        "The MPU maps exactly the running partition and its ports on every "
+        "switch" ),
+    SIL_CASE(
+        test_peer_processes_share_their_partitions_memory,
+        "Peer processes share their partition's memory domain" ),
+    SIL_CASE(
+        test_flash_is_read_only_for_partitions,
+        "Flash is read-only for every partition" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "spatial_partitioning", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "spatial_partitioning",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

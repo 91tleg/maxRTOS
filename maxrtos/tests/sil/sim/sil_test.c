@@ -26,10 +26,14 @@ static sil_result_t * s_current;
 
 static void add_failure( char const * text )
 {
-    if( ( s_current != NULL ) && ( s_current->failure_count < SIL_MAX_FAILURES ) )
+    if( ( s_current != NULL ) &&
+        ( s_current->failure_count < SIL_MAX_FAILURES ) )
     {
-        ( void ) snprintf( s_current->failures[ s_current->failure_count ],
-                           SIL_MESSAGE_SIZE, "%s", text );
+        ( void ) snprintf(
+            s_current->failures[ s_current->failure_count ],
+            SIL_MESSAGE_SIZE,
+            "%s",
+            text );
     }
 
     if( s_current != NULL )
@@ -39,11 +43,16 @@ static void add_failure( char const * text )
     }
 }
 
-void sil_check_failed( char const * file, int line, char const * message, int fatal )
+void sil_check_failed(
+    char const * file,
+    int line,
+    char const * message,
+    int fatal )
 {
     char text[ SIL_MESSAGE_SIZE ];
 
-    ( void ) snprintf( text, sizeof( text ), "%s:%d: check failed: %s", file, line, message );
+    ( void ) snprintf(
+        text, sizeof( text ), "%s:%d: check failed: %s", file, line, message );
     add_failure( text );
 
     if( fatal != 0 )
@@ -52,15 +61,25 @@ void sil_check_failed( char const * file, int line, char const * message, int fa
     }
 }
 
-void sil_check_failed_u( char const * file, int line, char const * expression,
-                         uint64_t actual, uint64_t expected, int fatal )
+void sil_check_failed_u(
+    char const * file,
+    int line,
+    char const * expression,
+    uint64_t actual,
+    uint64_t expected,
+    int fatal )
 {
     char text[ SIL_MESSAGE_SIZE ];
 
-    ( void ) snprintf( text, sizeof( text ),
-                       "%s:%d: check failed: %s (actual %llu, expected %llu)",
-                       file, line, expression,
-                       ( unsigned long long ) actual, ( unsigned long long ) expected );
+    ( void ) snprintf(
+        text,
+        sizeof( text ),
+        "%s:%d: check failed: %s (actual %llu, expected %llu)",
+        file,
+        line,
+        expression,
+        ( unsigned long long ) actual,
+        ( unsigned long long ) expected );
     add_failure( text );
 
     if( fatal != 0 )
@@ -69,17 +88,29 @@ void sil_check_failed_u( char const * file, int line, char const * expression,
     }
 }
 
-static void xml_escape( FILE * out, char const * text )
+static void xml_escape(
+    FILE * out,
+    char const * text )
 {
     for( ; *text != '\0'; text++ )
     {
         switch( *text )
         {
-            case '<': ( void ) fputs( "&lt;", out ); break;
-            case '>': ( void ) fputs( "&gt;", out ); break;
-            case '&': ( void ) fputs( "&amp;", out ); break;
-            case '"': ( void ) fputs( "&quot;", out ); break;
-            default: ( void ) fputc( *text, out ); break;
+            case '<':
+                ( void ) fputs( "&lt;", out );
+                break;
+            case '>':
+                ( void ) fputs( "&gt;", out );
+                break;
+            case '&':
+                ( void ) fputs( "&amp;", out );
+                break;
+            case '"':
+                ( void ) fputs( "&quot;", out );
+                break;
+            default:
+                ( void ) fputc( *text, out );
+                break;
         }
     }
 }
@@ -102,20 +133,31 @@ static void write_junit(
     }
 
     ( void ) fprintf( out, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" );
-    ( void ) fprintf( out, "<testsuite name=\"%s\" tests=\"%zu\" failures=\"%zu\">\n",
-                      suite, count, failures );
+    ( void ) fprintf(
+        out,
+        "<testsuite name=\"%s\" tests=\"%zu\" failures=\"%zu\">\n",
+        suite,
+        count,
+        failures );
 
     for( i = 0U; i < count; i++ )
     {
         unsigned f;
 
-        ( void ) fprintf( out, "  <testcase classname=\"%s\" name=\"%s\" time=\"%.6f\">\n",
-                          suite, cases[ i ].name, results[ i ].seconds );
-        ( void ) fprintf( out, "    <properties>\n      <property name=\"title\" value=\"" );
+        ( void ) fprintf(
+            out,
+            "  <testcase classname=\"%s\" name=\"%s\" time=\"%.6f\">\n",
+            suite,
+            cases[ i ].name,
+            results[ i ].seconds );
+        ( void ) fprintf(
+            out, "    <properties>\n      <property name=\"title\" value=\"" );
         xml_escape( out, cases[ i ].title );
         ( void ) fprintf( out, "\"/>\n    </properties>\n" );
 
-        for( f = 0U; ( f < results[ i ].failure_count ) && ( f < SIL_MAX_FAILURES ); f++ )
+        for( f = 0U;
+             ( f < results[ i ].failure_count ) && ( f < SIL_MAX_FAILURES );
+             f++ )
         {
             ( void ) fprintf( out, "    <failure message=\"" );
             xml_escape( out, results[ i ].failures[ f ] );
@@ -196,16 +238,22 @@ int sil_run_suite(
 
         if( results[ i ].passed != 0 )
         {
-            ( void ) printf( "[       OK ] %s (%.0f ms)\n", cases[ i ].name, results[ i ].seconds * 1e3 );
+            ( void ) printf(
+                "[       OK ] %s (%.0f ms)\n",
+                cases[ i ].name,
+                results[ i ].seconds * 1e3 );
         }
         else
         {
             failures++;
             ( void ) printf( "[  FAILED  ] %s\n", cases[ i ].name );
 
-            for( f = 0U; ( f < results[ i ].failure_count ) && ( f < SIL_MAX_FAILURES ); f++ )
+            for( f = 0U;
+                 ( f < results[ i ].failure_count ) && ( f < SIL_MAX_FAILURES );
+                 f++ )
             {
-                ( void ) printf( "             %s\n", results[ i ].failures[ f ] );
+                ( void ) printf(
+                    "             %s\n", results[ i ].failures[ f ] );
             }
         }
     }

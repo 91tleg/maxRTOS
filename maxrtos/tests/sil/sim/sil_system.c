@@ -54,8 +54,8 @@ void sil_spec_defaults( sil_system_spec_t * spec )
 
 void sil_spec_two_partitions(
     sil_system_spec_t * spec,
-    void ( * p0_entry )( void * ),
-    void ( * p1_entry )( void * ) )
+    void ( *p0_entry )( void * ),
+    void ( *p1_entry )( void * ) )
 {
     sil_spec_defaults( spec );
 
@@ -111,9 +111,13 @@ void sil_build( sil_system_spec_t const * spec )
                 action = MAXRTOS_HM_ACTION_RESTART_PROCESS;
             }
 
-            SIL_REQUIRE_EQ( maxrtos_hm_set_policy( &sys->hm, ( maxrtos_partition_id_t ) p,
-                                                   ( maxrtos_fault_type_t ) f, action ),
-                            MAXRTOS_OK );
+            SIL_REQUIRE_EQ(
+                maxrtos_hm_set_policy(
+                    &sys->hm,
+                    ( maxrtos_partition_id_t ) p,
+                    ( maxrtos_fault_type_t ) f,
+                    action ),
+                MAXRTOS_OK );
         }
     }
 
@@ -124,14 +128,16 @@ void sil_build( sil_system_spec_t const * spec )
      * "everything unprivileged", then apply the spec, as a reset does. */
     for( p = 0U; p < MAXRTOS_MAX_PARTITIONS; p++ )
     {
-        maxrtos_arch_set_partition_privileged( ( maxrtos_partition_id_t ) p, false );
+        maxrtos_arch_set_partition_privileged(
+            ( maxrtos_partition_id_t ) p, false );
     }
 
     for( p = 0U; p < spec->partition_count; p++ )
     {
         if( spec->partition[ p ].system )
         {
-            maxrtos_arch_set_partition_privileged( ( maxrtos_partition_id_t ) p, true );
+            maxrtos_arch_set_partition_privileged(
+                ( maxrtos_partition_id_t ) p, true );
         }
     }
 
@@ -142,7 +148,8 @@ void sil_build( sil_system_spec_t const * spec )
     for( p = 0U; p < spec->partition_count; p++ )
     {
         uint32_t stacks = ( spec->partition[ p ].process_count > 0U )
-                              ? spec->partition[ p ].process_count : 1U;
+                              ? spec->partition[ p ].process_count
+                              : 1U;
         uint32_t size = round_up_pow2( stacks * SIL_STACK_BYTES );
 
         sram_cursor = ( sram_cursor + size - 1U ) / size * size;
@@ -150,37 +157,60 @@ void sil_build( sil_system_spec_t const * spec )
         sys->domain_size[ p ] = size;
         sram_cursor += size;
 
-        SIL_REQUIRE_EQ( maxrtos_mpu_set_partition_region(
-                            &sys->mpu, ( maxrtos_partition_id_t ) p,
-                            sys->domain_base[ p ], size,
-                            MAXRTOS_MPU_ACCESS_READ_WRITE, false ),
-                        MAXRTOS_OK );
+        SIL_REQUIRE_EQ(
+            maxrtos_mpu_set_partition_region(
+                &sys->mpu,
+                ( maxrtos_partition_id_t ) p,
+                sys->domain_base[ p ],
+                size,
+                MAXRTOS_MPU_ACCESS_READ_WRITE,
+                false ),
+            MAXRTOS_OK );
     }
 
     maxrtos_arch_mpu_set_config( &sys->mpu );
 
     /* Static regions, as in the demo's module.json. */
-    ( void ) maxrtos_arch_mpu_configure_region( 0U, 0x08000000UL, 0x200000UL, MAXRTOS_MPU_ACCESS_READ_ONLY, true );
-    ( void ) maxrtos_arch_mpu_configure_region( 1U, 0x58000000UL, 0x80000UL, MAXRTOS_MPU_ACCESS_READ_WRITE, false );
-    ( void ) maxrtos_arch_mpu_configure_region( 2U, SIL_DTCM_BASE, SIL_DTCM_SIZE, MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE, false );
-    ( void ) maxrtos_arch_mpu_configure_region( 3U, SIL_SRAM_BASE, SIL_SRAM_SIZE, MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE, false );
+    ( void ) maxrtos_arch_mpu_configure_region(
+        0U, 0x08000000UL, 0x200000UL, MAXRTOS_MPU_ACCESS_READ_ONLY, true );
+    ( void ) maxrtos_arch_mpu_configure_region(
+        1U, 0x58000000UL, 0x80000UL, MAXRTOS_MPU_ACCESS_READ_WRITE, false );
+    ( void ) maxrtos_arch_mpu_configure_region(
+        2U,
+        SIL_DTCM_BASE,
+        SIL_DTCM_SIZE,
+        MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE,
+        false );
+    ( void ) maxrtos_arch_mpu_configure_region(
+        3U,
+        SIL_SRAM_BASE,
+        SIL_SRAM_SIZE,
+        MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE,
+        false );
 
     /* IPC ports, after the domains, each aligned to its own size. */
     for( i = 0U; i < spec->port_count; i++ )
     {
         uint32_t mask = spec->port[ i ].member_mask;
 
-        sram_cursor = ( sram_cursor + PORT_BYTES - 1U ) / PORT_BYTES * PORT_BYTES;
+        sram_cursor =
+            ( sram_cursor + PORT_BYTES - 1U ) / PORT_BYTES * PORT_BYTES;
         sys->port_address[ i ] = SIL_SRAM_BASE + sram_cursor;
-        sys->port[ i ] = ( maxrtos_queue_port_t * ) ( void * ) ( sram + sram_cursor );
+        sys->port[ i ] =
+            ( maxrtos_queue_port_t * ) ( void * ) ( sram + sram_cursor );
         sram_cursor += PORT_BYTES;
 
         SIL_REQUIRE( sizeof( maxrtos_queue_port_t ) <= PORT_BYTES );
-        SIL_REQUIRE_EQ( maxrtos_mpu_add_port_region( &sys->mpu, sys->port_address[ i ], PORT_BYTES, mask ),
-                        MAXRTOS_OK );
-        SIL_REQUIRE_EQ( maxrtos_queue_port_init( sys->port[ i ], spec->port[ i ].message_size,
-                                                 spec->port[ i ].capacity ),
-                        MAXRTOS_OK );
+        SIL_REQUIRE_EQ(
+            maxrtos_mpu_add_port_region(
+                &sys->mpu, sys->port_address[ i ], PORT_BYTES, mask ),
+            MAXRTOS_OK );
+        SIL_REQUIRE_EQ(
+            maxrtos_queue_port_init(
+                sys->port[ i ],
+                spec->port[ i ].message_size,
+                spec->port[ i ].capacity ),
+            MAXRTOS_OK );
     }
 
     maxrtos_arch_mpu_init( false );
@@ -191,7 +221,9 @@ void sil_build( sil_system_spec_t const * spec )
         sys->slots[ i ] = spec->slot[ i ];
     }
 
-    SIL_REQUIRE_EQ( maxrtos_frame_init( &sys->frame, sys->slots, spec->slot_count ), MAXRTOS_OK );
+    SIL_REQUIRE_EQ(
+        maxrtos_frame_init( &sys->frame, sys->slots, spec->slot_count ),
+        MAXRTOS_OK );
     maxrtos_arch_context_switch_init();
     maxrtos_arch_systick_init( &sys->frame, &sys->table );
 
@@ -201,20 +233,30 @@ void sil_build( sil_system_spec_t const * spec )
     {
         for( i = 0U; i < spec->partition[ p ].process_count; i++ )
         {
-            sil_process_spec_t const * proc = &spec->partition[ p ].process[ i ];
-            uint8_t * stack = sram + ( sys->domain_base[ p ] - SIL_SRAM_BASE ) + ( i * SIL_STACK_BYTES );
+            sil_process_spec_t const * proc =
+                &spec->partition[ p ].process[ i ];
+            uint8_t * stack = sram + ( sys->domain_base[ p ] - SIL_SRAM_BASE ) +
+                              ( i * SIL_STACK_BYTES );
 
-            SIL_REQUIRE_EQ( maxrtos_process_create(
-                                stack, SIL_STACK_BYTES, ( maxrtos_partition_id_t ) p,
-                                proc->priority, proc->entry, proc->arg,
-                                &sys->process_id[ p ][ i ] ),
-                            MAXRTOS_OK );
+            SIL_REQUIRE_EQ(
+                maxrtos_process_create(
+                    stack,
+                    SIL_STACK_BYTES,
+                    ( maxrtos_partition_id_t ) p,
+                    proc->priority,
+                    proc->entry,
+                    proc->arg,
+                    &sys->process_id[ p ][ i ] ),
+                MAXRTOS_OK );
 
             if( ( proc->period != 0U ) || ( proc->time_capacity != 0U ) )
             {
-                SIL_REQUIRE_EQ( maxrtos_process_set_timing( sys->process_id[ p ][ i ],
-                                                            proc->period, proc->time_capacity ),
-                                MAXRTOS_OK );
+                SIL_REQUIRE_EQ(
+                    maxrtos_process_set_timing(
+                        sys->process_id[ p ][ i ],
+                        proc->period,
+                        proc->time_capacity ),
+                    MAXRTOS_OK );
             }
         }
     }

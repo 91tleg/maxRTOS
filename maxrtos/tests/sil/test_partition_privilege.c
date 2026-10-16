@@ -24,15 +24,22 @@
 
 #define UNMAPPED_ADDRESS ( 0x40000000UL ) /* outside every region */
 
-typedef enum { ACCESS_KERNEL, ACCESS_UNMAPPED } target_t;
+typedef enum
+{
+    ACCESS_KERNEL,
+    ACCESS_UNMAPPED
+} target_t;
 
 static volatile uint32_t s_ok[ 4 ];
 static volatile uint32_t s_attempts[ 4 ];
 static volatile uint32_t s_progress;
 
-static void poke( uint32_t slot, target_t target )
+static void poke(
+    uint32_t slot,
+    target_t target )
 {
-    uint32_t address = ( target == ACCESS_KERNEL ) ? SIL_KERNEL_GUARD : UNMAPPED_ADDRESS;
+    uint32_t address =
+        ( target == ACCESS_KERNEL ) ? SIL_KERNEL_GUARD : UNMAPPED_ADDRESS;
 
     s_attempts[ slot ]++;
 
@@ -47,10 +54,26 @@ static void poke( uint32_t slot, target_t target )
     }
 }
 
-static void kernel_poker_0( void * arg ) { ( void ) arg; poke( 0U, ACCESS_KERNEL ); }
-static void kernel_poker_1( void * arg ) { ( void ) arg; poke( 1U, ACCESS_KERNEL ); }
-static void kernel_poker_2( void * arg ) { ( void ) arg; poke( 2U, ACCESS_KERNEL ); }
-static void unmapped_poker( void * arg ) { ( void ) arg; poke( 3U, ACCESS_UNMAPPED ); }
+static void kernel_poker_0( void * arg )
+{
+    ( void ) arg;
+    poke( 0U, ACCESS_KERNEL );
+}
+static void kernel_poker_1( void * arg )
+{
+    ( void ) arg;
+    poke( 1U, ACCESS_KERNEL );
+}
+static void kernel_poker_2( void * arg )
+{
+    ( void ) arg;
+    poke( 2U, ACCESS_KERNEL );
+}
+static void unmapped_poker( void * arg )
+{
+    ( void ) arg;
+    poke( 3U, ACCESS_UNMAPPED );
+}
 
 static void bystander( void * arg )
 {
@@ -93,7 +116,7 @@ static void test_application_partition_is_unprivileged_by_default( void )
 
     SIL_REQUIRE( sim_start( 120U ) );
 
-    SIL_EXPECT( s_attempts[ 0 ] >= 2U );  /* faulted and was restarted */
+    SIL_EXPECT( s_attempts[ 0 ] >= 2U ); /* faulted and was restarted */
     SIL_EXPECT_EQ( s_ok[ 0 ], 0U );
     SIL_EXPECT_EQ( *guard, 0xC0FFEEUL );
     SIL_EXPECT( s_progress > 50U );
@@ -118,9 +141,9 @@ static void test_system_partition_runs_privileged( void )
 
     SIL_REQUIRE( sim_start( 60U ) );
 
-    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U );  /* no fault, no restart */
+    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U ); /* no fault, no restart */
     SIL_EXPECT_EQ( s_ok[ 0 ], 1U );
-    SIL_EXPECT_EQ( *guard, 0x1234U );      /* the write landed */
+    SIL_EXPECT_EQ( *guard, 0x1234U ); /* the write landed */
     SIL_EXPECT( !sim_halted() );
     sim_shutdown();
 }
@@ -145,9 +168,9 @@ static void test_every_process_of_a_partition_shares_its_privilege( void )
 
     SIL_REQUIRE( sim_start( 160U ) );
 
-    SIL_EXPECT_EQ( s_ok[ 0 ], 1U );  /* both system-partition processes */
+    SIL_EXPECT_EQ( s_ok[ 0 ], 1U ); /* both system-partition processes */
     SIL_EXPECT_EQ( s_ok[ 1 ], 1U );
-    SIL_EXPECT_EQ( s_ok[ 2 ], 0U );  /* application partition process */
+    SIL_EXPECT_EQ( s_ok[ 2 ], 0U ); /* application partition process */
     SIL_EXPECT( s_attempts[ 2 ] >= 2U );
     sim_shutdown();
 }
@@ -172,18 +195,31 @@ static void test_privileged_process_cannot_touch_unmapped_memory( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_application_partition_is_unprivileged_by_default, "An application partition cannot touch kernel memory" ),
-    SIL_CASE( test_system_partition_runs_privileged, "A system partition can use kernel memory" ),
-    SIL_CASE( test_every_process_of_a_partition_shares_its_privilege, "Privilege is per partition: all its processes share it" ),
-    SIL_CASE( test_privileged_process_cannot_touch_unmapped_memory, "Deny by default: privileged code faults on unmapped memory" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_application_partition_is_unprivileged_by_default,
+        "An application partition cannot touch kernel memory" ),
+    SIL_CASE(
+        test_system_partition_runs_privileged,
+        "A system partition can use kernel memory" ),
+    SIL_CASE(
+        test_every_process_of_a_partition_shares_its_privilege,
+        "Privilege is per partition: all its processes share it" ),
+    SIL_CASE(
+        test_privileged_process_cannot_touch_unmapped_memory,
+        "Deny by default: privileged code faults on unmapped memory" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "partition_privilege", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "partition_privilege",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

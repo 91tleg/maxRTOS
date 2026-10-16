@@ -14,6 +14,8 @@
 #define SIM_MPU_REG_RASR ( 3U )
 
 /** Write an MPU register, as the driver's memory-mapped store would. */
-void sim_mpu_write( uint32_t reg, uint32_t value );
+void sim_mpu_write(
+    uint32_t reg,
+    uint32_t value );
 
 #endif /* MAXRTOS_SIL_SIM_MPU_REGS_H */

@@ -50,10 +50,10 @@ static void yield_n( uint32_t n )
 }
 
 static void build_ipc_system(
-    void ( * p0_main )( void * ),
-    void ( * p0_aux )( void * ),
-    void ( * p1_main )( void * ),
-    void ( * p1_aux )( void * ) )
+    void ( *p0_main )( void * ),
+    void ( *p0_aux )( void * ),
+    void ( *p1_main )( void * ),
+    void ( *p1_aux )( void * ) )
 {
     sil_system_spec_t spec;
 
@@ -92,7 +92,8 @@ static void receiver_on_qa( void * arg )
     uint32_t value = 0U;
 
     ( void ) arg;
-    s_status = maxrtos_queue_port_receive( QA, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
+    s_status = maxrtos_queue_port_receive(
+        QA, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
     s_data = value;
     s_done = 1U;
 
@@ -116,7 +117,8 @@ static void test_blocked_receive_same_partition( void )
     s_status = MAXRTOS_ERR_INVALID_STATE;
     s_data = 0U;
 
-    build_ipc_system( receiver_on_qa, sender_to_qa_after_delay, idle_yield, idle_yield );
+    build_ipc_system(
+        receiver_on_qa, sender_to_qa_after_delay, idle_yield, idle_yield );
     SIL_REQUIRE( sim_start( 200U ) );
 
     SIL_REQUIRE_EQ( s_done, 1U );
@@ -132,7 +134,8 @@ static void receiver_on_qb( void * arg )
     uint32_t value = 0U;
 
     ( void ) arg;
-    s_status = maxrtos_queue_port_receive( QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
+    s_status = maxrtos_queue_port_receive(
+        QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
     s_data = value;
     s_done = 1U;
 
@@ -157,7 +160,8 @@ static void test_blocked_receive_across_partitions( void )
     s_data = 0U;
 
     /* Receiver in partition 1, sender in partition 0. */
-    build_ipc_system( idle_yield, sender_to_qb_after_delay, receiver_on_qb, idle_yield );
+    build_ipc_system(
+        idle_yield, sender_to_qb_after_delay, receiver_on_qb, idle_yield );
     SIL_REQUIRE( sim_start( 200U ) );
 
     SIL_REQUIRE_EQ( s_done, 1U );
@@ -181,7 +185,8 @@ static void timed_receiver( void * arg )
 
     ( void ) arg;
     s_wait_started = sim_tick();
-    s_status = maxrtos_queue_port_receive( QA, &value, sizeof( value ), TIMEOUT_TICKS );
+    s_status = maxrtos_queue_port_receive(
+        QA, &value, sizeof( value ), TIMEOUT_TICKS );
     s_wait_ended = sim_tick();
     s_done = 1U;
 
@@ -230,7 +235,9 @@ static void stream_producer( void * arg )
     {
         uint32_t value = i;
 
-        if( maxrtos_queue_port_send( QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE ) != MAXRTOS_OK )
+        if( maxrtos_queue_port_send(
+                QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE ) !=
+            MAXRTOS_OK )
         {
             s_stream_errors++;
         }
@@ -249,7 +256,9 @@ static void stream_consumer( void * arg )
     {
         uint32_t value = 0xFFFFFFFFUL;
 
-        if( maxrtos_queue_port_receive( QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE ) != MAXRTOS_OK )
+        if( maxrtos_queue_port_receive(
+                QB, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE ) !=
+            MAXRTOS_OK )
         {
             s_stream_errors++;
         }
@@ -272,7 +281,8 @@ static void test_stream_between_partitions_loses_nothing( void )
     s_stream_errors = 0U;
     s_done_tick = 0U;
 
-    build_ipc_system( stream_producer, idle_yield, stream_consumer, idle_yield );
+    build_ipc_system(
+        stream_producer, idle_yield, stream_consumer, idle_yield );
     SIL_REQUIRE( sim_start( 6000U ) );
 
     SIL_EXPECT_EQ( s_received, STREAM_LENGTH );
@@ -304,7 +314,8 @@ static void filler( void * arg )
 
     for( value = 1U; value <= 4U; value++ )
     {
-        s_fill_status[ value - 1U ] = maxrtos_queue_port_send( QA, &value, sizeof( value ), 0U );
+        s_fill_status[ value - 1U ] =
+            maxrtos_queue_port_send( QA, &value, sizeof( value ), 0U );
     }
 
     value = 5U;
@@ -312,7 +323,8 @@ static void filler( void * arg )
 
     /* Blocks: the queue is full and its peer will make room. */
     value = 99U;
-    s_blocked_send_status = maxrtos_queue_port_send( QA, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
+    s_blocked_send_status = maxrtos_queue_port_send(
+        QA, &value, sizeof( value ), MAXRTOS_TIMEOUT_INFINITE );
     s_done = 1U;
 
     idle_yield( NULL );
@@ -334,7 +346,8 @@ static void drainer( void * arg )
 
     while( s_drained_count < 5U )
     {
-        if( maxrtos_queue_port_receive( QA, &value, sizeof( value ), 0U ) == MAXRTOS_OK )
+        if( maxrtos_queue_port_receive( QA, &value, sizeof( value ), 0U ) ==
+            MAXRTOS_OK )
         {
             s_drained[ s_drained_count++ ] = value;
         }
@@ -347,7 +360,8 @@ static void drainer( void * arg )
     idle_yield( NULL );
 }
 
-static void test_full_queue_rejects_and_blocked_sender_is_admitted_in_order( void )
+static void test_full_queue_rejects_and_blocked_sender_is_admitted_in_order(
+    void )
 {
     unsigned i;
 
@@ -418,20 +432,28 @@ static void hostile( void * arg )
     s_probe[ H_RECEIVE_KERNEL_BUFFER ] = ( uint32_t ) sim_queue_receive_raw(
         sys->port_address[ 0 ], SIL_KERNEL_GUARD, 4U, 0U );
 
-    s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ] = ( uint32_t ) sim_queue_receive_raw(
-        sys->port_address[ 0 ], sys->domain_base[ 0 ] + sys->domain_size[ 0 ] - 2U, 4U, 0U );
+    s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ] =
+        ( uint32_t ) sim_queue_receive_raw(
+            sys->port_address[ 0 ],
+            sys->domain_base[ 0 ] + sys->domain_size[ 0 ] - 2U,
+            4U,
+            0U );
 
     s_probe[ H_BUFFER_IN_OTHER_PARTITION ] = ( uint32_t ) sim_queue_receive_raw(
         sys->port_address[ 0 ], sys->domain_base[ 1 ] + 16U, 4U, 0U );
 
     /* An address inside the caller's own domain is not a port. */
     s_probe[ H_PORT_IS_NOT_A_PORT ] = ( uint32_t ) sim_queue_send_raw(
-        sys->domain_base[ 0 ] + 64U, ( uint32_t ) 0U + sim_ptr_to_uaddr( &good ), 4U, 0U );
+        sys->domain_base[ 0 ] + 64U,
+        ( uint32_t ) 0U + sim_ptr_to_uaddr( &good ),
+        4U,
+        0U );
 
     /* Port QC exists but partition 0 is not a member. */
     s_probe[ H_PORT_NOT_A_MEMBER_SEND ] = ( uint32_t ) sim_queue_send_raw(
         sys->port_address[ 2 ], sim_ptr_to_uaddr( &good ), 4U, 0U );
-    s_probe[ H_COUNT_NOT_A_MEMBER ] = sim_queue_count_raw( sys->port_address[ 2 ] );
+    s_probe[ H_COUNT_NOT_A_MEMBER ] =
+        sim_queue_count_raw( sys->port_address[ 2 ] );
 
     s_probe[ H_SIZE_WRAPS_ADDRESS_SPACE ] = ( uint32_t ) sim_queue_send_raw(
         sys->port_address[ 0 ], sim_ptr_to_uaddr( &good ), 0xFFFFFFF0U, 0U );
@@ -443,11 +465,13 @@ static void hostile( void * arg )
         0U, sim_ptr_to_uaddr( &good ), 4U, 0U );
 
     /* The message points into a port region this partition may not access. */
-    s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ] = ( uint32_t ) sim_queue_send_raw(
-        sys->port_address[ 0 ], sys->port_address[ 2 ] + 1024U, 4U, 0U );
+    s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ] =
+        ( uint32_t ) sim_queue_send_raw(
+            sys->port_address[ 0 ], sys->port_address[ 2 ] + 1024U, 4U, 0U );
 
     /* Rejection is not blanket: a legitimate call still works. */
-    s_probe[ H_LEGITIMATE_SEND ] = ( uint32_t ) maxrtos_queue_port_send( QA, &good, sizeof( good ), 0U );
+    s_probe[ H_LEGITIMATE_SEND ] =
+        ( uint32_t ) maxrtos_queue_port_send( QA, &good, sizeof( good ), 0U );
 
     s_probes_done = 1U;
     idle_yield( NULL );
@@ -478,16 +502,23 @@ static void test_kernel_rejects_hostile_pointers( void )
     SIL_REQUIRE_EQ( s_probes_done, 1U );
 
     SIL_EXPECT_EQ( s_probe[ H_SEND_KERNEL_MESSAGE ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_RECEIVE_KERNEL_BUFFER ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_BUFFER_IN_OTHER_PARTITION ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_RECEIVE_KERNEL_BUFFER ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_BUFFER_IN_OTHER_PARTITION ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_PORT_IS_NOT_A_PORT ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_PORT_NOT_A_MEMBER_SEND ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_PORT_NOT_A_MEMBER_SEND ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_COUNT_NOT_A_MEMBER ], 0U );
-    SIL_EXPECT_EQ( s_probe[ H_SIZE_WRAPS_ADDRESS_SPACE ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_SIZE_WRAPS_ADDRESS_SPACE ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_SIZE_ZERO ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_PORT_UNMAPPED ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ(
+        s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ],
+        MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_LEGITIMATE_SEND ], MAXRTOS_OK );
 
     /* Nothing was read or written through a hostile pointer... */
@@ -501,7 +532,8 @@ static void test_kernel_rejects_hostile_pointers( void )
 
     for( i = 0U; i < 8U; i++ )
     {
-        SIL_EXPECT( sys->hm.policy[ 0 ][ 0 ] == MAXRTOS_HM_ACTION_RESTART_PROCESS );
+        SIL_EXPECT(
+            sys->hm.policy[ 0 ][ 0 ] == MAXRTOS_HM_ACTION_RESTART_PROCESS );
     }
 
     sim_shutdown();
@@ -518,9 +550,12 @@ static void size_prober( void * arg )
     uint8_t buffer[ 16 ] = { 0U };
 
     ( void ) arg;
-    s_size_status[ 0 ] = maxrtos_queue_port_send( QA, buffer, 3U, 0U );  /* too small */
-    s_size_status[ 1 ] = maxrtos_queue_port_send( QA, buffer, 8U, 0U );  /* too large */
-    s_size_status[ 2 ] = maxrtos_queue_port_send( QA, buffer, 4U, 0U );  /* exact */
+    s_size_status[ 0 ] =
+        maxrtos_queue_port_send( QA, buffer, 3U, 0U ); /* too small */
+    s_size_status[ 1 ] =
+        maxrtos_queue_port_send( QA, buffer, 8U, 0U ); /* too large */
+    s_size_status[ 2 ] =
+        maxrtos_queue_port_send( QA, buffer, 4U, 0U ); /* exact */
     s_done = 1U;
 
     idle_yield( NULL );
@@ -540,21 +575,41 @@ static void test_wrong_message_size_is_rejected( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_blocked_receive_same_partition, "Blocked receive returns the message (sender in the same partition)" ),
-    SIL_CASE( test_blocked_receive_across_partitions, "Blocked receive returns the message (sender in another partition)" ),
-    SIL_CASE( test_timed_receive_expires_and_leaves_port_consistent, "A timed receive expires on time with TIMEOUT and leaves the port intact" ),
-    SIL_CASE( test_stream_between_partitions_loses_nothing, "500 messages across partitions: none lost, duplicated or reordered" ),
-    SIL_CASE( test_full_queue_rejects_and_blocked_sender_is_admitted_in_order, "Full queue rejects; a blocked sender is admitted in FIFO order" ),
-    SIL_CASE( test_kernel_rejects_hostile_pointers, "Hostile pointers are rejected and nothing is touched" ),
-    SIL_CASE( test_wrong_message_size_is_rejected, "A message of the wrong size is rejected" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_blocked_receive_same_partition,
+        "Blocked receive returns the message (sender in the same partition)" ),
+    SIL_CASE(
+        test_blocked_receive_across_partitions,
+        "Blocked receive returns the message (sender in another partition)" ),
+    SIL_CASE(
+        test_timed_receive_expires_and_leaves_port_consistent,
+        "A timed receive expires on time with TIMEOUT and leaves the port "
+        "intact" ),
+    SIL_CASE(
+        test_stream_between_partitions_loses_nothing,
+        "500 messages across partitions: none lost, duplicated or reordered" ),
+    SIL_CASE(
+        test_full_queue_rejects_and_blocked_sender_is_admitted_in_order,
+        "Full queue rejects; a blocked sender is admitted in FIFO order" ),
+    SIL_CASE(
+        test_kernel_rejects_hostile_pointers,
+        "Hostile pointers are rejected and nothing is touched" ),
+    SIL_CASE(
+        test_wrong_message_size_is_rejected,
+        "A message of the wrong size is rejected" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "ipc_queue_port", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "ipc_queue_port",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

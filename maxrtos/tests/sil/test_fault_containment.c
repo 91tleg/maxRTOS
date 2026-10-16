@@ -68,14 +68,26 @@ static void faulter( uint32_t partition )
     }
 }
 
-static void faulter_0( void * arg ) { ( void ) arg; faulter( 0U ); }
-static void faulter_1( void * arg ) { ( void ) arg; faulter( 1U ); }
+static void faulter_0( void * arg )
+{
+    ( void ) arg;
+    faulter( 0U );
+}
+static void faulter_1( void * arg )
+{
+    ( void ) arg;
+    faulter( 1U );
+}
 
-#define WORKER( n_ )                                                   \
-    static void worker_##n_( void * arg )                              \
-    {                                                                  \
-        ( void ) arg;                                                  \
-        for( ;; ) { s_progress[ n_ ]++; sim_cpu_work( 100U ); }        \
+#define WORKER( n_ )                                                           \
+    static void worker_##n_( void * arg )                                      \
+    {                                                                          \
+        ( void ) arg;                                                          \
+        for( ;; )                                                              \
+        {                                                                      \
+            s_progress[ n_ ]++;                                                \
+            sim_cpu_work( 100U );                                              \
+        }                                                                      \
     }
 
 WORKER( 0 )
@@ -104,12 +116,16 @@ static void reset( void )
 
 /* Partition 0: faulter + worker 0.  Partition 1: worker 1 + worker 2, or a
  * faulter + worker when both partitions fault. */
-static void build( maxrtos_hm_action_t action_0, maxrtos_hm_action_t action_1, bool p1_faults )
+static void build(
+    maxrtos_hm_action_t action_0,
+    maxrtos_hm_action_t action_1,
+    bool p1_faults )
 {
     sil_system_spec_t spec;
     uint32_t f;
 
-    sil_spec_two_partitions( &spec, faulter_0, p1_faults ? faulter_1 : worker_1 );
+    sil_spec_two_partitions(
+        &spec, faulter_0, p1_faults ? faulter_1 : worker_1 );
     spec.partition[ 0 ].process_count = 2U;
     spec.partition[ 0 ].process[ 1 ].entry = worker_0;
     spec.partition[ 0 ].process[ 1 ].priority = 5U;
@@ -131,14 +147,16 @@ static int32_t oracle( uint32_t tick )
     return ( ( tick % 8U ) < 5U ) ? 0 : 1;
 }
 
-
 static void test_restart_contains_a_faulting_process( void )
 {
     uint32_t t;
     uint32_t * guard;
 
     reset();
-    build( MAXRTOS_HM_ACTION_RESTART_PROCESS, MAXRTOS_HM_ACTION_RESTART_PROCESS, false );
+    build(
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        false );
     guard = sim_mem_ptr( KERNEL_WORD, 4U );
     *guard = 0xC0FFEEUL;
 
@@ -167,20 +185,22 @@ static void test_restart_contains_a_faulting_process( void )
     sim_shutdown();
 }
 
-
 static void test_halt_stops_the_whole_partition_only( void )
 {
     uint32_t t;
     uint32_t frozen;
 
     reset();
-    build( MAXRTOS_HM_ACTION_HALT_PARTITION, MAXRTOS_HM_ACTION_RESTART_PROCESS, false );
+    build(
+        MAXRTOS_HM_ACTION_HALT_PARTITION,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        false );
 
     SIL_REQUIRE( sim_start( 60U ) );
     frozen = s_progress[ 0 ];
     SIL_REQUIRE( sim_run( 340U ) );
 
-    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U );           /* not restarted */
+    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U ); /* not restarted */
     SIL_EXPECT_EQ( s_after_fault[ 0 ], 0U );
 
     /* Partition 0's healthy peer stopped with it. */
@@ -207,20 +227,22 @@ static void test_halt_stops_the_whole_partition_only( void )
     sim_shutdown();
 }
 
-
 static void test_each_partition_applies_its_own_policy( void )
 {
     uint32_t t;
 
     reset();
-    build( MAXRTOS_HM_ACTION_HALT_PARTITION, MAXRTOS_HM_ACTION_RESTART_PROCESS, true );
+    build(
+        MAXRTOS_HM_ACTION_HALT_PARTITION,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        true );
 
     SIL_REQUIRE( sim_start( 400U ) );
 
-    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U );           /* partition 0: halted */
-    SIL_EXPECT( s_attempts[ 1 ] >= 20U );           /* partition 1: restarted */
+    SIL_EXPECT_EQ( s_attempts[ 0 ], 1U ); /* partition 0: halted */
+    SIL_EXPECT( s_attempts[ 1 ] >= 20U ); /* partition 1: restarted */
     SIL_EXPECT_EQ( s_after_fault[ 1 ], 0U );
-    SIL_EXPECT( s_progress[ 2 ] > 100U );           /* partition 1's peer runs */
+    SIL_EXPECT( s_progress[ 2 ] > 100U ); /* partition 1's peer runs */
 
     for( t = 100U; t < 400U; t++ )
     {
@@ -237,15 +259,13 @@ static void test_each_partition_applies_its_own_policy( void )
     sim_shutdown();
 }
 
-
 typedef struct
 {
     maxrtos_fault_type_t type;
     char const * name;
 } fault_class_t;
 
-static fault_class_t const s_classes[] =
-{
+static fault_class_t const s_classes[] = {
     { MAXRTOS_FAULT_MEMORY_ACCESS, "memory access" },
     { MAXRTOS_FAULT_BUS_ERROR, "bus error" },
     { MAXRTOS_FAULT_ILLEGAL_INSTRUCTION, "illegal instruction" },
@@ -298,16 +318,16 @@ static void test_a_fault_class_uses_only_its_own_policy( void )
     spec.partition[ 0 ].process_count = 2U;
     spec.partition[ 0 ].process[ 1 ].entry = worker_0;
     spec.partition[ 0 ].process[ 1 ].priority = 5U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 200U ) );
 
-    SIL_EXPECT( s_attempts[ 0 ] >= 10U );  /* restarted, not halted */
+    SIL_EXPECT( s_attempts[ 0 ] >= 10U ); /* restarted, not halted */
     SIL_EXPECT( s_progress[ 0 ] > 50U );
     sim_shutdown();
 }
-
 
 static void test_fault_storm_leaves_the_system_sound( void )
 {
@@ -317,7 +337,10 @@ static void test_fault_storm_leaves_the_system_sound( void )
     sil_system_t * sys;
 
     reset();
-    build( MAXRTOS_HM_ACTION_RESTART_PROCESS, MAXRTOS_HM_ACTION_RESTART_PROCESS, false );
+    build(
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        false );
     sys = sil_system();
     ids_before[ 0 ] = sys->process_id[ 0 ][ 0 ];
     ids_before[ 1 ] = sys->process_id[ 1 ][ 0 ];
@@ -343,7 +366,6 @@ static void test_fault_storm_leaves_the_system_sound( void )
     sim_shutdown();
 }
 
-
 static void test_async_fault_is_charged_to_the_running_partition( void )
 {
     unsigned p;
@@ -364,13 +386,16 @@ static void test_async_fault_is_charged_to_the_running_partition( void )
         spec.partition[ 1 ].process[ 1 ].priority = 5U;
 
         /* Both partitions halt on a memory fault; only one will get one. */
-        spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
-        spec.partition[ 1 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+        spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+            MAXRTOS_HM_ACTION_HALT_PARTITION;
+        spec.partition[ 1 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+            MAXRTOS_HM_ACTION_HALT_PARTITION;
         sil_build( &spec );
 
         /* A tick in the middle of partition p's slot. */
         tick_in_partition = ( p == 0U ) ? 2U : 6U;
-        sim_inject_fault_at_tick( 8U * 3U + tick_in_partition, MAXRTOS_FAULT_MEMORY_ACCESS );
+        sim_inject_fault_at_tick(
+            8U * 3U + tick_in_partition, MAXRTOS_FAULT_MEMORY_ACCESS );
 
         SIL_REQUIRE( sim_start( 200U ) );
 
@@ -391,11 +416,13 @@ static void test_async_fault_is_charged_to_the_running_partition( void )
     }
 }
 
-
 static void test_fault_without_a_health_monitor_stops_the_cpu( void )
 {
     reset();
-    build( MAXRTOS_HM_ACTION_RESTART_PROCESS, MAXRTOS_HM_ACTION_RESTART_PROCESS, false );
+    build(
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        MAXRTOS_HM_ACTION_RESTART_PROCESS,
+        false );
 
     /* Un-install the health monitor after configuration. */
     maxrtos_arch_set_health_monitor( NULL );
@@ -407,7 +434,6 @@ static void test_fault_without_a_health_monitor_stops_the_cpu( void )
     sim_shutdown();
 }
 
-
 static volatile maxrtos_status_t s_wait_status;
 static volatile uint32_t s_wait_done;
 
@@ -416,7 +442,8 @@ static void waiter_for_faulty_sender( void * arg )
     uint32_t value = 0U;
 
     ( void ) arg;
-    s_wait_status = maxrtos_queue_port_receive( sil_system()->port[ 0 ], &value, sizeof( value ), 40U );
+    s_wait_status = maxrtos_queue_port_receive(
+        sil_system()->port[ 0 ], &value, sizeof( value ), 40U );
     s_wait_done = 1U;
 
     for( ;; )
@@ -442,7 +469,8 @@ static void test_waiting_peer_is_released_when_its_sender_faults( void )
     spec.partition[ 1 ].process_count = 2U;
     spec.partition[ 1 ].process[ 1 ].entry = worker_2;
     spec.partition[ 1 ].process[ 1 ].priority = 5U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
 
     spec.port_count = 1U;
     spec.port[ 0 ].message_size = 4U;
@@ -458,23 +486,47 @@ static void test_waiting_peer_is_released_when_its_sender_faults( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_restart_contains_a_faulting_process, "Restart contains the fault; peers, other partitions and the schedule are unaffected" ),
-    SIL_CASE( test_halt_stops_the_whole_partition_only, "Halt stops the whole partition, idles its slots, spares the others" ),
-    SIL_CASE( test_each_partition_applies_its_own_policy, "One partition halts while another restarts" ),
-    SIL_CASE( test_every_fault_class_follows_its_configured_action, "Each fault class x action gives the configured outcome" ),
-    SIL_CASE( test_a_fault_class_uses_only_its_own_policy, "A fault class is not affected by another class's policy" ),
-    SIL_CASE( test_fault_storm_leaves_the_system_sound, "2000+ restarts leave identity, schedule and peers intact" ),
-    SIL_CASE( test_async_fault_is_charged_to_the_running_partition, "An injected fault halts the partition that was running" ),
-    SIL_CASE( test_fault_without_a_health_monitor_stops_the_cpu, "No health monitor: the CPU stops safely" ),
-    SIL_CASE( test_waiting_peer_is_released_when_its_sender_faults, "A receiver waiting on a faulted sender is released by its timeout" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_restart_contains_a_faulting_process,
+        "Restart contains the fault; peers, other partitions and the schedule "
+        "are unaffected" ),
+    SIL_CASE(
+        test_halt_stops_the_whole_partition_only,
+        "Halt stops the whole partition, idles its slots, spares the others" ),
+    SIL_CASE(
+        test_each_partition_applies_its_own_policy,
+        "One partition halts while another restarts" ),
+    SIL_CASE(
+        test_every_fault_class_follows_its_configured_action,
+        "Each fault class x action gives the configured outcome" ),
+    SIL_CASE(
+        test_a_fault_class_uses_only_its_own_policy,
+        "A fault class is not affected by another class's policy" ),
+    SIL_CASE(
+        test_fault_storm_leaves_the_system_sound,
+        "2000+ restarts leave identity, schedule and peers intact" ),
+    SIL_CASE(
+        test_async_fault_is_charged_to_the_running_partition,
+        "An injected fault halts the partition that was running" ),
+    SIL_CASE(
+        test_fault_without_a_health_monitor_stops_the_cpu,
+        "No health monitor: the CPU stops safely" ),
+    SIL_CASE(
+        test_waiting_peer_is_released_when_its_sender_faults,
+        "A receiver waiting on a faulted sender is released by its timeout" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "fault_containment", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "fault_containment",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

@@ -82,9 +82,12 @@ static void bystander( void * arg )
     }
 }
 
-static maxrtos_process_control_block_t * process( unsigned partition, unsigned index )
+static maxrtos_process_control_block_t * process(
+    unsigned partition,
+    unsigned index )
 {
-    return maxrtos_process_get( sil_system()->process_id[ partition ][ index ] );
+    return maxrtos_process_get(
+        sil_system()->process_id[ partition ][ index ] );
 }
 
 /* A well-behaved periodic process: a little work, then wait for the next
@@ -123,7 +126,10 @@ static void overrunner( void * arg )
     }
 }
 
-static void build_periodic( void ( * entry )( void * ), uint32_t period, uint32_t capacity )
+static void build_periodic(
+    void ( *entry )( void * ),
+    uint32_t period,
+    uint32_t capacity )
 {
     sil_system_spec_t spec;
 
@@ -228,25 +234,26 @@ static void test_halt_on_a_miss_stops_only_that_partition( void )
     sil_spec_two_partitions( &spec, overrunner, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 6U ) );
     frozen = s_attempts;
     SIL_REQUIRE( sim_run( 14U * FRAME ) );
 
-    SIL_EXPECT_EQ( s_attempts, frozen );          /* not restarted */
+    SIL_EXPECT_EQ( s_attempts, frozen ); /* not restarted */
     SIL_EXPECT_EQ( process( 0U, 0U )->deadline_misses, 1U );
 
     for( t = 8U; t < sim_tick(); t++ )
     {
         if( ( t % FRAME ) < 5U )
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), SIM_IDLE );  /* halted */
+            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), SIM_IDLE ); /* halted */
         }
         else
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), 1 );         /* untouched */
+            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), 1 ); /* untouched */
         }
     }
 
@@ -265,8 +272,11 @@ static void blocked_receiver( void * arg )
     s_attempts++;
 
     /* Waits for a message that never comes. */
-    if( maxrtos_queue_port_receive( sil_system()->port[ 0 ], &value, sizeof( value ),
-                                    MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
+    if( maxrtos_queue_port_receive(
+            sil_system()->port[ 0 ],
+            &value,
+            sizeof( value ),
+            MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
     {
         s_wait_returned++;
     }
@@ -288,7 +298,8 @@ static void peer( void * arg )
     }
 }
 
-static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( void )
+static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list(
+    void )
 {
     sil_system_spec_t spec;
 
@@ -296,7 +307,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     s_wait_returned = 0U;
     sil_spec_two_partitions( &spec, blocked_receiver, bystander );
     spec.partition[ 0 ].process_count = 2U;
-    spec.partition[ 0 ].process[ 0 ].time_capacity = 6U; /* aperiodic, 6-tick deadline */
+    spec.partition[ 0 ].process[ 0 ].time_capacity =
+        6U; /* aperiodic, 6-tick deadline */
     spec.partition[ 0 ].process[ 1 ].entry = peer;
     spec.partition[ 0 ].process[ 1 ].priority = 5U;
     spec.port_count = 1U;
@@ -308,7 +320,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     SIL_REQUIRE( sim_start( 10U * FRAME ) );
 
     /* It blocked, missed its deadline while blocked, and was restarted at its
-     * entry (and blocked again, since the restart re-arms a 6-tick deadline). */
+     * entry (and blocked again, since the restart re-arms a 6-tick deadline).
+     */
     SIL_EXPECT( process( 0U, 0U )->deadline_misses >= 2U );
     SIL_EXPECT( s_attempts >= 2U );
     SIL_EXPECT_EQ( s_wait_returned, 0U );
@@ -319,7 +332,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     sim_shutdown();
 }
 
-static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void )
+static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release(
+    void )
 {
     uint32_t frame;
     uint32_t t;
@@ -337,7 +351,8 @@ static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void 
          * (or anyone else's) code. */
         for( t = 1U; t < 5U; t++ )
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( frame * FRAME + t ), SIM_IDLE );
+            SIL_REQUIRE_EQ(
+                sim_partition_at_tick( frame * FRAME + t ), SIM_IDLE );
             idle_ticks++;
         }
 
@@ -350,7 +365,8 @@ static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void 
     sim_shutdown();
 }
 
-static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition( void )
+static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition(
+    void )
 {
     sil_system_spec_t spec;
     uint32_t t;
@@ -408,12 +424,14 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sil_spec_two_partitions( &spec, overrunner, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] = MAXRTOS_HM_ACTION_RESTART_PROCESS;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] =
+        MAXRTOS_HM_ACTION_RESTART_PROCESS;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 12U * FRAME ) );
-    SIL_EXPECT( s_attempts >= 8U );      /* restarted repeatedly, never halted */
+    SIL_EXPECT( s_attempts >= 8U ); /* restarted repeatedly, never halted */
     sim_shutdown();
 
     /* And the converse: a memory fault halts even though deadline misses
@@ -422,7 +440,8 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sil_spec_two_partitions( &spec, memory_faulter, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 12U * FRAME ) );
@@ -430,23 +449,49 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_periodic_release_is_exact, "A periodic process is released exactly every period" ),
-    SIL_CASE( test_completing_within_the_capacity_never_misses, "Completing within the time capacity never reports a miss" ),
-    SIL_CASE( test_an_overrun_is_detected_and_the_process_restarted, "An overrun is detected at its deadline; the process is restarted and re-released" ),
-    SIL_CASE( test_the_deadline_is_wall_clock_not_a_cpu_budget, "A starved process misses its deadline having used no CPU" ),
-    SIL_CASE( test_halt_on_a_miss_stops_only_that_partition, "halt_partition on a miss stops only that partition" ),
-    SIL_CASE( test_a_blocked_process_that_misses_is_restarted_off_the_wait_list, "A process blocked on IPC that misses is restarted off the wait list" ),
-    SIL_CASE( test_the_cpu_idles_while_a_lone_process_waits_for_its_release, "The CPU idles while a lone process waits for its release" ),
-    SIL_CASE( test_a_slot_with_nothing_ready_does_not_run_the_previous_partition, "A slot with nothing ready idles instead of running the previous partition" ),
-    SIL_CASE( test_a_deadline_miss_has_its_own_policy, "A deadline miss follows its own policy, independent of memory faults" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_periodic_release_is_exact,
+        "A periodic process is released exactly every period" ),
+    SIL_CASE(
+        test_completing_within_the_capacity_never_misses,
+        "Completing within the time capacity never reports a miss" ),
+    SIL_CASE(
+        test_an_overrun_is_detected_and_the_process_restarted,
+        "An overrun is detected at its deadline; the process is restarted and "
+        "re-released" ),
+    SIL_CASE(
+        test_the_deadline_is_wall_clock_not_a_cpu_budget,
+        "A starved process misses its deadline having used no CPU" ),
+    SIL_CASE(
+        test_halt_on_a_miss_stops_only_that_partition,
+        "halt_partition on a miss stops only that partition" ),
+    SIL_CASE(
+        test_a_blocked_process_that_misses_is_restarted_off_the_wait_list,
+        "A process blocked on IPC that misses is restarted off the wait list" ),
+    SIL_CASE(
+        test_the_cpu_idles_while_a_lone_process_waits_for_its_release,
+        "The CPU idles while a lone process waits for its release" ),
+    SIL_CASE(
+        test_a_slot_with_nothing_ready_does_not_run_the_previous_partition,
+        "A slot with nothing ready idles instead of running the previous "
+        "partition" ),
+    SIL_CASE(
+        test_a_deadline_miss_has_its_own_policy,
+        "A deadline miss follows its own policy, independent of memory "
+        "faults" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "deadline_supervision", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "deadline_supervision",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

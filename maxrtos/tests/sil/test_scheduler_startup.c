@@ -21,11 +21,15 @@
 static volatile uint32_t s_ran[ 8 ];
 static volatile uint32_t s_first_region_valid;
 
-#define RUNNER( n_ )                                            \
-    static void runner_##n_( void * arg )                       \
-    {                                                           \
-        ( void ) arg;                                           \
-        for( ;; ) { s_ran[ n_ ]++; maxrtos_yield(); }           \
+#define RUNNER( n_ )                                                           \
+    static void runner_##n_( void * arg )                                      \
+    {                                                                          \
+        ( void ) arg;                                                          \
+        for( ;; )                                                              \
+        {                                                                      \
+            s_ran[ n_ ]++;                                                     \
+            maxrtos_yield();                                                   \
+        }                                                                      \
     }
 
 #include "maxrtos/yield.h"
@@ -84,9 +88,10 @@ static void test_suspended_process_is_never_run( void )
     sys = sil_system();
 
     /* Created but administratively stopped before the scheduler starts. */
-    SIL_REQUIRE_EQ( maxrtos_process_set_state( sys->process_id[ 0 ][ 1 ],
-                                               MAXRTOS_PROCESS_STATE_SUSPENDED ),
-                    MAXRTOS_OK );
+    SIL_REQUIRE_EQ(
+        maxrtos_process_set_state(
+            sys->process_id[ 0 ][ 1 ], MAXRTOS_PROCESS_STATE_SUSPENDED ),
+        MAXRTOS_OK );
 
     SIL_REQUIRE( sim_start( 200U ) );
 
@@ -106,7 +111,8 @@ static void probe_entry( void * arg )
         sil_system_t * sys = sil_system();
         uint32_t value;
 
-        s_first_region_valid = sim_read32( sys->domain_base[ 0 ], &value ) ? 1U : 2U;
+        s_first_region_valid =
+            sim_read32( sys->domain_base[ 0 ], &value ) ? 1U : 2U;
     }
 
     for( ;; )
@@ -152,10 +158,13 @@ static void test_frame_begins_at_tick_zero_with_the_first_slot( void )
     maxrtos_kernel_tick_reset();
     SIL_REQUIRE( sim_start( 20U ) );
 
-    SIL_EXPECT_EQ( sim_partition_at_tick( 0U ), 0 );   /* first slot: partition 0 */
+    SIL_EXPECT_EQ(
+        sim_partition_at_tick( 0U ), 0 ); /* first slot: partition 0 */
     SIL_EXPECT_EQ( sim_partition_at_tick( 4U ), 0 );
     SIL_EXPECT_EQ( sim_partition_at_tick( 5U ), 1 );
-    SIL_EXPECT_EQ( maxrtos_kernel_tick_now(), sim_tick() + 1U ); /* tick 0 was processed by start */
+    SIL_EXPECT_EQ(
+        maxrtos_kernel_tick_now(),
+        sim_tick() + 1U ); /* tick 0 was processed by start */
     sim_shutdown();
 }
 
@@ -175,19 +184,34 @@ static void test_start_without_runnable_processes_stops_safely( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_all_created_processes_are_registered_and_run, "All created READY processes are registered and run" ),
-    SIL_CASE( test_suspended_process_is_never_run, "A suspended process is not registered and never runs" ),
-    SIL_CASE( test_first_dispatch_maps_the_first_partitions_memory, "The first partition's memory is mapped before its code runs" ),
-    SIL_CASE( test_frame_begins_at_tick_zero_with_the_first_slot, "The major frame starts at tick zero with the first slot" ),
-    SIL_CASE( test_start_without_runnable_processes_stops_safely, "No runnable process: safe stop with a reason" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_all_created_processes_are_registered_and_run,
+        "All created READY processes are registered and run" ),
+    SIL_CASE(
+        test_suspended_process_is_never_run,
+        "A suspended process is not registered and never runs" ),
+    SIL_CASE(
+        test_first_dispatch_maps_the_first_partitions_memory,
+        "The first partition's memory is mapped before its code runs" ),
+    SIL_CASE(
+        test_frame_begins_at_tick_zero_with_the_first_slot,
+        "The major frame starts at tick zero with the first slot" ),
+    SIL_CASE(
+        test_start_without_runnable_processes_stops_safely,
+        "No runnable process: safe stop with a reason" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "scheduler_startup", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "scheduler_startup",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

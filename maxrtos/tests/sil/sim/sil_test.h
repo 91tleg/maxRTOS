@@ -21,11 +21,10 @@ typedef struct
 {
     char const * name;
     char const * title;
-    void ( * run )( void );
+    void ( *run )( void );
 } sil_case_t;
 
-#define SIL_CASE( function_, title_ ) \
-    { #function_, ( title_ ), ( function_ ) }
+#define SIL_CASE( function_, title_ ) { #function_, ( title_ ), ( function_ ) }
 
 /**
  * Run all cases of a suite. Recognised arguments:
@@ -41,33 +40,62 @@ int sil_run_suite(
     char ** argv );
 
 /* Implementation hooks used by the macros below. */
-void sil_check_failed( char const * file, int line, char const * message, int fatal );
-void sil_check_failed_u( char const * file, int line, char const * expression,
-                         uint64_t actual, uint64_t expected, int fatal );
+void sil_check_failed(
+    char const * file,
+    int line,
+    char const * message,
+    int fatal );
+void sil_check_failed_u(
+    char const * file,
+    int line,
+    char const * expression,
+    uint64_t actual,
+    uint64_t expected,
+    int fatal );
 
 /** Abort the case if the condition is false. */
-#define SIL_REQUIRE( cond_ )                                                  \
-    do { if( !( cond_ ) ) { sil_check_failed( __FILE__, __LINE__, #cond_, 1 ); } } while( 0 )
-
-/** Record a failure but keep going. */
-#define SIL_EXPECT( cond_ )                                                   \
-    do { if( !( cond_ ) ) { sil_check_failed( __FILE__, __LINE__, #cond_, 0 ); } } while( 0 )
-
-/** Equality of unsigned values, reporting both on failure. */
-#define SIL_REQUIRE_EQ( actual_, expected_ )                                  \
-    do {                                                                      \
-        uint64_t a_ = ( uint64_t ) ( actual_ );                               \
-        uint64_t e_ = ( uint64_t ) ( expected_ );                             \
-        if( a_ != e_ ) { sil_check_failed_u( __FILE__, __LINE__,              \
-            #actual_ " == " #expected_, a_, e_, 1 ); }                        \
+#define SIL_REQUIRE( cond_ )                                                   \
+    do                                                                         \
+    {                                                                          \
+        if( !( cond_ ) )                                                       \
+        {                                                                      \
+            sil_check_failed( __FILE__, __LINE__, #cond_, 1 );                 \
+        }                                                                      \
     } while( 0 )
 
-#define SIL_EXPECT_EQ( actual_, expected_ )                                   \
-    do {                                                                      \
-        uint64_t a_ = ( uint64_t ) ( actual_ );                               \
-        uint64_t e_ = ( uint64_t ) ( expected_ );                             \
-        if( a_ != e_ ) { sil_check_failed_u( __FILE__, __LINE__,              \
-            #actual_ " == " #expected_, a_, e_, 0 ); }                        \
+/** Record a failure but keep going. */
+#define SIL_EXPECT( cond_ )                                                    \
+    do                                                                         \
+    {                                                                          \
+        if( !( cond_ ) )                                                       \
+        {                                                                      \
+            sil_check_failed( __FILE__, __LINE__, #cond_, 0 );                 \
+        }                                                                      \
+    } while( 0 )
+
+/** Equality of unsigned values, reporting both on failure. */
+#define SIL_REQUIRE_EQ( actual_, expected_ )                                   \
+    do                                                                         \
+    {                                                                          \
+        uint64_t a_ = ( uint64_t ) ( actual_ );                                \
+        uint64_t e_ = ( uint64_t ) ( expected_ );                              \
+        if( a_ != e_ )                                                         \
+        {                                                                      \
+            sil_check_failed_u(                                                \
+                __FILE__, __LINE__, #actual_ " == " #expected_, a_, e_, 1 );   \
+        }                                                                      \
+    } while( 0 )
+
+#define SIL_EXPECT_EQ( actual_, expected_ )                                    \
+    do                                                                         \
+    {                                                                          \
+        uint64_t a_ = ( uint64_t ) ( actual_ );                                \
+        uint64_t e_ = ( uint64_t ) ( expected_ );                              \
+        if( a_ != e_ )                                                         \
+        {                                                                      \
+            sil_check_failed_u(                                                \
+                __FILE__, __LINE__, #actual_ " == " #expected_, a_, e_, 0 );   \
+        }                                                                      \
     } while( 0 )
 
 #endif /* MAXRTOS_SIL_TEST_H */
