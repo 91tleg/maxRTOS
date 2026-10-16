@@ -7,13 +7,13 @@
  * configures, that the schedule repeats with zero jitter, and that a
  * partition that never yields cannot take time from another.
  *
- * Requirements
- *   REQ-TP-001  Each partition executes for exactly its configured number of
- *               ticks per major frame.
- *   REQ-TP-002  The partition sequence is identical in every major frame
- *               (no jitter, no drift).
- *   REQ-TP-003  A partition that never yields cannot extend its slot or
- *               delay another partition.
+ * Verifies
+ * - Each partition executes for exactly its configured number of
+ *   ticks per major frame.
+ * - The partition sequence is identical in every major frame
+ *   (no jitter, no drift).
+ * - A partition that never yields cannot extend its slot or
+ *   delay another partition.
  *
  * The expected schedule is computed here from the slot table, independently
  * of the kernel code under test.
@@ -26,12 +26,38 @@
 
 static volatile uint32_t s_work[ SIL_MAX_PARTITIONS ];
 
-static void work_entry_0( void * arg ) { ( void ) arg; for( ;; ) { s_work[ 0 ]++; sim_cpu_work( 100U ); } }
-static void work_entry_1( void * arg ) { ( void ) arg; for( ;; ) { s_work[ 1 ]++; sim_cpu_work( 100U ); } }
-static void work_entry_2( void * arg ) { ( void ) arg; for( ;; ) { s_work[ 2 ]++; sim_cpu_work( 100U ); } }
+static void work_entry_0( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        s_work[ 0 ]++;
+        sim_cpu_work( 100U );
+    }
+}
+static void work_entry_1( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        s_work[ 1 ]++;
+        sim_cpu_work( 100U );
+    }
+}
+static void work_entry_2( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        s_work[ 2 ]++;
+        sim_cpu_work( 100U );
+    }
+}
 
 /* Independent oracle: which partition owns tick `tick` of the schedule. */
-static int32_t expected_partition( sil_system_spec_t const * spec, uint32_t tick )
+static int32_t expected_partition(
+    sil_system_spec_t const * spec,
+    uint32_t tick )
 {
     uint32_t frame = 0U;
     uint32_t i;
@@ -76,7 +102,6 @@ static void build_two( sil_system_spec_t * spec )
     sil_build( spec );
 }
 
-/* REQ-TP-001 */
 static void test_slot_allocation_is_exact_over_many_frames( void )
 {
     sil_system_spec_t spec;
@@ -103,7 +128,7 @@ static void test_slot_allocation_is_exact_over_many_frames( void )
     sim_shutdown();
 }
 
-/* REQ-TP-001: uneven, interleaved slots, three partitions. */
+/* uneven, interleaved slots, three partitions. */
 static void test_irregular_schedule_with_three_partitions( void )
 {
     sil_system_spec_t spec;
@@ -150,7 +175,6 @@ static void test_irregular_schedule_with_three_partitions( void )
     sim_shutdown();
 }
 
-/* REQ-TP-002 */
 static void test_schedule_repeats_identically_every_major_frame( void )
 {
     sil_system_spec_t spec;
@@ -166,15 +190,16 @@ static void test_schedule_repeats_identically_every_major_frame( void )
     {
         for( t = 0U; t < frame; t++ )
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( f * frame + t ),
-                            sim_partition_at_tick( t ) );
+            SIL_REQUIRE_EQ(
+                sim_partition_at_tick( f * frame + t ),
+                sim_partition_at_tick( t ) );
         }
     }
 
     sim_shutdown();
 }
 
-/* REQ-TP-002: the slice boundaries do not drift, at the very first frame
+/* the slice boundaries do not drift, at the very first frame
  * and after thousands of ticks. */
 static void test_slot_boundaries_do_not_drift( void )
 {
@@ -198,7 +223,6 @@ static void test_slot_boundaries_do_not_drift( void )
     sim_shutdown();
 }
 
-/* REQ-TP-003 */
 static volatile uint32_t s_hog_iterations;
 
 static void hog_entry( void * arg )
@@ -233,7 +257,8 @@ static void test_hogging_partition_cannot_take_time_from_another( void )
 
     for( t = 0U; t < ticks; t++ )
     {
-        SIL_REQUIRE_EQ( sim_partition_at_tick( t ), expected_partition( &spec, t ) );
+        SIL_REQUIRE_EQ(
+            sim_partition_at_tick( t ), expected_partition( &spec, t ) );
     }
 
     /* The victim ran for 3 ticks of every frame, each tick holding 10
@@ -245,19 +270,36 @@ static void test_hogging_partition_cannot_take_time_from_another( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_slot_allocation_is_exact_over_many_frames, "REQ-TP-001", "5:3 schedule allocates exactly 5 and 3 ticks per frame over 120 frames" ),
-    SIL_CASE( test_irregular_schedule_with_three_partitions, "REQ-TP-001", "Interleaved uneven slots for three partitions match the oracle every tick" ),
-    SIL_CASE( test_schedule_repeats_identically_every_major_frame, "REQ-TP-002", "Every major frame repeats the first with zero jitter" ),
-    SIL_CASE( test_slot_boundaries_do_not_drift, "REQ-TP-002", "Slot boundaries stay fixed after thousands of ticks" ),
-    SIL_CASE( test_hogging_partition_cannot_take_time_from_another, "REQ-TP-003", "A partition that never yields cannot steal another's slot" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_slot_allocation_is_exact_over_many_frames,
+        "5:3 schedule allocates exactly 5 and 3 ticks per frame over 120 "
+        "frames" ),
+    SIL_CASE(
+        test_irregular_schedule_with_three_partitions,
+        "Interleaved uneven slots for three partitions match the oracle every "
+        "tick" ),
+    SIL_CASE(
+        test_schedule_repeats_identically_every_major_frame,
+        "Every major frame repeats the first with zero jitter" ),
+    SIL_CASE(
+        test_slot_boundaries_do_not_drift,
+        "Slot boundaries stay fixed after thousands of ticks" ),
+    SIL_CASE(
+        test_hogging_partition_cannot_take_time_from_another,
+        "A partition that never yields cannot steal another's slot" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "temporal_partitioning", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "temporal_partitioning",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

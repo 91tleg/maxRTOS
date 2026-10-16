@@ -9,9 +9,13 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(MCU_FLAGS
     -mcpu=cortex-m7
     -mthumb
-    -mfpu=fpv5-d16
-    -mfloat-abi=hard
+    # Soft-float: the kernel does not save or restore FPU state on a context
+    # switch, so no code may use the FPU until that support exists.
+    -mfloat-abi=soft
 )
 
-add_compile_options(${MCU_FLAGS})
+# Optimization level for every target built with this toolchain.
+set(MAXRTOS_OPT_LEVEL "-O0" CACHE STRING "Compiler optimization flag (-O0, -O2, -Os)")
+
+add_compile_options(${MCU_FLAGS} ${MAXRTOS_OPT_LEVEL})
 add_link_options(${MCU_FLAGS})

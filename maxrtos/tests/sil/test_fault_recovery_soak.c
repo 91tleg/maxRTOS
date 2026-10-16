@@ -7,10 +7,10 @@
  * which drives the same recovery through real exceptions on the virtual
  * target.
  *
- * Requirements
- *   REQ-FT-009  The kernel returns the configured action for every fault it
- *               is asked to recover, and repeated recovery never disturbs
- *               process identity or an unrelated partition.
+ * Verifies
+ * - The kernel returns the configured action for every fault it
+ *   is asked to recover, and repeated recovery never disturbs
+ *   process identity or an unrelated partition.
  *
  * PROVES:
  *   - RESTART_PROCESS repeatedly recovers the same process without
@@ -28,7 +28,6 @@
  *   - That target-specific stack/context recovery works correctly.
  */
 
-
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/health_monitor.h"
@@ -36,8 +35,8 @@
 
 #include "sil_test.h"
 
-#define TEST_STACK_SIZE   ( 128U )
-#define SOAK_ITERATIONS   ( 5000U )
+#define TEST_STACK_SIZE ( 128U )
+#define SOAK_ITERATIONS ( 5000U )
 
 static uint8_t s_stack_faulting[ TEST_STACK_SIZE ];
 static uint8_t s_stack_bystander[ TEST_STACK_SIZE ];
@@ -48,7 +47,6 @@ static void dummy_entry( void * arg )
 
     for( ;; )
     {
-
     }
 }
 
@@ -87,8 +85,7 @@ static void test_restart_process_soak_preserves_identity( void )
             5U,
             dummy_entry,
             NULL,
-            &faulting_id ) ==
-        MAXRTOS_OK );
+            &faulting_id ) == MAXRTOS_OK );
 
     /* Partition 1, never faults. */
     SIL_REQUIRE(
@@ -102,14 +99,10 @@ static void test_restart_process_soak_preserves_identity( void )
             &bystander_id ) == MAXRTOS_OK );
 
     SIL_REQUIRE(
-        maxrtos_partition_add_process(
-            &table,
-            faulting_id ) == MAXRTOS_OK );
+        maxrtos_partition_add_process( &table, faulting_id ) == MAXRTOS_OK );
 
     SIL_REQUIRE(
-        maxrtos_partition_add_process(
-            &table,
-            bystander_id ) == MAXRTOS_OK );
+        maxrtos_partition_add_process( &table, bystander_id ) == MAXRTOS_OK );
 
     bystander_pcb_before = maxrtos_process_get( bystander_id );
     SIL_REQUIRE( bystander_pcb_before != NULL );
@@ -121,10 +114,8 @@ static void test_restart_process_soak_preserves_identity( void )
         maxrtos_process_id_t dispatched_id;
 
         SIL_REQUIRE(
-            maxrtos_partition_dispatch(
-                &table,
-                0U,
-                &dispatched_id ) == MAXRTOS_OK );
+            maxrtos_partition_dispatch( &table, 0U, &dispatched_id ) ==
+            MAXRTOS_OK );
 
         SIL_REQUIRE( dispatched_id == faulting_id );
 
@@ -150,7 +141,6 @@ static void test_restart_process_soak_preserves_identity( void )
         SIL_REQUIRE( bystander_pcb_after == bystander_pcb_before );
         SIL_REQUIRE( bystander_pcb_after->partition_id == 1U );
     }
-
 }
 
 static void test_ignore_action_does_not_modify_state( void )
@@ -169,25 +159,20 @@ static void test_ignore_action_does_not_modify_state( void )
 
     SIL_REQUIRE(
         maxrtos_hm_set_policy(
-            &hm,
-            0U,
-            MAXRTOS_FAULT_BUS_ERROR,
-            MAXRTOS_HM_ACTION_IGNORE ) == MAXRTOS_OK );
+            &hm, 0U, MAXRTOS_FAULT_BUS_ERROR, MAXRTOS_HM_ACTION_IGNORE ) ==
+        MAXRTOS_OK );
 
     SIL_REQUIRE(
         maxrtos_process_create(
             s_stack_faulting,
             TEST_STACK_SIZE,
-            (maxrtos_partition_id_t) 0U,
+            ( maxrtos_partition_id_t ) 0U,
             5U,
             dummy_entry,
             NULL,
             &id ) == MAXRTOS_OK );
 
-    SIL_REQUIRE(
-        maxrtos_partition_add_process(
-            &table,
-            id ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_add_process( &table, id ) == MAXRTOS_OK );
 
     pcb_before = maxrtos_process_get( id );
     SIL_REQUIRE( pcb_before != NULL );
@@ -196,10 +181,8 @@ static void test_ignore_action_does_not_modify_state( void )
         maxrtos_process_id_t dispatched_id;
 
         SIL_REQUIRE(
-            maxrtos_partition_dispatch(
-                &table,
-                0U,
-                &dispatched_id ) == MAXRTOS_OK );
+            maxrtos_partition_dispatch( &table, 0U, &dispatched_id ) ==
+            MAXRTOS_OK );
 
         SIL_REQUIRE( dispatched_id == id );
     }
@@ -208,18 +191,14 @@ static void test_ignore_action_does_not_modify_state( void )
     {
         SIL_REQUIRE(
             maxrtos_fault_recovery_handle(
-                &hm,
-                &table,
-                id,
-                MAXRTOS_FAULT_BUS_ERROR,
-                &action ) == MAXRTOS_OK );
+                &hm, &table, id, MAXRTOS_FAULT_BUS_ERROR, &action ) ==
+            MAXRTOS_OK );
 
         SIL_REQUIRE( action == MAXRTOS_HM_ACTION_IGNORE );
 
         pcb_after = maxrtos_process_get( id );
         SIL_REQUIRE( pcb_after == pcb_before );
     }
-
 }
 
 static void test_halt_partition_action_reported_correctly( void )
@@ -244,33 +223,24 @@ static void test_halt_partition_action_reported_correctly( void )
             NULL,
             &id ) == MAXRTOS_OK );
 
-    SIL_REQUIRE(
-        maxrtos_partition_add_process(
-            &table,
-            id ) == MAXRTOS_OK );
+    SIL_REQUIRE( maxrtos_partition_add_process( &table, id ) == MAXRTOS_OK );
 
     {
         maxrtos_process_id_t dispatched_id;
 
         SIL_REQUIRE(
-            maxrtos_partition_dispatch(
-                &table,
-                0U,
-                &dispatched_id ) == MAXRTOS_OK );
+            maxrtos_partition_dispatch( &table, 0U, &dispatched_id ) ==
+            MAXRTOS_OK );
 
         SIL_REQUIRE( dispatched_id == id );
     }
 
     SIL_REQUIRE(
         maxrtos_fault_recovery_handle(
-            &hm,
-            &table,
-            id,
-            MAXRTOS_FAULT_ILLEGAL_INSTRUCTION,
-            &action ) == MAXRTOS_OK );
+            &hm, &table, id, MAXRTOS_FAULT_ILLEGAL_INSTRUCTION, &action ) ==
+        MAXRTOS_OK );
 
     SIL_REQUIRE( action == MAXRTOS_HM_ACTION_HALT_PARTITION );
-
 }
 
 static void test_invalid_process_id_rejected_after_soak( void )
@@ -303,29 +273,22 @@ static void test_invalid_process_id_rejected_after_soak( void )
             &valid_id ) == MAXRTOS_OK );
 
     SIL_REQUIRE(
-        maxrtos_partition_add_process(
-            &table,
-            valid_id ) == MAXRTOS_OK );
+        maxrtos_partition_add_process( &table, valid_id ) == MAXRTOS_OK );
 
     for( iteration = 0U; iteration < 100U; iteration++ )
     {
         maxrtos_process_id_t dispatched_id;
 
         SIL_REQUIRE(
-            maxrtos_partition_dispatch(
-                &table,
-                0U,
-                &dispatched_id ) == MAXRTOS_OK );
+            maxrtos_partition_dispatch( &table, 0U, &dispatched_id ) ==
+            MAXRTOS_OK );
 
         SIL_REQUIRE( dispatched_id == valid_id );
 
         SIL_REQUIRE(
             maxrtos_fault_recovery_handle(
-                &hm,
-                &table,
-                valid_id,
-                MAXRTOS_FAULT_MEMORY_ACCESS,
-                &action ) == MAXRTOS_OK );
+                &hm, &table, valid_id, MAXRTOS_FAULT_MEMORY_ACCESS, &action ) ==
+            MAXRTOS_OK );
     }
 
     SIL_REQUIRE(
@@ -335,19 +298,31 @@ static void test_invalid_process_id_rejected_after_soak( void )
             ( maxrtos_process_id_t ) 0xFFFFU, /* not an allocated ID */
             MAXRTOS_FAULT_MEMORY_ACCESS,
             &action ) == MAXRTOS_ERR_INVALID_ID );
-
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_restart_process_soak_preserves_identity, "REQ-FT-009", "5000 restarts keep process identity and leave a bystander untouched" ),
-    SIL_CASE( test_ignore_action_does_not_modify_state, "REQ-FT-009", "IGNORE leaves process state untouched over 5000 faults" ),
-    SIL_CASE( test_halt_partition_action_reported_correctly, "REQ-FT-009", "HALT_PARTITION is reported for the configured fault class" ),
-    SIL_CASE( test_invalid_process_id_rejected_after_soak, "REQ-FT-009", "An invalid process ID is rejected after recovery activity" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_restart_process_soak_preserves_identity,
+        "5000 restarts keep process identity and leave a bystander untouched" ),
+    SIL_CASE(
+        test_ignore_action_does_not_modify_state,
+        "IGNORE leaves process state untouched over 5000 faults" ),
+    SIL_CASE(
+        test_halt_partition_action_reported_correctly,
+        "HALT_PARTITION is reported for the configured fault class" ),
+    SIL_CASE(
+        test_invalid_process_id_rejected_after_soak,
+        "An invalid process ID is rejected after recovery activity" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    return sil_run_suite( "fault_recovery_soak", s_cases,
-                          sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    return sil_run_suite(
+        "fault_recovery_soak",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 }

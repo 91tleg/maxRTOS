@@ -26,11 +26,11 @@
 #include "maxrtos/timing.h"
 #include "maxrtos/yield.h"
 
-#define SIM_MAX_CTX      ( MAXRTOS_MAX_PROCESSES + 2U ) /* + idle + spare */
-#define SIM_MAX_MAPS     ( 8U )
-#define SIM_MAX_FAULTS   ( 32U )
-#define SIM_HOST_STACK   ( 256U * 1024U )
-#define SIM_MIN_STACK    ( 32U * 1024U )
+#define SIM_MAX_CTX    ( MAXRTOS_MAX_PROCESSES + 2U ) /* + idle + spare */
+#define SIM_MAX_MAPS   ( 8U )
+#define SIM_MAX_FAULTS ( 32U )
+#define SIM_HOST_STACK ( 256U * 1024U )
+#define SIM_MIN_STACK  ( 32U * 1024U )
 
 /* ------------------------------------------------------------------------ */
 /* Contexts and the baton                                                    */
@@ -41,9 +41,9 @@ typedef struct sim_ctx
     pthread_t thread;
     pthread_cond_t wake;
     bool created;
-    volatile bool restart;        /* re-enter the entry function when resumed */
+    volatile bool restart; /* re-enter the entry function when resumed */
     maxrtos_process_control_block_t * pcb;
-    bool result_valid;            /* a blocked call completed while parked */
+    bool result_valid; /* a blocked call completed while parked */
     uint32_t result;
     void * host_stack;
     jmp_buf entry_jump;
@@ -219,7 +219,9 @@ static void ctx_start_thread( sim_ctx_t * ctx )
 }
 
 /* Hand the baton to `to`; returns when the caller holds it again. */
-static void baton_transfer( sim_ctx_t * to, sim_ctx_t * self )
+static void baton_transfer(
+    sim_ctx_t * to,
+    sim_ctx_t * self )
 {
     if( ( to->pcb != NULL ) && !to->created )
     {
@@ -298,7 +300,10 @@ uint32_t sim_model_violations( void )
 /* Virtual memory                                                            */
 /* ------------------------------------------------------------------------ */
 
-void * sim_mem_map( char const * name, uint32_t virtual_base, uint32_t size )
+void * sim_mem_map(
+    char const * name,
+    uint32_t virtual_base,
+    uint32_t size )
 {
     void * backing = NULL;
 
@@ -317,7 +322,9 @@ void * sim_mem_map( char const * name, uint32_t virtual_base, uint32_t size )
     return backing;
 }
 
-void * sim_mem_ptr( uint32_t address, uint32_t length )
+void * sim_mem_ptr(
+    uint32_t address,
+    uint32_t length )
 {
     unsigned i;
 
@@ -325,8 +332,8 @@ void * sim_mem_ptr( uint32_t address, uint32_t length )
     {
         sim_map_t const * m = &s_maps[ i ];
 
-        if( ( address >= m->base ) &&
-            ( ( uint64_t ) address + length <= ( uint64_t ) m->base + m->size ) )
+        if( ( address >= m->base ) && ( ( uint64_t ) address + length <=
+                                        ( uint64_t ) m->base + m->size ) )
         {
             return m->backing + ( address - m->base );
         }
@@ -362,7 +369,8 @@ void * sim_uaddr_to_ptr( uint32_t address )
 /* Architecture interface (what context_switch.c/.S provide on the target)   */
 /* ------------------------------------------------------------------------ */
 
-maxrtos_status_t maxrtos_arch_init_stack( maxrtos_process_control_block_t * pcb )
+maxrtos_status_t maxrtos_arch_init_stack(
+    maxrtos_process_control_block_t * pcb )
 {
     maxrtos_status_t status = MAXRTOS_ERR_INVALID_ARG;
 
@@ -447,7 +455,8 @@ static bool current_is_privileged( void )
 {
     maxrtos_process_control_block_t const * pcb = g_maxrtos_current_pcb;
 
-    return ( pcb == NULL ) || maxrtos_arch_partition_is_privileged( pcb->partition_id );
+    return ( pcb == NULL ) ||
+           maxrtos_arch_partition_is_privileged( pcb->partition_id );
 }
 
 /* PendSV, first half: choose and publish the next context, exactly as the
@@ -600,7 +609,9 @@ void sim_entry_spin( void * arg )
     }
 }
 
-void sim_inject_fault_at_tick( uint32_t tick, maxrtos_fault_type_t type )
+void sim_inject_fault_at_tick(
+    uint32_t tick,
+    maxrtos_fault_type_t type )
 {
     unsigned i;
 
@@ -628,7 +639,8 @@ int32_t sim_partition_at_tick( uint32_t tick )
 
 maxrtos_process_id_t sim_process_at_tick( uint32_t tick )
 {
-    int16_t id = ( tick < SIM_MAX_TICKS ) ? s_process_log[ tick ] : ( int16_t ) SIM_IDLE;
+    int16_t id =
+        ( tick < SIM_MAX_TICKS ) ? s_process_log[ tick ] : ( int16_t ) SIM_IDLE;
 
     return ( id == ( int16_t ) SIM_IDLE ) ? MAXRTOS_INVALID_PROCESS_ID
                                           : ( maxrtos_process_id_t ) id;
@@ -643,7 +655,9 @@ uint32_t sim_context_switches( void )
 /* Memory access and system calls made by simulated code                     */
 /* ------------------------------------------------------------------------ */
 
-bool sim_write32( uint32_t address, uint32_t value )
+bool sim_write32(
+    uint32_t address,
+    uint32_t value )
 {
     void * target;
 
@@ -668,7 +682,9 @@ bool sim_write32( uint32_t address, uint32_t value )
     return true;
 }
 
-bool sim_read32( uint32_t address, uint32_t * out_value )
+bool sim_read32(
+    uint32_t address,
+    uint32_t * out_value )
 {
     void * source;
 
@@ -695,7 +711,12 @@ bool sim_read32( uint32_t address, uint32_t * out_value )
 
 /* Execute an SVC as the exception would: stack r0-r3, enter the production
  * dispatcher, then run the PendSV it may have requested. */
-static uint32_t sim_svc( uint8_t number, uint32_t r0, uint32_t r1, uint32_t r2, uint32_t r3 )
+static uint32_t sim_svc(
+    uint8_t number,
+    uint32_t r0,
+    uint32_t r1,
+    uint32_t r2,
+    uint32_t r3 )
 {
     uint32_t frame[ 8 ] = { 0U };
     sim_ctx_t * self = s_running;
@@ -728,7 +749,8 @@ static uint32_t sim_svc( uint8_t number, uint32_t r0, uint32_t r1, uint32_t r2, 
 
 maxrtos_status_t maxrtos_periodic_wait( void )
 {
-    return ( maxrtos_status_t ) sim_svc( MAXRTOS_SVC_PERIODIC_WAIT, 0U, 0U, 0U, 0U );
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_PERIODIC_WAIT, 0U, 0U, 0U, 0U );
 }
 
 void maxrtos_yield( void )
@@ -736,14 +758,24 @@ void maxrtos_yield( void )
     ( void ) sim_svc( MAXRTOS_SVC_YIELD, 0U, 0U, 0U, 0U );
 }
 
-maxrtos_status_t sim_queue_send_raw( uint32_t port, uint32_t message, uint32_t size, uint32_t timeout )
+maxrtos_status_t sim_queue_send_raw(
+    uint32_t port,
+    uint32_t message,
+    uint32_t size,
+    uint32_t timeout )
 {
-    return ( maxrtos_status_t ) sim_svc( MAXRTOS_SVC_QUEUE_SEND, port, message, size, timeout );
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_QUEUE_SEND, port, message, size, timeout );
 }
 
-maxrtos_status_t sim_queue_receive_raw( uint32_t port, uint32_t buffer, uint32_t size, uint32_t timeout )
+maxrtos_status_t sim_queue_receive_raw(
+    uint32_t port,
+    uint32_t buffer,
+    uint32_t size,
+    uint32_t timeout )
 {
-    return ( maxrtos_status_t ) sim_svc( MAXRTOS_SVC_QUEUE_RECEIVE, port, buffer, size, timeout );
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_QUEUE_RECEIVE, port, buffer, size, timeout );
 }
 
 uint32_t sim_queue_count_raw( uint32_t port )
@@ -751,14 +783,30 @@ uint32_t sim_queue_count_raw( uint32_t port )
     return sim_svc( MAXRTOS_SVC_QUEUE_COUNT, port, 0U, 0U, 0U );
 }
 
-maxrtos_status_t maxrtos_queue_port_send( maxrtos_queue_port_t * port, void const * message, size_t message_size, maxrtos_tick_t timeout )
+maxrtos_status_t maxrtos_queue_port_send(
+    maxrtos_queue_port_t * port,
+    void const * message,
+    size_t message_size,
+    maxrtos_tick_t timeout )
 {
-    return sim_queue_send_raw( sim_ptr_to_uaddr( port ), sim_ptr_to_uaddr( message ), ( uint32_t ) message_size, timeout );
+    return sim_queue_send_raw(
+        sim_ptr_to_uaddr( port ),
+        sim_ptr_to_uaddr( message ),
+        ( uint32_t ) message_size,
+        timeout );
 }
 
-maxrtos_status_t maxrtos_queue_port_receive( maxrtos_queue_port_t * port, void * out_message, size_t buffer_size, maxrtos_tick_t timeout )
+maxrtos_status_t maxrtos_queue_port_receive(
+    maxrtos_queue_port_t * port,
+    void * out_message,
+    size_t buffer_size,
+    maxrtos_tick_t timeout )
 {
-    return sim_queue_receive_raw( sim_ptr_to_uaddr( port ), sim_ptr_to_uaddr( out_message ), ( uint32_t ) buffer_size, timeout );
+    return sim_queue_receive_raw(
+        sim_ptr_to_uaddr( port ),
+        sim_ptr_to_uaddr( out_message ),
+        ( uint32_t ) buffer_size,
+        timeout );
 }
 
 size_t maxrtos_queue_port_count( maxrtos_queue_port_t const * port )
@@ -784,8 +832,8 @@ void maxrtos_arch_start_first_process( maxrtos_process_control_block_t * pcb )
     s_partition_log[ 0 ] = ( int16_t ) pcb->partition_id;
     s_process_log[ 0 ] = ( int16_t ) pcb->id;
 
-    exception_return( false );  /* the first switch; parks the bench */
-    s_normal_return = true;     /* the run reached its stop tick */
+    exception_return( false ); /* the first switch; parks the bench */
+    s_normal_return = true;    /* the run reached its stop tick */
 }
 
 void sim_reset( void )

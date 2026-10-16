@@ -7,9 +7,11 @@
 .global __StackTop
 
 .extern main
+.extern HardFault_Handler
 .extern MemManage_Handler
 .extern BusFault_Handler
 .extern UsageFault_Handler
+.extern SVC_Handler
 .extern PendSV_Handler
 .extern SysTick_Handler
 
@@ -19,7 +21,7 @@
 .word __StackTop
 .word Reset_Handler
 .word Default_Handler
-.word Default_Handler
+.word HardFault_Handler
 .word MemManage_Handler
 .word BusFault_Handler
 .word UsageFault_Handler
@@ -27,7 +29,7 @@
 .word 0
 .word 0
 .word 0
-.word Default_Handler
+.word SVC_Handler
 .word Default_Handler
 .word 0
 .word PendSV_Handler

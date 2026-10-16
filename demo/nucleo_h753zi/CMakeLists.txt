@@ -32,7 +32,6 @@ target_compile_options(maxrtos_demo_nucleo_h753zi PRIVATE
     -Wextra
     -Wpedantic
     -g3
-    -O0
 )
 
 target_link_options(maxrtos_demo_nucleo_h753zi PRIVATE

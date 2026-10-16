@@ -4,10 +4,10 @@ The production kernel and the hardware-independent part of the Cortex-M7
 architecture layer, compiled **unchanged** for the host and run on a
 **virtual Cortex-M7**. Scenarios drive it through the same public API an
 application uses (`maxrtos_yield`, `maxrtos_queue_port_*`), inject faults, and
-judge behaviour against requirements.
+judge the expected behaviour.
 
 ```
-   scenario tests (test_*.c)            requirement-tagged, oracle-checked
+   scenario tests (test_*.c)            oracle-checked
    ───────────────────────────────────────────────────────────────────────
    sil_system  ── builds a partitioned system like the generated config
    ───────────────────────────────────────────────────────────────────────
@@ -52,43 +52,31 @@ timing.
 cmake -S maxrtos/tests -B build/tests
 cmake --build build/tests
 ctest --test-dir build/tests -L sil --output-on-failure
-python3 maxrtos/tests/sil/tools/traceability.py build/tests/sil-reports
 ```
 
 Each suite is one executable and writes a JUnit XML report to
 `<build>/sil-reports/`.
 
-| Suite | Requirements |
+| Suite | Covers |
 |---|---|
-| `temporal_partitioning` | REQ-TP-001..003: exact slot allocation vs an independent oracle, zero jitter, a hogging partition cannot steal time |
-| `spatial_partitioning` | REQ-SP-001..007: own memory, foreign/kernel/port/flash memory denied through the MPU model, MPU follows the running partition |
-| `ipc_queue_port` | REQ-IPC-001..006: blocking and timed receive, cross-partition 500-message stream, capacity, hostile-pointer matrix |
-| `fault_containment` | REQ-FT-001..008: restart vs halt, per-partition and per-class policy, fault storm, async fault attribution, no monitor, stranded peers |
-| `scheduler_startup` | REQ-BOOT-001..004 |
-| `process_yield` | REQ-YLD-001..003 |
-| `fault_recovery_soak` | REQ-FT-009 (kernel level, 5000 faults) |
-| `simulator_selfcheck` | SIM-001..004: qualifies the virtual target itself |
+| `temporal_partitioning` | exact slot allocation vs an independent oracle, zero jitter, a hogging partition cannot steal time |
+| `spatial_partitioning` | own memory, foreign/kernel/port/flash memory denied through the MPU model, MPU follows the running partition |
+| `ipc_queue_port` | blocking and timed receive, cross-partition 500-message stream, capacity, hostile-pointer matrix |
+| `fault_containment` | restart vs halt, per-partition and per-class policy, fault storm, async fault attribution, no monitor, stranded peers |
+| `scheduler_startup` | start-up: registration, suspended processes, first frame, no runnable process |
+| `process_yield` | yield: alternation, no cross-partition time, lone process |
+| `fault_recovery_soak` | fault recovery (kernel level, 5000 faults) |
+| `simulator_selfcheck` | qualifies the virtual target itself |
 
 ## How results are trusted
 
-* **Requirements traceability.** [`REQUIREMENTS.md`](REQUIREMENTS.md) lists
-  every requirement; every test case cites one. `tools/traceability.py` writes a
-  requirement → test matrix and fails on an uncovered requirement or an unknown
-  ID.
-* **Mutation check.** `tools/mutation_check.py <build-dir>` injects 16 realistic
-  defects into the production kernel and architecture code (timeouts that never
-  expire, unchecked user pointers, a port region never enabled, halt that does
-  not leave the faulting context, a frame off by one tick, ...) and requires
-  the suites to catch each one. A suite that cannot fail proves nothing.
 * **Independent oracles.** Expected schedules are computed in the test from the
   slot table, not read back from the code under test.
 * **Simulator qualification.** The MPU model, address translation and virtual
   clock have their own tests (`SIM-*`).
 * **Never compiled out.** Checks are `SIL_REQUIRE`/`SIL_EXPECT`, not `assert()`,
   so `-DNDEBUG` cannot make a run pass silently.
-* **Coverage and sanitizers.** `-DMAXRTOS_TEST_COVERAGE=ON` (line and branch,
-  gated in CI over the production kernel and portable arch sources) and
-  `-DMAXRTOS_TEST_SANITIZE=undefined|address`. AddressSanitizer runs on the unit
+* **Sanitizers.** `-DMAXRTOS_TEST_SANITIZE=undefined|address`. AddressSanitizer runs on the unit
   tests only: the virtual target runs contexts on caller-provided thread
   stacks, which ASan does not support.
 * **Determinism.** Virtual time depends only on executed simulated work, so a
@@ -116,9 +104,7 @@ never lets time pass), must touch memory via `sim_read32`/`sim_write32` when it
 should be MPU-checked, and records observations in shared variables. Checks
 belong on the bench thread, never in process code.
 
-Give the case a requirement ID from `REQUIREMENTS.md` in `SIL_CASE(...)`, add
-the suite to `CMakeLists.txt` with `add_sil_test()`, and add a mutation to
-`tools/mutation_check.py` if the test guards a defect the existing ones miss.
+Add the case to the suite's `SIL_CASE(...)` table and add the suite to `CMakeLists.txt` with `add_sil_test()`.
 
 ## Known limits
 

@@ -75,7 +75,7 @@ function(add_emu_test name source config)
         maxrtos_arch_cortex_m7
     )
 
-    target_compile_options(${target} PRIVATE -Wall -Wextra -g -O0)
+    target_compile_options(${target} PRIVATE -Wall -Wextra -g)
 
     target_link_options(${target} PRIVATE
         -T${gen}/link.ld

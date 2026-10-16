@@ -1,32 +1,32 @@
 /**
  * @file test_deadline_supervision.c
  * @brief SIL: periodic release and deadline supervision (ARINC 653 PERIOD and
- *        TIME_CAPACITY), from the tick through the health monitor to the
- *        recovery the architecture layer enacts.
+ *   TIME_CAPACITY), from the tick through the health monitor to the
+ *   recovery the architecture layer enacts.
  *
  * The schedule is the usual 8-tick major frame: partition 0 owns ticks 0..4,
  * partition 1 owns ticks 5..7.
  *
- * Requirements
- *   REQ-DL-001  A periodic process is released exactly every period, with no
- *               jitter or drift.
- *   REQ-DL-002  A process that completes each release within its time capacity
- *               is never reported as missing.
- *   REQ-DL-003  A process that overruns its time capacity is detected at its
- *               deadline and handled by its partition's policy: restarted and
- *               re-released, without disturbing anything else.
- *   REQ-DL-004  The deadline is wall-clock time, not a CPU budget: a process
- *               whose partition is not scheduled before its deadline misses it
- *               having used no CPU.
- *   REQ-DL-005  A miss under halt_partition stops that partition and only that
- *               partition.
- *   REQ-DL-006  A process blocked on IPC when its deadline expires is restarted
- *               and leaves the wait list.
- *   REQ-DL-007  While a process waits for its next release and nothing else is
- *               ready, the CPU idles instead of running another partition's
- *               code in its slot.
- *   REQ-DL-008  Each fault class keeps its own policy: a deadline miss can be
- *               configured independently of memory faults.
+ * Verifies
+ * - A periodic process is released exactly every period, with no
+ *   jitter or drift.
+ * - A process that completes each release within its time capacity
+ *   is never reported as missing.
+ * - A process that overruns its time capacity is detected at its
+ *   deadline and handled by its partition's policy: restarted and
+ *   re-released, without disturbing anything else.
+ * - The deadline is wall-clock time, not a CPU budget: a process
+ *   whose partition is not scheduled before its deadline misses it
+ *   having used no CPU.
+ * - A miss under halt_partition stops that partition and only that
+ *   partition.
+ * - A process blocked on IPC when its deadline expires is restarted
+ *   and leaves the wait list.
+ * - While a process waits for its next release and nothing else is
+ *   ready, the CPU idles instead of running another partition's
+ *   code in its slot.
+ * - Each fault class keeps its own policy: a deadline miss can be
+ *   configured independently of memory faults.
  */
 
 #include "sil_system.h"
@@ -82,9 +82,12 @@ static void bystander( void * arg )
     }
 }
 
-static maxrtos_process_control_block_t * process( unsigned partition, unsigned index )
+static maxrtos_process_control_block_t * process(
+    unsigned partition,
+    unsigned index )
 {
-    return maxrtos_process_get( sil_system()->process_id[ partition ][ index ] );
+    return maxrtos_process_get(
+        sil_system()->process_id[ partition ][ index ] );
 }
 
 /* A well-behaved periodic process: a little work, then wait for the next
@@ -123,7 +126,10 @@ static void overrunner( void * arg )
     }
 }
 
-static void build_periodic( void ( * entry )( void * ), uint32_t period, uint32_t capacity )
+static void build_periodic(
+    void ( *entry )( void * ),
+    uint32_t period,
+    uint32_t capacity )
 {
     sil_system_spec_t spec;
 
@@ -133,7 +139,6 @@ static void build_periodic( void ( * entry )( void * ), uint32_t period, uint32_
     sil_build( &spec );
 }
 
-/* REQ-DL-001 */
 static void test_periodic_release_is_exact( void )
 {
     uint32_t i;
@@ -156,7 +161,6 @@ static void test_periodic_release_is_exact( void )
     sim_shutdown();
 }
 
-/* REQ-DL-002 */
 static void test_completing_within_the_capacity_never_misses( void )
 {
     reset();
@@ -170,7 +174,6 @@ static void test_completing_within_the_capacity_never_misses( void )
     sim_shutdown();
 }
 
-/* REQ-DL-003 */
 static void test_an_overrun_is_detected_and_the_process_restarted( void )
 {
     uint32_t misses;
@@ -200,7 +203,6 @@ static void test_an_overrun_is_detected_and_the_process_restarted( void )
     sim_shutdown();
 }
 
-/* REQ-DL-004 */
 static void test_the_deadline_is_wall_clock_not_a_cpu_budget( void )
 {
     sil_system_spec_t spec;
@@ -222,7 +224,6 @@ static void test_the_deadline_is_wall_clock_not_a_cpu_budget( void )
     sim_shutdown();
 }
 
-/* REQ-DL-005 */
 static void test_halt_on_a_miss_stops_only_that_partition( void )
 {
     sil_system_spec_t spec;
@@ -233,25 +234,26 @@ static void test_halt_on_a_miss_stops_only_that_partition( void )
     sil_spec_two_partitions( &spec, overrunner, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 6U ) );
     frozen = s_attempts;
     SIL_REQUIRE( sim_run( 14U * FRAME ) );
 
-    SIL_EXPECT_EQ( s_attempts, frozen );          /* not restarted */
+    SIL_EXPECT_EQ( s_attempts, frozen ); /* not restarted */
     SIL_EXPECT_EQ( process( 0U, 0U )->deadline_misses, 1U );
 
     for( t = 8U; t < sim_tick(); t++ )
     {
         if( ( t % FRAME ) < 5U )
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), SIM_IDLE );  /* halted */
+            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), SIM_IDLE ); /* halted */
         }
         else
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), 1 );         /* untouched */
+            SIL_REQUIRE_EQ( sim_partition_at_tick( t ), 1 ); /* untouched */
         }
     }
 
@@ -260,7 +262,6 @@ static void test_halt_on_a_miss_stops_only_that_partition( void )
     sim_shutdown();
 }
 
-/* REQ-DL-006 */
 static volatile uint32_t s_wait_returned;
 
 static void blocked_receiver( void * arg )
@@ -271,8 +272,11 @@ static void blocked_receiver( void * arg )
     s_attempts++;
 
     /* Waits for a message that never comes. */
-    if( maxrtos_queue_port_receive( sil_system()->port[ 0 ], &value, sizeof( value ),
-                                    MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
+    if( maxrtos_queue_port_receive(
+            sil_system()->port[ 0 ],
+            &value,
+            sizeof( value ),
+            MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
     {
         s_wait_returned++;
     }
@@ -294,7 +298,8 @@ static void peer( void * arg )
     }
 }
 
-static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( void )
+static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list(
+    void )
 {
     sil_system_spec_t spec;
 
@@ -302,7 +307,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     s_wait_returned = 0U;
     sil_spec_two_partitions( &spec, blocked_receiver, bystander );
     spec.partition[ 0 ].process_count = 2U;
-    spec.partition[ 0 ].process[ 0 ].time_capacity = 6U; /* aperiodic, 6-tick deadline */
+    spec.partition[ 0 ].process[ 0 ].time_capacity =
+        6U; /* aperiodic, 6-tick deadline */
     spec.partition[ 0 ].process[ 1 ].entry = peer;
     spec.partition[ 0 ].process[ 1 ].priority = 5U;
     spec.port_count = 1U;
@@ -314,7 +320,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     SIL_REQUIRE( sim_start( 10U * FRAME ) );
 
     /* It blocked, missed its deadline while blocked, and was restarted at its
-     * entry (and blocked again, since the restart re-arms a 6-tick deadline). */
+     * entry (and blocked again, since the restart re-arms a 6-tick deadline).
+     */
     SIL_EXPECT( process( 0U, 0U )->deadline_misses >= 2U );
     SIL_EXPECT( s_attempts >= 2U );
     SIL_EXPECT_EQ( s_wait_returned, 0U );
@@ -325,8 +332,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list( v
     sim_shutdown();
 }
 
-/* REQ-DL-007 */
-static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void )
+static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release(
+    void )
 {
     uint32_t frame;
     uint32_t t;
@@ -344,7 +351,8 @@ static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void 
          * (or anyone else's) code. */
         for( t = 1U; t < 5U; t++ )
         {
-            SIL_REQUIRE_EQ( sim_partition_at_tick( frame * FRAME + t ), SIM_IDLE );
+            SIL_REQUIRE_EQ(
+                sim_partition_at_tick( frame * FRAME + t ), SIM_IDLE );
             idle_ticks++;
         }
 
@@ -357,8 +365,8 @@ static void test_the_cpu_idles_while_a_lone_process_waits_for_its_release( void 
     sim_shutdown();
 }
 
-/* REQ-DL-007 */
-static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition( void )
+static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition(
+    void )
 {
     sil_system_spec_t spec;
     uint32_t t;
@@ -394,7 +402,6 @@ static void test_a_slot_with_nothing_ready_does_not_run_the_previous_partition( 
     sim_shutdown();
 }
 
-/* REQ-DL-008 */
 static void memory_faulter( void * arg )
 {
     ( void ) arg;
@@ -417,12 +424,14 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sil_spec_two_partitions( &spec, overrunner, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] = MAXRTOS_HM_ACTION_RESTART_PROCESS;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_DEADLINE_EXCEEDED ] =
+        MAXRTOS_HM_ACTION_RESTART_PROCESS;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 12U * FRAME ) );
-    SIL_EXPECT( s_attempts >= 8U );      /* restarted repeatedly, never halted */
+    SIL_EXPECT( s_attempts >= 8U ); /* restarted repeatedly, never halted */
     sim_shutdown();
 
     /* And the converse: a memory fault halts even though deadline misses
@@ -431,7 +440,8 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sil_spec_two_partitions( &spec, memory_faulter, bystander );
     spec.partition[ 0 ].process[ 0 ].period = FRAME;
     spec.partition[ 0 ].process[ 0 ].time_capacity = 3U;
-    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] = MAXRTOS_HM_ACTION_HALT_PARTITION;
+    spec.partition[ 0 ].action[ MAXRTOS_FAULT_MEMORY_ACCESS ] =
+        MAXRTOS_HM_ACTION_HALT_PARTITION;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 12U * FRAME ) );
@@ -439,23 +449,49 @@ static void test_a_deadline_miss_has_its_own_policy( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_periodic_release_is_exact, "REQ-DL-001", "A periodic process is released exactly every period" ),
-    SIL_CASE( test_completing_within_the_capacity_never_misses, "REQ-DL-002", "Completing within the time capacity never reports a miss" ),
-    SIL_CASE( test_an_overrun_is_detected_and_the_process_restarted, "REQ-DL-003", "An overrun is detected at its deadline; the process is restarted and re-released" ),
-    SIL_CASE( test_the_deadline_is_wall_clock_not_a_cpu_budget, "REQ-DL-004", "A starved process misses its deadline having used no CPU" ),
-    SIL_CASE( test_halt_on_a_miss_stops_only_that_partition, "REQ-DL-005", "halt_partition on a miss stops only that partition" ),
-    SIL_CASE( test_a_blocked_process_that_misses_is_restarted_off_the_wait_list, "REQ-DL-006", "A process blocked on IPC that misses is restarted off the wait list" ),
-    SIL_CASE( test_the_cpu_idles_while_a_lone_process_waits_for_its_release, "REQ-DL-007", "The CPU idles while a lone process waits for its release" ),
-    SIL_CASE( test_a_slot_with_nothing_ready_does_not_run_the_previous_partition, "REQ-DL-007", "A slot with nothing ready idles instead of running the previous partition" ),
-    SIL_CASE( test_a_deadline_miss_has_its_own_policy, "REQ-DL-008", "A deadline miss follows its own policy, independent of memory faults" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_periodic_release_is_exact,
+        "A periodic process is released exactly every period" ),
+    SIL_CASE(
+        test_completing_within_the_capacity_never_misses,
+        "Completing within the time capacity never reports a miss" ),
+    SIL_CASE(
+        test_an_overrun_is_detected_and_the_process_restarted,
+        "An overrun is detected at its deadline; the process is restarted and "
+        "re-released" ),
+    SIL_CASE(
+        test_the_deadline_is_wall_clock_not_a_cpu_budget,
+        "A starved process misses its deadline having used no CPU" ),
+    SIL_CASE(
+        test_halt_on_a_miss_stops_only_that_partition,
+        "halt_partition on a miss stops only that partition" ),
+    SIL_CASE(
+        test_a_blocked_process_that_misses_is_restarted_off_the_wait_list,
+        "A process blocked on IPC that misses is restarted off the wait list" ),
+    SIL_CASE(
+        test_the_cpu_idles_while_a_lone_process_waits_for_its_release,
+        "The CPU idles while a lone process waits for its release" ),
+    SIL_CASE(
+        test_a_slot_with_nothing_ready_does_not_run_the_previous_partition,
+        "A slot with nothing ready idles instead of running the previous "
+        "partition" ),
+    SIL_CASE(
+        test_a_deadline_miss_has_its_own_policy,
+        "A deadline miss follows its own policy, independent of memory "
+        "faults" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "deadline_supervision", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "deadline_supervision",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

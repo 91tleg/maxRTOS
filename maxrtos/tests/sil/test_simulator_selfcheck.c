@@ -19,11 +19,15 @@
 
 /* ---- MPU model (programmed through the production driver) -------------- */
 
-static void program( uint32_t region, uint32_t base, uint32_t size,
-                     maxrtos_mpu_access_t access )
+static void program(
+    uint32_t region,
+    uint32_t base,
+    uint32_t size,
+    maxrtos_mpu_access_t access )
 {
-    SIL_REQUIRE_EQ( maxrtos_arch_mpu_configure_region( region, base, size, access, false ),
-                    MAXRTOS_OK );
+    SIL_REQUIRE_EQ(
+        maxrtos_arch_mpu_configure_region( region, base, size, access, false ),
+        MAXRTOS_OK );
 }
 
 static void mpu_fresh( void )
@@ -73,12 +77,18 @@ static void test_mpu_boundaries_and_straddling( void )
     mpu_fresh();
     program( 0U, 0x20000000UL, 0x1000UL, MAXRTOS_MPU_ACCESS_READ_WRITE );
 
-    SIL_EXPECT( sim_mpu_access_ok( 0x20000FFCUL, 4U, true, false ) );   /* last word */
-    SIL_EXPECT( !sim_mpu_access_ok( 0x20001000UL, 4U, true, false ) );  /* first word after */
-    SIL_EXPECT( !sim_mpu_access_ok( 0x20000FFEUL, 4U, true, false ) );  /* straddles the end */
-    SIL_EXPECT( !sim_mpu_access_ok( 0x1FFFFFFCUL, 8U, true, false ) );  /* straddles the start */
-    SIL_EXPECT( !sim_mpu_access_ok( 0xFFFFFFF0UL, 0x40U, false, true ) ); /* wraps the address space */
-    SIL_EXPECT( sim_mpu_access_ok( 0x20000800UL, 0U, true, false ) );   /* empty range */
+    SIL_EXPECT(
+        sim_mpu_access_ok( 0x20000FFCUL, 4U, true, false ) ); /* last word */
+    SIL_EXPECT( !sim_mpu_access_ok(
+        0x20001000UL, 4U, true, false ) ); /* first word after */
+    SIL_EXPECT( !sim_mpu_access_ok(
+        0x20000FFEUL, 4U, true, false ) ); /* straddles the end */
+    SIL_EXPECT( !sim_mpu_access_ok(
+        0x1FFFFFFCUL, 8U, true, false ) ); /* straddles the start */
+    SIL_EXPECT( !sim_mpu_access_ok(
+        0xFFFFFFF0UL, 0x40U, false, true ) ); /* wraps the address space */
+    SIL_EXPECT(
+        sim_mpu_access_ok( 0x20000800UL, 0U, true, false ) ); /* empty range */
 }
 
 static void test_mpu_default_map_and_privdefena( void )
@@ -99,7 +109,8 @@ static void test_mpu_privdefena_clear_denies_unmapped_access_to_everyone( void )
     maxrtos_arch_mpu_init( false );
 
     SIL_EXPECT( sim_mpu_enabled() );
-    SIL_EXPECT( !sim_mpu_access_ok( 0x40000000UL, 4U, false, true ) );  /* privileged too */
+    SIL_EXPECT( !sim_mpu_access_ok(
+        0x40000000UL, 4U, false, true ) ); /* privileged too */
     SIL_EXPECT( !sim_mpu_access_ok( 0x40000000UL, 4U, false, false ) );
 
     /* An explicit privileged region is honoured. */
@@ -113,7 +124,8 @@ static void test_mpu_highest_numbered_region_wins( void )
     mpu_fresh();
 
     /* A large read-only window with a small read-write hole punched in it by
-     * a higher-numbered region, as the partition slot is over the background. */
+     * a higher-numbered region, as the partition slot is over the background.
+     */
     program( 0U, 0x20000000UL, 0x10000UL, MAXRTOS_MPU_ACCESS_READ_ONLY );
     program( 5U, 0x20004000UL, 0x1000UL, MAXRTOS_MPU_ACCESS_READ_WRITE );
 
@@ -172,12 +184,12 @@ static void test_memory_map_translation( void )
 
     SIL_EXPECT( sim_mem_ptr( 0x20000000UL, 4U ) == a );
     SIL_EXPECT( sim_mem_ptr( 0x24000010UL, 4U ) == b + 0x10 );
-    SIL_EXPECT( sim_mem_ptr( 0x20000FFDUL, 4U ) == NULL );    /* crosses the end */
-    SIL_EXPECT( sim_mem_ptr( 0x30000000UL, 1U ) == NULL );    /* unmapped */
+    SIL_EXPECT( sim_mem_ptr( 0x20000FFDUL, 4U ) == NULL ); /* crosses the end */
+    SIL_EXPECT( sim_mem_ptr( 0x30000000UL, 1U ) == NULL ); /* unmapped */
 
     SIL_EXPECT_EQ( sim_ptr_to_uaddr( a + 0x20 ), 0x20000020UL );
     SIL_EXPECT_EQ( sim_ptr_to_uaddr( b + 0x1FFF ), 0x24001FFFUL );
-    SIL_EXPECT_EQ( sim_ptr_to_uaddr( &a ), 0U );              /* host stack: unmapped */
+    SIL_EXPECT_EQ( sim_ptr_to_uaddr( &a ), 0U ); /* host stack: unmapped */
 }
 
 /* ---- Virtual time and context hand-over -------------------------------- */
@@ -286,25 +298,49 @@ static void test_scheduler_start_without_processes_halts( void )
     sim_shutdown();
 }
 
-static sil_case_t const s_cases[] =
-{
-    SIL_CASE( test_mpu_ap_encodings, "SIM-001", "MPU AP encodings decide access as PMSAv7 specifies" ),
-    SIL_CASE( test_mpu_boundaries_and_straddling, "SIM-001", "MPU region boundaries, straddling and wrap-around" ),
-    SIL_CASE( test_mpu_default_map_and_privdefena, "SIM-001", "PRIVDEFENA gives privileged code the default map only" ),
-    SIL_CASE( test_mpu_privdefena_clear_denies_unmapped_access_to_everyone, "SIM-001", "PRIVDEFENA clear: unmapped access is denied even to privileged code" ),
-    SIL_CASE( test_mpu_highest_numbered_region_wins, "SIM-001", "Overlapping regions: the highest number wins" ),
-    SIL_CASE( test_mpu_disabled_region_is_ignored, "SIM-001", "A disabled region maps nothing" ),
-    SIL_CASE( test_mpu_misaligned_region_is_a_model_violation, "SIM-001", "An illegally programmed region is reported" ),
-    SIL_CASE( test_memory_map_translation, "SIM-002", "Virtual/host address translation" ),
-    SIL_CASE( test_virtual_clock_is_exact_and_deterministic, "SIM-003", "Virtual time is exact and runs are bit-identical" ),
-    SIL_CASE( test_run_can_be_resumed_in_slices, "SIM-003", "Slicing a run does not change its outcome" ),
-    SIL_CASE( test_scheduler_start_without_processes_halts, "SIM-004", "Start-up with nothing to run halts and is reported" ),
+static sil_case_t const s_cases[] = {
+    SIL_CASE(
+        test_mpu_ap_encodings,
+        "MPU AP encodings decide access as PMSAv7 specifies" ),
+    SIL_CASE(
+        test_mpu_boundaries_and_straddling,
+        "MPU region boundaries, straddling and wrap-around" ),
+    SIL_CASE(
+        test_mpu_default_map_and_privdefena,
+        "PRIVDEFENA gives privileged code the default map only" ),
+    SIL_CASE(
+        test_mpu_privdefena_clear_denies_unmapped_access_to_everyone,
+        "PRIVDEFENA clear: unmapped access is denied even to privileged code" ),
+    SIL_CASE(
+        test_mpu_highest_numbered_region_wins,
+        "Overlapping regions: the highest number wins" ),
+    SIL_CASE(
+        test_mpu_disabled_region_is_ignored, "A disabled region maps nothing" ),
+    SIL_CASE(
+        test_mpu_misaligned_region_is_a_model_violation,
+        "An illegally programmed region is reported" ),
+    SIL_CASE( test_memory_map_translation, "Virtual/host address translation" ),
+    SIL_CASE(
+        test_virtual_clock_is_exact_and_deterministic,
+        "Virtual time is exact and runs are bit-identical" ),
+    SIL_CASE(
+        test_run_can_be_resumed_in_slices,
+        "Slicing a run does not change its outcome" ),
+    SIL_CASE(
+        test_scheduler_start_without_processes_halts,
+        "Start-up with nothing to run halts and is reported" ),
 };
 
-int main( int argc, char ** argv )
+int main(
+    int argc,
+    char ** argv )
 {
-    int status = sil_run_suite( "simulator_selfcheck", s_cases,
-                                sizeof( s_cases ) / sizeof( s_cases[ 0 ] ), argc, argv );
+    int status = sil_run_suite(
+        "simulator_selfcheck",
+        s_cases,
+        sizeof( s_cases ) / sizeof( s_cases[ 0 ] ),
+        argc,
+        argv );
 
     sim_shutdown();
 

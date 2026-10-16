@@ -23,22 +23,23 @@
 
 #include "sim_target.h"
 
-#define SIL_MAX_PARTITIONS ( 4U )
+#define SIL_MAX_PARTITIONS              ( 4U )
 #define SIL_MAX_PROCESSES_PER_PARTITION ( 4U )
-#define SIL_MAX_PORTS ( 4U )
+#define SIL_MAX_PORTS                   ( 4U )
 
 /* Virtual memory map (same addresses as the Nucleo-H753ZI demo). */
-#define SIL_DTCM_BASE ( 0x20000000UL )
-#define SIL_DTCM_SIZE ( 0x00020000UL )
-#define SIL_SRAM_BASE ( 0x24000000UL )
-#define SIL_SRAM_SIZE ( 0x00100000UL )
-#define SIL_KERNEL_GUARD ( SIL_DTCM_BASE + 0x100UL ) /* a word of kernel data */
+#define SIL_DTCM_BASE    ( 0x20000000UL )
+#define SIL_DTCM_SIZE    ( 0x00020000UL )
+#define SIL_SRAM_BASE    ( 0x24000000UL )
+#define SIL_SRAM_SIZE    ( 0x00100000UL )
+#define SIL_KERNEL_GUARD ( SIL_DTCM_BASE + 0x100UL ) /* a word of kernel data  \
+                                                      */
 
 #define SIL_STACK_BYTES ( 32U * 1024U )
 
 typedef struct
 {
-    void ( * entry )( void * );
+    void ( *entry )( void * );
     void * arg;
     uint8_t priority;
 
@@ -90,7 +91,8 @@ typedef struct
 
     uint32_t domain_base[ SIL_MAX_PARTITIONS ];
     uint32_t domain_size[ SIL_MAX_PARTITIONS ];
-    maxrtos_process_id_t process_id[ SIL_MAX_PARTITIONS ][ SIL_MAX_PROCESSES_PER_PARTITION ];
+    maxrtos_process_id_t process_id[ SIL_MAX_PARTITIONS ]
+                                   [ SIL_MAX_PROCESSES_PER_PARTITION ];
 
     uint32_t port_address[ SIL_MAX_PORTS ];
     maxrtos_queue_port_t * port[ SIL_MAX_PORTS ];
@@ -112,7 +114,7 @@ void sil_build( sil_system_spec_t const * spec );
 /** Two-partition system used by most scenarios: 5 and 3 tick slots. */
 void sil_spec_two_partitions(
     sil_system_spec_t * spec,
-    void ( * p0_entry )( void * ),
-    void ( * p1_entry )( void * ) );
+    void ( *p0_entry )( void * ),
+    void ( *p1_entry )( void * ) );
 
 #endif /* MAXRTOS_SIL_SYSTEM_H */

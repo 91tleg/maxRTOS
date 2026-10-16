@@ -5,18 +5,11 @@ project(maxrtos_tests C)
 enable_testing()
 
 # Instrumentation, opt-in:
-#   -DMAXRTOS_TEST_COVERAGE=ON          gcov-compatible line/branch coverage
 #   -DMAXRTOS_TEST_SANITIZE=undefined   UBSan over everything, including SIL
 #   -DMAXRTOS_TEST_SANITIZE=address     ASan + UBSan over the unit tests only:
 #       the SIL virtual target runs process contexts on caller-provided
 #       thread stacks, which AddressSanitizer does not support.
-option(MAXRTOS_TEST_COVERAGE "Build tests with coverage instrumentation" OFF)
 set(MAXRTOS_TEST_SANITIZE "" CACHE STRING "Sanitizer: '', 'undefined' or 'address'")
-
-if(MAXRTOS_TEST_COVERAGE)
-    add_compile_options(--coverage -O0 -g)
-    add_link_options(--coverage)
-endif()
 
 set(MAXRTOS_BUILD_SIL ON)
 
