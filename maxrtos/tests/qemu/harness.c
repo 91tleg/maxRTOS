@@ -16,8 +16,8 @@
 #define TICK_RELOAD ( 20000UL )
 
 /* ARM semihosting operations. */
-#define SEMIHOST_SYS_WRITE0        ( 0x04U )
-#define SEMIHOST_SYS_EXIT_EXTENDED ( 0x20U )
+#define SEMIHOST_SYS_WRITE0           ( 0x04U )
+#define SEMIHOST_SYS_EXIT_EXTENDED    ( 0x20U )
 #define SEMIHOST_ADP_APPLICATION_EXIT ( 0x20026U )
 
 char const * emu_fail_reason = "unknown";
@@ -29,7 +29,7 @@ static void semihost_write0( char const * text )
     register uint32_t op __asm( "r0" ) = SEMIHOST_SYS_WRITE0;
     register char const * arg __asm( "r1" ) = text;
 
-    __asm volatile ( "bkpt 0xAB" : "+r" ( op ) : "r" ( arg ) : "memory" );
+    __asm volatile( "bkpt 0xAB" : "+r"( op ) : "r"( arg ) : "memory" );
 }
 
 static void semihost_exit( uint32_t code )
@@ -41,7 +41,7 @@ static void semihost_exit( uint32_t code )
     block[ 0 ] = SEMIHOST_ADP_APPLICATION_EXIT;
     block[ 1 ] = code;
 
-    __asm volatile ( "bkpt 0xAB" : "+r" ( op ) : "r" ( arg ) : "memory" );
+    __asm volatile( "bkpt 0xAB" : "+r"( op ) : "r"( arg ) : "memory" );
 
     for( ;; )
     {

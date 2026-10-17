@@ -12,7 +12,14 @@
 #include "maxrtos/mutex.h"
 #include "maxrtos/kernel/mutex.h"
 
-enum { C_AUX_ENTRIES, C_MAIN_SECTIONS, C_BAD_STATUS, C_APPLICATION_MAIN, C_APPLICATION_AUX };
+enum
+{
+    C_AUX_ENTRIES,
+    C_MAIN_SECTIONS,
+    C_BAD_STATUS,
+    C_APPLICATION_MAIN,
+    C_APPLICATION_AUX
+};
 
 #define MUTEX_ID     ( 0U )
 #define MIN_RESTARTS ( 5U )
@@ -24,7 +31,8 @@ static void control_main( void * arg )
 
     for( ;; )
     {
-        if( maxrtos_mutex_lock( MUTEX_ID, MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
+        if( maxrtos_mutex_lock( MUTEX_ID, MAXRTOS_TIMEOUT_INFINITE ) ==
+            MAXRTOS_OK )
         {
             EMU_RES[ C_MAIN_SECTIONS ]++;
             ( void ) maxrtos_mutex_unlock( MUTEX_ID );
@@ -54,8 +62,24 @@ static void control_aux( void * arg )
     }
 }
 
-static void application_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_MAIN ]++; maxrtos_yield(); } }
-static void application_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_AUX ]++; maxrtos_yield(); } }
+static void application_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_AUX ]++;
+        maxrtos_yield();
+    }
+}
 
 void emu_test_setup( void )
 {
@@ -65,7 +89,9 @@ void emu_test_setup( void )
         ( id != MUTEX_ID ) )
     {
         emu_fail_reason = "mutex create failed";
-        for( ;; ) { }
+        for( ;; )
+        {
+        }
     }
 
     EMU_CREATE( control_main, PARTITION_ID_control, control_main );

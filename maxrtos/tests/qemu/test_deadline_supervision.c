@@ -16,12 +16,19 @@
 #include "maxrtos/kernel/timing.h"
 #include "maxrtos/timing.h"
 
-enum { C_RELEASES, C_WAIT_FAILURES, C_OVERRUN_ENTRIES, C_APPLICATION_MAIN, C_APPLICATION_AUX };
+enum
+{
+    C_RELEASES,
+    C_WAIT_FAILURES,
+    C_OVERRUN_ENTRIES,
+    C_APPLICATION_MAIN,
+    C_APPLICATION_AUX
+};
 
-#define PERIOD          ( 8U )
-#define MIN_RELEASES    ( 20U )
-#define MIN_ENTRIES     ( 6U )
-#define MIN_PROGRESS    ( 50U )
+#define PERIOD       ( 8U )
+#define MIN_RELEASES ( 20U )
+#define MIN_ENTRIES  ( 6U )
+#define MIN_PROGRESS ( 50U )
 
 static maxrtos_process_id_t s_punctual_id;
 static maxrtos_process_id_t s_overrunner_id;
@@ -53,8 +60,24 @@ static void control_aux( void * arg )
     }
 }
 
-static void application_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_MAIN ]++; maxrtos_yield(); } }
-static void application_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_AUX ]++; maxrtos_yield(); } }
+static void application_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_AUX ]++;
+        maxrtos_yield();
+    }
+}
 
 void emu_test_setup( void )
 {
@@ -71,14 +94,18 @@ void emu_test_setup( void )
     if( maxrtos_process_set_timing( id, PERIOD, 5U ) != MAXRTOS_OK )
     {
         emu_fail_reason = "set_timing failed";
-        for( ;; ) { }
+        for( ;; )
+        {
+        }
     }
 
     id = s_overrunner_id;
     if( maxrtos_process_set_timing( id, PERIOD, 3U ) != MAXRTOS_OK )
     {
         emu_fail_reason = "set_timing failed";
-        for( ;; ) { }
+        for( ;; )
+        {
+        }
     }
 }
 
@@ -101,9 +128,11 @@ int emu_test_poll( uint32_t tick )
         ( EMU_RES[ C_APPLICATION_MAIN ] >= MIN_PROGRESS ) &&
         ( EMU_RES[ C_APPLICATION_AUX ] >= MIN_PROGRESS ) )
     {
-        if( maxrtos_process_get( s_overrunner_id )->deadline_misses < MIN_ENTRIES )
+        if( maxrtos_process_get( s_overrunner_id )->deadline_misses <
+            MIN_ENTRIES )
         {
-            return EMU_FAILED( "the overrunning process's misses were not counted" );
+            return EMU_FAILED(
+                "the overrunning process's misses were not counted" );
         }
 
         return EMU_PASS;

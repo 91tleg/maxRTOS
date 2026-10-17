@@ -31,7 +31,9 @@ enum
 #define MIN_SECTIONS ( 20U )
 #define NOT_YET      ( 0xFFFFFFFFU )
 
-static void section( uint32_t counter, maxrtos_tick_t timeout )
+static void section(
+    uint32_t counter,
+    maxrtos_tick_t timeout )
 {
     maxrtos_status_t status;
 
@@ -95,7 +97,8 @@ static void application_main( void * arg )
     ( void ) arg;
 
     /* The mutex belongs to the control partition. */
-    EMU_RES[ C_FOREIGN_STATUS ] = ( uint32_t ) maxrtos_mutex_lock( MUTEX_ID, 0U );
+    EMU_RES[ C_FOREIGN_STATUS ] =
+        ( uint32_t ) maxrtos_mutex_lock( MUTEX_ID, 0U );
     EMU_RES[ C_FOREIGN_DONE ] = 1U;
 
     for( ;; )
@@ -124,7 +127,9 @@ void emu_test_setup( void )
         ( id != MUTEX_ID ) )
     {
         emu_fail_reason = "mutex create failed";
-        for( ;; ) { }
+        for( ;; )
+        {
+        }
     }
 
     EMU_RES[ C_FOREIGN_STATUS ] = NOT_YET;
