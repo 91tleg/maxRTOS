@@ -10,6 +10,7 @@ cmake_minimum_required(VERSION 3.20)
 # Run it with run_bench.py, which flashes the board and reads the results.
 
 project(maxrtos_bench_context_switch C ASM)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../cmake/c_standard.cmake)
 
 option(BENCH_480MHZ "Run the core at 480 MHz (PLL, VOS0, flash wait states)" OFF)
 option(BENCH_CACHES "Enable the Cortex-M7 I- and D-caches before the run" OFF)
