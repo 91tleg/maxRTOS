@@ -19,7 +19,7 @@ add_executable(maxrtos_demo_nucleo_h753zi
     main.c
     generated/maxrtos_config.c
     syscalls.c
-    startup.s
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../maxrtos/arch/cortex_m7/examples/startup.S
 )
 
 target_link_libraries(maxrtos_demo_nucleo_h753zi
