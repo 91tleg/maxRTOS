@@ -3,6 +3,8 @@
  * @brief Runner, reporting and JUnit output for the SIL suites.
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>

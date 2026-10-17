@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.20)
 # Requires: arm-none-eabi-gcc, qemu-system-arm, python3 with jinja2.
 
 project(maxrtos_qemu_tests C ASM)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/c_standard.cmake)
 
 enable_testing()
 
