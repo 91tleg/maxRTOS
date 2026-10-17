@@ -1,5 +1,6 @@
 /*
- * Reference Cortex-M7 startup for maxRTOS (used by the QEMU tests).
+ * Reference Cortex-M7 startup for maxRTOS (used by the demo, the benchmark
+ * and the QEMU and HIL tests).
  *
  * Startup is owned by the application, not generated: the vector
  * table length, clock/FPU setup and C runtime init are chip and

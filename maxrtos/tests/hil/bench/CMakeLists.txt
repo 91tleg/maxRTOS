@@ -46,7 +46,7 @@ add_executable(bench_context_switch
     bench_context_switch.c
     ${gen}/maxrtos_config.c
     ${DEMO}/syscalls.c
-    ${DEMO}/startup.s
+    ${MAXRTOS_ROOT}/maxrtos/arch/cortex_m7/examples/startup.S
 )
 
 target_include_directories(bench_context_switch PRIVATE ${gen})
