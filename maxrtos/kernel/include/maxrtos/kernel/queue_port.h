@@ -20,7 +20,7 @@
 #include "maxrtos/queue_port.h"
 #include "maxrtos/config.h"
 #include "maxrtos/types.h"
-#include "maxrtos/kernel/internal/fifo.h"
+#include "maxrtos/kernel/fifo.h"
 #include "maxrtos/kernel/waitlist.h"
 #include "maxrtos/kernel/scheduler.h"
 #include "maxrtos/kernel/partition.h"
@@ -42,9 +42,8 @@
  */
 struct maxrtos_queue_port_s
 {
-    uint8_t buffer[
-        MAXRTOS_MAX_QUEUE_CAPACITY *
-        MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ];
+    uint8_t
+        buffer[ MAXRTOS_MAX_QUEUE_CAPACITY * MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ];
 
     maxrtos_kernel_fifo_t fifo;
 
@@ -190,7 +189,6 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
  *     Number of messages currently stored.
  *     Zero if port is NULL.
  */
-size_t maxrtos_kernel_queue_port_count(
-    maxrtos_queue_port_t const * port );
+size_t maxrtos_kernel_queue_port_count( maxrtos_queue_port_t const * port );
 
 #endif /* MAXRTOS_KERNEL_QUEUE_PORT_H */

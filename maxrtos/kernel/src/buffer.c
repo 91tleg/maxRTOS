@@ -14,7 +14,7 @@
 #include "maxrtos/config.h"
 
 #include "maxrtos/kernel/buffer.h"
-#include "maxrtos/kernel/internal/fifo.h"
+#include "maxrtos/kernel/fifo.h"
 #include "maxrtos/kernel/ipc_block.h"
 #include "maxrtos/kernel/ipc_priority.h"
 #include "maxrtos/kernel/tick.h"
@@ -26,9 +26,8 @@ typedef struct
     maxrtos_partition_id_t partition_id;
     maxrtos_queuing_discipline_t discipline;
 
-    uint8_t storage[
-        MAXRTOS_MAX_BUFFER_CAPACITY *
-        MAXRTOS_MAX_BUFFER_MESSAGE_SIZE ];
+    uint8_t storage
+        [ MAXRTOS_MAX_BUFFER_CAPACITY * MAXRTOS_MAX_BUFFER_MESSAGE_SIZE ];
     maxrtos_kernel_fifo_t fifo;
 
     maxrtos_waitlist_t waiting_receivers;
@@ -45,9 +44,9 @@ static maxrtos_status_t maxrtos_buffer_wake_one(
     maxrtos_process_id_t * out_id,
     maxrtos_ipc_operation_t * out_op )
 {
-    return ( discipline == MAXRTOS_QUEUING_PRIORITY ) ?
-        maxrtos_ipc_take_best_waiter_op( waitlist, out_id, out_op ) :
-        maxrtos_ipc_wake_one( waitlist, out_id, out_op );
+    return ( discipline == MAXRTOS_QUEUING_PRIORITY )
+               ? maxrtos_ipc_take_best_waiter_op( waitlist, out_id, out_op )
+               : maxrtos_ipc_wake_one( waitlist, out_id, out_op );
 }
 
 void maxrtos_buffer_pool_init( void )
@@ -90,9 +89,8 @@ static maxrtos_buffer_t * maxrtos_buffer_for_process(
     buffer = maxrtos_buffer_get( id );
     pcb = maxrtos_process_get( process_id );
 
-    if( ( pcb == NULL ) ||
-        ( ( buffer != NULL ) &&
-          ( buffer->partition_id != pcb->partition_id ) ) )
+    if( ( pcb == NULL ) || ( ( buffer != NULL ) &&
+                             ( buffer->partition_id != pcb->partition_id ) ) )
     {
         buffer = NULL;
     }
@@ -111,8 +109,7 @@ maxrtos_status_t maxrtos_buffer_create(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( out_id != NULL ) &&
-        ( partition_id < MAXRTOS_MAX_PARTITIONS ) &&
+    if( ( out_id != NULL ) && ( partition_id < MAXRTOS_MAX_PARTITIONS ) &&
         ( max_message_size > 0U ) &&
         ( max_message_size <= MAXRTOS_MAX_BUFFER_MESSAGE_SIZE ) &&
         ( max_nb_message > 0U ) &&
@@ -122,8 +119,8 @@ maxrtos_status_t maxrtos_buffer_create(
 
         status = MAXRTOS_ERR_POOL_FULL;
 
-        for( i = 0U; ( i < MAXRTOS_MAX_BUFFERS ) &&
-                     ( status != MAXRTOS_OK ); i++ )
+        for( i = 0U; ( i < MAXRTOS_MAX_BUFFERS ) && ( status != MAXRTOS_OK );
+             i++ )
         {
             if( s_buffer_pool[ i ].in_use == false )
             {
@@ -167,9 +164,7 @@ maxrtos_status_t maxrtos_kernel_buffer_send(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( message != NULL ) &&
-        ( table != NULL ) &&
-        ( out_next_id != NULL ) )
+    if( ( message != NULL ) && ( table != NULL ) && ( out_next_id != NULL ) )
     {
         buffer = maxrtos_buffer_for_process( id, current_id );
 
@@ -204,8 +199,8 @@ maxrtos_status_t maxrtos_kernel_buffer_send(
                         message,
                         message_size );
 
-                    status = maxrtos_ipc_resolve(
-                        table, receiver_id, MAXRTOS_OK );
+                    status =
+                        maxrtos_ipc_resolve( table, receiver_id, MAXRTOS_OK );
                 }
                 else
                 {
@@ -285,8 +280,7 @@ maxrtos_status_t maxrtos_kernel_buffer_receive(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( out_message != NULL ) &&
-        ( table != NULL ) &&
+    if( ( out_message != NULL ) && ( table != NULL ) &&
         ( out_next_id != NULL ) )
     {
         buffer = maxrtos_buffer_for_process( id, current_id );
@@ -328,8 +322,8 @@ maxrtos_status_t maxrtos_kernel_buffer_receive(
                         table, sender_id, sender_result );
                 }
             }
-            else if( ( status == MAXRTOS_ERR_QUEUE_EMPTY ) &&
-                     ( timeout != 0U ) )
+            else if(
+                ( status == MAXRTOS_ERR_QUEUE_EMPTY ) && ( timeout != 0U ) )
             {
                 maxrtos_tick_t wake_tick;
 
@@ -399,8 +393,10 @@ maxrtos_status_t maxrtos_kernel_buffer_get_status(
             out_status->max_nb_message = buffer->fifo.capacity;
             out_status->nb_message = maxrtos_kernel_fifo_count( &buffer->fifo );
             out_status->waiting_processes =
-                ( uint32_t ) ( maxrtos_waitlist_count( &buffer->waiting_senders ) +
-                               maxrtos_waitlist_count( &buffer->waiting_receivers ) );
+                ( uint32_t ) ( maxrtos_waitlist_count(
+                                   &buffer->waiting_senders ) +
+                               maxrtos_waitlist_count(
+                                   &buffer->waiting_receivers ) );
             status = MAXRTOS_OK;
         }
     }

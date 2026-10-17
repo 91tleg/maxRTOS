@@ -1,11 +1,11 @@
 /**
  * @file fifo.c
- * @brief Implementation of the internal shared FIFO engine.
+ * @brief Implementation of the shared FIFO engine.
  */
 
 #include <string.h>
 
-#include "maxrtos/kernel/internal/fifo.h"
+#include "maxrtos/kernel/fifo.h"
 
 maxrtos_status_t maxrtos_kernel_fifo_init(
     maxrtos_kernel_fifo_t * fifo,
@@ -18,10 +18,8 @@ maxrtos_status_t maxrtos_kernel_fifo_init(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( fifo != NULL ) &&
-        ( backing_buffer != NULL ) &&
-        ( message_size > 0U ) &&
-        ( capacity > 0U ) &&
+    if( ( fifo != NULL ) && ( backing_buffer != NULL ) &&
+        ( message_size > 0U ) && ( capacity > 0U ) &&
         ( ( message_size * capacity ) <= backing_buffer_size ) )
     {
         fifo->buffer = backing_buffer;
@@ -46,8 +44,7 @@ maxrtos_status_t maxrtos_kernel_fifo_push(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( fifo != NULL ) &&
-        ( message != NULL ) &&
+    if( ( fifo != NULL ) && ( message != NULL ) &&
         ( message_size == fifo->message_size ) )
     {
         if( fifo->count < fifo->capacity )
@@ -82,8 +79,7 @@ maxrtos_status_t maxrtos_kernel_fifo_pop(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( fifo != NULL ) &&
-        ( out_message != NULL ) &&
+    if( ( fifo != NULL ) && ( out_message != NULL ) &&
         ( buffer_size >= fifo->message_size ) )
     {
         if( fifo->count == 0U )
@@ -106,8 +102,7 @@ maxrtos_status_t maxrtos_kernel_fifo_pop(
     return status;
 }
 
-size_t maxrtos_kernel_fifo_count(
-    maxrtos_kernel_fifo_t const * fifo )
+size_t maxrtos_kernel_fifo_count( maxrtos_kernel_fifo_t const * fifo )
 {
     size_t count;
 
