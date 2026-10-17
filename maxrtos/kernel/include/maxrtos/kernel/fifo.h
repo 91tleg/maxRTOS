@@ -1,17 +1,17 @@
 /**
  * @file fifo.h
- * @brief Internal bounded FIFO ring-buffer engine.
+ * @brief Bounded FIFO ring-buffer engine.
  *
- * Internal kernel implementation used by IPC that require
- * fixed-size, fixed-capacity FIFO message storage.
+ * Used by IPC primitives that require fixed-size, fixed-capacity
+ * FIFO message storage.
  *
  * This module provides FIFO storage and message operations only. It
  * does not define or enforce ownership, partition membership, or
  * access-control policy.
  */
 
-#ifndef MAXRTOS_KERNEL_INTERNAL_FIFO_H
-#define MAXRTOS_KERNEL_INTERNAL_FIFO_H
+#ifndef MAXRTOS_KERNEL_FIFO_H
+#define MAXRTOS_KERNEL_FIFO_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -128,7 +128,6 @@ maxrtos_status_t maxrtos_kernel_fifo_pop(
  *
  * @return Number of messages currently stored, or zero if fifo is NULL.
  */
-size_t maxrtos_kernel_fifo_count(
-    maxrtos_kernel_fifo_t const * fifo );
+size_t maxrtos_kernel_fifo_count( maxrtos_kernel_fifo_t const * fifo );
 
-#endif /* MAXRTOS_KERNEL_INTERNAL_FIFO_H */
+#endif /* MAXRTOS_KERNEL_FIFO_H */

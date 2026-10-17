@@ -16,14 +16,12 @@ add_library(maxrtos_kernel STATIC
     src/timing.c
     src/yield.c
     src/start_scheduler.c
-    src/internal/fifo.c
+    src/fifo.c
     src/waitlist.c
 )
 
 target_include_directories(maxrtos_kernel
-    PUBLIC 
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/../include
-        ${CMAKE_CURRENT_SOURCE_DIR}/internal
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/internal
 )
