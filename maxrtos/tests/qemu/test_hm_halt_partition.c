@@ -10,7 +10,13 @@
 
 #include "harness.h"
 
-enum { C_AUX_ENTRIES, C_CONTROL_MAIN, C_APPLICATION_MAIN, C_APPLICATION_AUX };
+enum
+{
+    C_AUX_ENTRIES,
+    C_CONTROL_MAIN,
+    C_APPLICATION_MAIN,
+    C_APPLICATION_AUX
+};
 
 /* Ticks after the fault before the halted partition is sampled, so that
  * anything still in flight has settled. */
@@ -18,9 +24,33 @@ enum { C_AUX_ENTRIES, C_CONTROL_MAIN, C_APPLICATION_MAIN, C_APPLICATION_AUX };
 #define OBSERVE_TICKS ( 60U )
 #define MIN_PROGRESS  ( 20U )
 
-static void control_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_CONTROL_MAIN ]++; maxrtos_yield(); } }
-static void application_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_MAIN ]++; maxrtos_yield(); } }
-static void application_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_AUX ]++; maxrtos_yield(); } }
+static void control_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_CONTROL_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_AUX ]++;
+        maxrtos_yield();
+    }
+}
 
 static void control_aux( void * arg )
 {
@@ -60,21 +90,23 @@ int emu_test_poll( uint32_t tick )
 
     if( EMU_RES[ C_AUX_ENTRIES ] > 1U )
     {
-        return EMU_FAILED( "the faulting process was restarted despite halt_partition" );
+        return EMU_FAILED(
+            "the faulting process was restarted despite halt_partition" );
     }
 
     if( tick == ( s_fault_tick + SETTLE_TICKS ) )
     {
         s_sampled_control_main = EMU_RES[ C_CONTROL_MAIN ];
-        s_sampled_application = EMU_RES[ C_APPLICATION_MAIN ] +
-                                EMU_RES[ C_APPLICATION_AUX ];
+        s_sampled_application =
+            EMU_RES[ C_APPLICATION_MAIN ] + EMU_RES[ C_APPLICATION_AUX ];
     }
 
     if( tick == ( s_fault_tick + SETTLE_TICKS + OBSERVE_TICKS ) )
     {
         if( EMU_RES[ C_CONTROL_MAIN ] != s_sampled_control_main )
         {
-            return EMU_FAILED( "a process of the halted partition kept running" );
+            return EMU_FAILED(
+                "a process of the halted partition kept running" );
         }
 
         if( ( EMU_RES[ C_APPLICATION_MAIN ] + EMU_RES[ C_APPLICATION_AUX ] ) <

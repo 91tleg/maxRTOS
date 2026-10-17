@@ -11,14 +11,44 @@
 
 #include "harness.h"
 
-enum { C_AUX_ENTRIES, C_CONTROL_MAIN, C_APPLICATION_MAIN, C_APPLICATION_AUX };
+enum
+{
+    C_AUX_ENTRIES,
+    C_CONTROL_MAIN,
+    C_APPLICATION_MAIN,
+    C_APPLICATION_AUX
+};
 
 #define MIN_RESTARTS ( 5U )
 #define MIN_PROGRESS ( 50U )
 
-static void control_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_CONTROL_MAIN ]++; maxrtos_yield(); } }
-static void application_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_MAIN ]++; maxrtos_yield(); } }
-static void application_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_AUX ]++; maxrtos_yield(); } }
+static void control_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_CONTROL_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_AUX ]++;
+        maxrtos_yield();
+    }
+}
 
 static void control_aux( void * arg )
 {

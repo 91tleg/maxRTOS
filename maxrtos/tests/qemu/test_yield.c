@@ -10,7 +10,13 @@
 
 #include "harness.h"
 
-enum { C_CONTROL_MAIN, C_CONTROL_AUX, C_APPLICATION_MAIN, C_APPLICATION_AUX };
+enum
+{
+    C_CONTROL_MAIN,
+    C_CONTROL_AUX,
+    C_APPLICATION_MAIN,
+    C_APPLICATION_AUX
+};
 
 #define MIN_COUNT ( 50U )
 /* Skew allowed at the start, plus one per tick: a tick can preempt a process
@@ -18,11 +24,42 @@ enum { C_CONTROL_MAIN, C_CONTROL_AUX, C_APPLICATION_MAIN, C_APPLICATION_AUX };
  * one extra turn. A yield that does nothing would skew by thousands. */
 #define BASE_SKEW ( 2U )
 
-
-static void control_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_CONTROL_MAIN ]++; maxrtos_yield(); } }
-static void control_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_CONTROL_AUX ]++; maxrtos_yield(); } }
-static void application_main( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_MAIN ]++; maxrtos_yield(); } }
-static void application_aux( void * arg ) { ( void ) arg; for( ;; ) { EMU_RES[ C_APPLICATION_AUX ]++; maxrtos_yield(); } }
+static void control_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_CONTROL_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void control_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_CONTROL_AUX ]++;
+        maxrtos_yield();
+    }
+}
+static void application_main( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_MAIN ]++;
+        maxrtos_yield();
+    }
+}
+static void application_aux( void * arg )
+{
+    ( void ) arg;
+    for( ;; )
+    {
+        EMU_RES[ C_APPLICATION_AUX ]++;
+        maxrtos_yield();
+    }
+}
 
 void emu_test_setup( void )
 {
@@ -32,7 +69,9 @@ void emu_test_setup( void )
     EMU_CREATE( application_aux, PARTITION_ID_application, application_aux );
 }
 
-static uint32_t skew( uint32_t a, uint32_t b )
+static uint32_t skew(
+    uint32_t a,
+    uint32_t b )
 {
     return ( a > b ) ? ( a - b ) : ( b - a );
 }
@@ -53,8 +92,8 @@ int emu_test_poll( uint32_t tick )
         return EMU_FAILED( "a process ran ahead of its partition peer" );
     }
 
-    if( ( c0 >= MIN_COUNT ) && ( c1 >= MIN_COUNT ) &&
-        ( a0 >= MIN_COUNT ) && ( a1 >= MIN_COUNT ) )
+    if( ( c0 >= MIN_COUNT ) && ( c1 >= MIN_COUNT ) && ( a0 >= MIN_COUNT ) &&
+        ( a1 >= MIN_COUNT ) )
     {
         return EMU_PASS;
     }

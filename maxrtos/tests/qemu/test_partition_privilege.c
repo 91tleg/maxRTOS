@@ -12,7 +12,13 @@
 
 #include "harness.h"
 
-enum { C_SYSTEM_ATTEMPTS, C_APPLICATION_ATTEMPTS, C_SYSTEM_PEER, C_APPLICATION_PEER };
+enum
+{
+    C_SYSTEM_ATTEMPTS,
+    C_APPLICATION_ATTEMPTS,
+    C_SYSTEM_PEER,
+    C_APPLICATION_PEER
+};
 
 #define SYSTEM_VALUE      ( 0x5157U )
 #define APPLICATION_VALUE ( 0xBADD00UL )
@@ -90,7 +96,8 @@ int emu_test_poll( uint32_t tick )
     {
         if( *EMU_KERNEL_ADDRESS != SYSTEM_VALUE )
         {
-            return EMU_FAILED( "the application partition altered kernel memory" );
+            return EMU_FAILED(
+                "the application partition altered kernel memory" );
         }
 
         return EMU_PASS;

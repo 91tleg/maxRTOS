@@ -5,7 +5,8 @@
  * control_main signals a semaphore (maximum 4) and control_aux waits on it.
  * Every unit taken must have been given (consumed never exceeds produced),
  * the count must never pass its maximum (a signal at the maximum must fail
- * with OVERFLOW and be observed), and a process of the other partition must be refused.
+ * with OVERFLOW and be observed), and a process of the other partition must be
+ * refused.
  */
 
 #include "harness.h"
@@ -28,10 +29,10 @@ enum
     C_STATUS_BADPTR
 };
 
-#define SEM_ID       ( 0U )
-#define SEM_MAX      ( 4U )
-#define MIN_UNITS    ( 30U )
-#define NOT_YET      ( 0xFFFFFFFFU )
+#define SEM_ID    ( 0U )
+#define SEM_MAX   ( 4U )
+#define MIN_UNITS ( 30U )
+#define NOT_YET   ( 0xFFFFFFFFU )
 
 static void control_main( void * arg )
 {
@@ -79,8 +80,7 @@ static void check_status( void )
     else
     {
         if( ( st.maximum_value != SEM_MAX ) ||
-            ( st.current_value > st.maximum_value ) ||
-            ( st.waiting > 1U ) )
+            ( st.current_value > st.maximum_value ) || ( st.waiting > 1U ) )
         {
             EMU_RES[ C_STATUS_BAD ]++;
         }
@@ -91,7 +91,8 @@ static void check_status( void )
     /* A destination outside the caller's partition must be refused, not
      * written by the kernel. */
     if( maxrtos_semaphore_get_status(
-            SEM_ID, ( maxrtos_semaphore_status_t * ) ( void * ) EMU_KERNEL_ADDRESS ) !=
+            SEM_ID,
+            ( maxrtos_semaphore_status_t * ) ( void * ) EMU_KERNEL_ADDRESS ) !=
         MAXRTOS_ERR_INVALID_ARG )
     {
         EMU_RES[ C_STATUS_BADPTR ]++;
@@ -160,12 +161,14 @@ void emu_test_setup( void )
 {
     maxrtos_semaphore_id_t id;
 
-    if( ( maxrtos_semaphore_create(
-              PARTITION_ID_control, 0U, SEM_MAX, &id ) != MAXRTOS_OK ) ||
+    if( ( maxrtos_semaphore_create( PARTITION_ID_control, 0U, SEM_MAX, &id ) !=
+          MAXRTOS_OK ) ||
         ( id != SEM_ID ) )
     {
         emu_fail_reason = "semaphore create failed";
-        for( ;; ) { }
+        for( ;; )
+        {
+        }
     }
 
     EMU_RES[ C_FOREIGN_STATUS ] = NOT_YET;
@@ -210,9 +213,11 @@ int emu_test_poll( uint32_t tick )
         return EMU_FAILED( "other partition was not refused the semaphore" );
     }
 
-    if( ( EMU_RES[ C_STATUS_BAD ] != 0U ) || ( EMU_RES[ C_STATUS_BADPTR ] != 0U ) )
+    if( ( EMU_RES[ C_STATUS_BAD ] != 0U ) ||
+        ( EMU_RES[ C_STATUS_BADPTR ] != 0U ) )
     {
-        return EMU_FAILED( "status call inconsistent or wrote outside the partition" );
+        return EMU_FAILED(
+            "status call inconsistent or wrote outside the partition" );
     }
 
     if( ( EMU_RES[ C_FOREIGN_DONE ] != 0U ) &&

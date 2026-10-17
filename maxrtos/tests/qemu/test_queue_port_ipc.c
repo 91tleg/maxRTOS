@@ -16,13 +16,25 @@
 
 enum
 {
-    R_S1_STATUS, R_S1_DATA, R_S1_DONE,
-    R_S2_STATUS, R_S2_DATA, R_S2_DONE,
-    R_S3_STATUS, R_S3_DONE,
-    R_S4_SEND_BAD_MESSAGE, R_S4_RECEIVE_BAD_BUFFER, R_S4_SEND_BAD_PORT,
-    R_S4_COUNT_BAD_PORT, R_S4_DONE,
-    R_S5_SEND_STATUS, R_S5_FIRST, R_S5_DONE,
-    R_S6_COUNT, R_S6_ORDER, R_S6_DONE
+    R_S1_STATUS,
+    R_S1_DATA,
+    R_S1_DONE,
+    R_S2_STATUS,
+    R_S2_DATA,
+    R_S2_DONE,
+    R_S3_STATUS,
+    R_S3_DONE,
+    R_S4_SEND_BAD_MESSAGE,
+    R_S4_RECEIVE_BAD_BUFFER,
+    R_S4_SEND_BAD_PORT,
+    R_S4_COUNT_BAD_PORT,
+    R_S4_DONE,
+    R_S5_SEND_STATUS,
+    R_S5_FIRST,
+    R_S5_DONE,
+    R_S6_COUNT,
+    R_S6_ORDER,
+    R_S6_DONE
 };
 
 static void yield_times( uint32_t n )
@@ -49,8 +61,8 @@ static void control_main( void * arg )
     EMU_RES[ R_S1_DATA ] = v;
     EMU_RES[ R_S1_DONE ] = 1U;
 
-    EMU_RES[ R_S3_STATUS ] = ( uint32_t ) maxrtos_queue_port_receive(
-        QA, &v, sizeof( v ), 5U );
+    EMU_RES[ R_S3_STATUS ] =
+        ( uint32_t ) maxrtos_queue_port_receive( QA, &v, sizeof( v ), 5U );
     EMU_RES[ R_S3_DONE ] = 1U;
 
     while( ( EMU_RES[ R_S4_DONE ] == 0U ) ||
@@ -100,7 +112,8 @@ static void control_aux( void * arg )
 
     yield_times( 200U );
     m = 0xBEEF0002UL;
-    ( void ) maxrtos_queue_port_send( QB, &m, sizeof( m ), 0U ); /* other partition */
+    ( void ) maxrtos_queue_port_send(
+        QB, &m, sizeof( m ), 0U ); /* other partition */
 
     while( EMU_RES[ R_S3_DONE ] == 0U )
     {
@@ -112,11 +125,15 @@ static void control_aux( void * arg )
         QA, ( void const * ) EMU_KERNEL_ADDRESS, sizeof( m ), 0U );
 
     ( void ) maxrtos_queue_port_send( QA, &m, sizeof( m ), 0U );
-    EMU_RES[ R_S4_RECEIVE_BAD_BUFFER ] = ( uint32_t ) maxrtos_queue_port_receive(
-        QA, ( void * ) EMU_KERNEL_ADDRESS, sizeof( m ), 0U );
+    EMU_RES[ R_S4_RECEIVE_BAD_BUFFER ] =
+        ( uint32_t ) maxrtos_queue_port_receive(
+            QA, ( void * ) EMU_KERNEL_ADDRESS, sizeof( m ), 0U );
 
     EMU_RES[ R_S4_SEND_BAD_PORT ] = ( uint32_t ) maxrtos_queue_port_send(
-        ( maxrtos_queue_port_t * ) ( void * ) EMU_KERNEL_ADDRESS, &m, sizeof( m ), 0U );
+        ( maxrtos_queue_port_t * ) ( void * ) EMU_KERNEL_ADDRESS,
+        &m,
+        sizeof( m ),
+        0U );
     EMU_RES[ R_S4_COUNT_BAD_PORT ] = ( uint32_t ) maxrtos_queue_port_count(
         ( maxrtos_queue_port_t * ) ( void * ) EMU_KERNEL_ADDRESS );
     EMU_RES[ R_S4_DONE ] = 1U;
@@ -128,7 +145,8 @@ static void control_aux( void * arg )
 
     for( m = 10U; m < 14U; m++ )
     {
-        ( void ) maxrtos_queue_port_send( QA, &m, sizeof( m ), 0U ); /* capacity 4 */
+        ( void ) maxrtos_queue_port_send(
+            QA, &m, sizeof( m ), 0U ); /* capacity 4 */
     }
 
     m = 14U;
@@ -174,8 +192,9 @@ static void application_aux( void * arg )
 
 void emu_test_setup( void )
 {
-    _Static_assert( sizeof( maxrtos_queue_port_t ) <= 1024U,
-                    "results are stored past the queue header" );
+    _Static_assert(
+        sizeof( maxrtos_queue_port_t ) <= 1024U,
+        "results are stored past the queue header" );
 
     EMU_CREATE( control_main, PARTITION_ID_control, control_main );
     EMU_CREATE( control_aux, PARTITION_ID_control, control_aux );
@@ -183,8 +202,14 @@ void emu_test_setup( void )
     EMU_CREATE( application_aux, PARTITION_ID_application, application_aux );
 }
 
-#define CHECK( cond_, why_ ) \
-    do { if( !( cond_ ) ) { return EMU_FAILED( why_ ); } } while( 0 )
+#define CHECK( cond_, why_ )                                                   \
+    do                                                                         \
+    {                                                                          \
+        if( !( cond_ ) )                                                       \
+        {                                                                      \
+            return EMU_FAILED( why_ );                                         \
+        }                                                                      \
+    } while( 0 )
 
 int emu_test_poll( uint32_t tick )
 {
@@ -195,35 +220,49 @@ int emu_test_poll( uint32_t tick )
         return EMU_RUNNING;
     }
 
-    CHECK( EMU_RES[ R_S1_STATUS ] == ( uint32_t ) MAXRTOS_OK,
-           "S1: blocked receive (same partition) did not return OK" );
-    CHECK( EMU_RES[ R_S1_DATA ] == 0xCAFE0001UL,
-           "S1: blocked receive got the wrong data" );
+    CHECK(
+        EMU_RES[ R_S1_STATUS ] == ( uint32_t ) MAXRTOS_OK,
+        "S1: blocked receive (same partition) did not return OK" );
+    CHECK(
+        EMU_RES[ R_S1_DATA ] == 0xCAFE0001UL,
+        "S1: blocked receive got the wrong data" );
 
-    CHECK( EMU_RES[ R_S2_STATUS ] == ( uint32_t ) MAXRTOS_OK,
-           "S2: blocked receive (cross partition) did not return OK" );
-    CHECK( EMU_RES[ R_S2_DATA ] == 0xBEEF0002UL,
-           "S2: blocked receive (cross partition) got the wrong data" );
+    CHECK(
+        EMU_RES[ R_S2_STATUS ] == ( uint32_t ) MAXRTOS_OK,
+        "S2: blocked receive (cross partition) did not return OK" );
+    CHECK(
+        EMU_RES[ R_S2_DATA ] == 0xBEEF0002UL,
+        "S2: blocked receive (cross partition) got the wrong data" );
 
-    CHECK( EMU_RES[ R_S3_STATUS ] == ( uint32_t ) MAXRTOS_ERR_TIMEOUT,
-           "S3: timed receive did not time out" );
+    CHECK(
+        EMU_RES[ R_S3_STATUS ] == ( uint32_t ) MAXRTOS_ERR_TIMEOUT,
+        "S3: timed receive did not time out" );
 
-    CHECK( EMU_RES[ R_S4_SEND_BAD_MESSAGE ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
-           "S4: kernel memory accepted as a message" );
-    CHECK( EMU_RES[ R_S4_RECEIVE_BAD_BUFFER ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
-           "S4: kernel memory accepted as a receive buffer" );
-    CHECK( EMU_RES[ R_S4_SEND_BAD_PORT ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
-           "S4: a non-port accepted as a port" );
-    CHECK( EMU_RES[ R_S4_COUNT_BAD_PORT ] == 0U,
-           "S4: count on a non-port did not report 0" );
+    CHECK(
+        EMU_RES[ R_S4_SEND_BAD_MESSAGE ] ==
+            ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
+        "S4: kernel memory accepted as a message" );
+    CHECK(
+        EMU_RES[ R_S4_RECEIVE_BAD_BUFFER ] ==
+            ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
+        "S4: kernel memory accepted as a receive buffer" );
+    CHECK(
+        EMU_RES[ R_S4_SEND_BAD_PORT ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
+        "S4: a non-port accepted as a port" );
+    CHECK(
+        EMU_RES[ R_S4_COUNT_BAD_PORT ] == 0U,
+        "S4: count on a non-port did not report 0" );
 
-    CHECK( EMU_RES[ R_S5_SEND_STATUS ] == ( uint32_t ) MAXRTOS_OK,
-           "S5: blocked send did not complete OK" );
+    CHECK(
+        EMU_RES[ R_S5_SEND_STATUS ] == ( uint32_t ) MAXRTOS_OK,
+        "S5: blocked send did not complete OK" );
     CHECK( EMU_RES[ R_S5_FIRST ] == 10U, "S5: first message was not 10" );
-    CHECK( EMU_RES[ R_S6_COUNT ] == 4U,
-           "S6: queue does not hold 4 messages after the blocked send" );
-    CHECK( EMU_RES[ R_S6_ORDER ] == 0x0B0C0D0EUL,
-           "S6: FIFO order not preserved (expected 11,12,13,14)" );
+    CHECK(
+        EMU_RES[ R_S6_COUNT ] == 4U,
+        "S6: queue does not hold 4 messages after the blocked send" );
+    CHECK(
+        EMU_RES[ R_S6_ORDER ] == 0x0B0C0D0EUL,
+        "S6: FIFO order not preserved (expected 11,12,13,14)" );
 
     return EMU_PASS;
 }
