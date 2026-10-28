@@ -29,8 +29,9 @@ typedef enum
     MAXRTOS_PROCESS_STATE_UNUSED = 0U, /* Process slot is available. */
     MAXRTOS_PROCESS_STATE_READY,       /* Process is eligible for execution. */
     MAXRTOS_PROCESS_STATE_RUNNING,     /* Process is currently executing. */
-    MAXRTOS_PROCESS_STATE_BLOCKED,     /* Process is waiting for an event or resource. */
-    MAXRTOS_PROCESS_STATE_SUSPENDED    /* Process is administratively stopped. */
+    MAXRTOS_PROCESS_STATE_BLOCKED,     /* Process is waiting for an event or
+                                          resource. */
+    MAXRTOS_PROCESS_STATE_SUSPENDED /* Process is administratively stopped. */
 } maxrtos_process_state_t;
 
 /**
@@ -39,7 +40,7 @@ typedef enum
  * @param[in] arg
  *     Application-defined process argument.
  */
-typedef void ( * maxrtos_process_entry_t ) ( void * arg );
+typedef void ( *maxrtos_process_entry_t )( void * arg );
 
 /**
  * @brief Process control block.
@@ -143,14 +144,16 @@ typedef struct process_control_block_s
      *
      * deadline_time is the absolute tick at which the armed deadline
      * expires, or MAXRTOS_TICK_NONE when none is armed. periodic_waiting
-     * is true while the process is blocked until its next release.
-     * deadline_misses counts misses since the process was created.
+     * is true while the process is blocked until its next release, and
+     * timed_waiting while it is blocked in maxrtos_timed_wait() until
+     * wake_tick. deadline_misses counts misses since the process was created.
      */
     maxrtos_tick_t period;
     maxrtos_tick_t time_capacity;
     maxrtos_tick_t release_time;
     maxrtos_tick_t deadline_time;
     bool periodic_waiting;
+    bool timed_waiting;
     uint32_t deadline_misses;
 
     maxrtos_process_entry_t entry;

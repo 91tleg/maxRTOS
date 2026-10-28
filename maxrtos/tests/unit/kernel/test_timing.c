@@ -22,14 +22,21 @@ static maxrtos_partition_table_t s_table;
 static maxrtos_frame_schedule_t s_frame;
 static maxrtos_frame_slot_t s_slots[ 1 ] = { { 0U, 100000U } };
 
-static void entry( void * arg ) { ( void ) arg; }
+static void entry( void * arg )
+{
+    ( void ) arg;
+}
 
-static maxrtos_process_id_t add( unsigned slot, maxrtos_partition_id_t partition )
+static maxrtos_process_id_t add(
+    unsigned slot,
+    maxrtos_partition_id_t partition )
 {
     maxrtos_process_id_t id;
 
-    assert( maxrtos_process_create( s_stacks[ slot ], STACK, partition, 5U,
-                                    entry, NULL, &id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_process_create(
+            s_stacks[ slot ], STACK, partition, 5U, entry, NULL, &id ) ==
+        MAXRTOS_OK );
     assert( maxrtos_partition_add_process( &s_table, id ) == MAXRTOS_OK );
 
     return id;
@@ -58,8 +65,10 @@ static maxrtos_process_id_t start_running( maxrtos_process_id_t id )
 {
     maxrtos_process_id_t running;
 
-    assert( maxrtos_partition_dispatch( &s_table, maxrtos_process_get( id )->partition_id,
-                                        &running ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_dispatch(
+            &s_table, maxrtos_process_get( id )->partition_id, &running ) ==
+        MAXRTOS_OK );
     assert( running == id );
 
     return running;
@@ -74,9 +83,11 @@ static void test_set_timing_validates_and_arms( void )
     id = add( 0U, 0U );
     pcb = maxrtos_process_get( id );
 
-    assert( maxrtos_process_set_timing( MAXRTOS_INVALID_PROCESS_ID, 10U, 4U ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_process_set_timing( id, 10U, 11U ) == MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_process_set_timing( MAXRTOS_INVALID_PROCESS_ID, 10U, 4U ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_process_set_timing( id, 10U, 11U ) == MAXRTOS_ERR_INVALID_ARG );
     assert( pcb->period == 0U ); /* rejected: nothing changed */
 
     advance( 7U );
@@ -159,7 +170,8 @@ static void test_a_starved_process_still_misses_its_deadline( void )
     /* The victim never gets the CPU (it stays READY): the deadline is
      * wall-clock, not a CPU budget. */
     ( void ) start_running( hog );
-    assert( maxrtos_process_get( victim )->state == MAXRTOS_PROCESS_STATE_READY );
+    assert(
+        maxrtos_process_get( victim )->state == MAXRTOS_PROCESS_STATE_READY );
     ( void ) maxrtos_kernel_check_deadlines( &s_table, 5U );
 
     assert( maxrtos_kernel_take_deadline_miss( &missed ) == true );
@@ -188,7 +200,9 @@ static void test_misses_are_taken_lowest_id_first_and_skip_excluded( void )
     assert( maxrtos_process_set_timing( d, 0U, 3U ) == MAXRTOS_OK );
 
     /* b is suspended and c's partition is halted: neither is supervised. */
-    assert( maxrtos_process_set_state( b, MAXRTOS_PROCESS_STATE_SUSPENDED ) == MAXRTOS_OK );
+    assert(
+        maxrtos_process_set_state( b, MAXRTOS_PROCESS_STATE_SUSPENDED ) ==
+        MAXRTOS_OK );
     s_table.halted[ 1 ] = true;
 
     assert( maxrtos_kernel_check_deadlines( &s_table, 3U ) == 2U );
@@ -221,7 +235,8 @@ static void test_periodic_wait_blocks_until_the_next_release( void )
     advance( 2U ); /* the process completes its release at tick 2 */
 
     next = MAXRTOS_INVALID_PROCESS_ID;
-    assert( maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
     assert( next == other );
     assert( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED );
     assert( pcb->periodic_waiting == true );
@@ -238,8 +253,9 @@ static void test_periodic_wait_blocks_until_the_next_release( void )
 
     /* Released: runnable again (the same tick's dispatch may already have
      * picked it), with its result waiting to be delivered. */
-    assert( ( pcb->state == MAXRTOS_PROCESS_STATE_READY ) ||
-            ( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING ) );
+    assert(
+        ( pcb->state == MAXRTOS_PROCESS_STATE_READY ) ||
+        ( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING ) );
     assert( pcb->periodic_waiting == false );
     assert( pcb->release_time == 10U );
     assert( pcb->deadline_time == 16U );
@@ -263,20 +279,24 @@ static void test_a_lone_periodic_process_blocks_and_the_partition_idles( void )
     advance( 1U );
 
     /* Nothing else is READY: it blocks anyway and the CPU is to idle. */
-    assert( maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
     assert( next == MAXRTOS_INVALID_PROCESS_ID );
     assert( maxrtos_process_get( p )->state == MAXRTOS_PROCESS_STATE_BLOCKED );
     assert( s_table.current_id[ 0 ] == MAXRTOS_INVALID_PROCESS_ID );
 
     /* Nothing READY to dispatch until the release. */
-    assert( maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) ==
-            MAXRTOS_ERR_QUEUE_EMPTY );
+    assert(
+        maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
 
     advance( 9U ); /* tick 10 */
-    assert( maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) == MAXRTOS_OK );
+    assert(
+        maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) == MAXRTOS_OK );
     assert( dispatched == p );
 
-    printf( "test_a_lone_periodic_process_blocks_and_the_partition_idles: PASS\n" );
+    printf(
+        "test_a_lone_periodic_process_blocks_and_the_partition_idles: PASS\n" );
 }
 
 static void test_periodic_wait_after_an_overrun_returns_at_once( void )
@@ -314,16 +334,26 @@ static void test_periodic_wait_rejects_bad_callers( void )
     ( void ) start_running( p );
 
     /* Aperiodic. */
-    assert( maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_ERR_INVALID_STATE );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, p, &next ) ==
+        MAXRTOS_ERR_INVALID_STATE );
 
     /* Periodic but READY, not RUNNING. */
     assert( maxrtos_process_set_timing( other, 10U, 5U ) == MAXRTOS_OK );
-    assert( maxrtos_kernel_periodic_wait( &s_table, other, &next ) == MAXRTOS_ERR_INVALID_STATE );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, other, &next ) ==
+        MAXRTOS_ERR_INVALID_STATE );
 
-    assert( maxrtos_kernel_periodic_wait( NULL, p, &next ) == MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_periodic_wait( &s_table, p, NULL ) == MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_periodic_wait( &s_table, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_periodic_wait( NULL, p, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, p, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_periodic_wait(
+            &s_table, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
     printf( "test_periodic_wait_rejects_bad_callers: PASS\n" );
 }
@@ -355,10 +385,14 @@ static void test_release_is_exact_and_period_does_not_drift( void )
          * before it completes its release. */
         while( pcb->state != MAXRTOS_PROCESS_STATE_RUNNING )
         {
-            assert( maxrtos_partition_dispatch( &s_table, 0U, &next ) == MAXRTOS_OK );
+            assert(
+                maxrtos_partition_dispatch( &s_table, 0U, &next ) ==
+                MAXRTOS_OK );
         }
 
-        assert( maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
+        assert(
+            maxrtos_kernel_periodic_wait( &s_table, p, &next ) ==
+            MAXRTOS_PENDING );
 
         while( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED )
         {
@@ -395,29 +429,231 @@ static void test_restart_of_a_ready_process_keeps_it_queued_once( void )
         ready = swap;
     }
 
-    assert( maxrtos_process_get( ready )->state == MAXRTOS_PROCESS_STATE_READY );
+    assert(
+        maxrtos_process_get( ready )->state == MAXRTOS_PROCESS_STATE_READY );
     assert( maxrtos_process_set_timing( ready, 0U, 5U ) == MAXRTOS_OK );
 
     assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
     queued = maxrtos_scheduler_process_count( &s_table.scheduler_ctx[ 0 ] );
 
-    assert( maxrtos_fault_recovery_handle( &hm, &s_table, ready,
-                MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) == MAXRTOS_OK );
-    (void) action;
-    assert( maxrtos_hm_set_policy( &hm, 0U, MAXRTOS_FAULT_DEADLINE_EXCEEDED,
-                MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
-    assert( maxrtos_fault_recovery_handle( &hm, &s_table, ready,
-                MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) == MAXRTOS_OK );
+    assert(
+        maxrtos_fault_recovery_handle(
+            &hm, &s_table, ready, MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) ==
+        MAXRTOS_OK );
+    ( void ) action;
+    assert(
+        maxrtos_hm_set_policy(
+            &hm,
+            0U,
+            MAXRTOS_FAULT_DEADLINE_EXCEEDED,
+            MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
+    assert(
+        maxrtos_fault_recovery_handle(
+            &hm, &s_table, ready, MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) ==
+        MAXRTOS_OK );
     assert( action == MAXRTOS_HM_ACTION_RESTART_PROCESS );
 
     /* Still READY, still queued exactly once, and a new release began. */
-    assert( maxrtos_process_get( ready )->state == MAXRTOS_PROCESS_STATE_READY );
-    assert( maxrtos_scheduler_process_count( &s_table.scheduler_ctx[ 0 ] ) == queued );
+    assert(
+        maxrtos_process_get( ready )->state == MAXRTOS_PROCESS_STATE_READY );
+    assert(
+        maxrtos_scheduler_process_count( &s_table.scheduler_ctx[ 0 ] ) ==
+        queued );
     assert( maxrtos_process_get( ready )->release_time == 3U );
     assert( maxrtos_process_get( ready )->deadline_time == 8U );
-    assert( s_table.current_id[ 0 ] == running ); /* the running one is untouched */
+    assert(
+        s_table.current_id[ 0 ] == running ); /* the running one is untouched */
 
     printf( "test_restart_of_a_ready_process_keeps_it_queued_once: PASS\n" );
+}
+
+static void test_timed_wait_blocks_for_the_delay_and_wakes_exactly( void )
+{
+    maxrtos_process_id_t p;
+    maxrtos_process_id_t other;
+    maxrtos_process_id_t next;
+    maxrtos_process_control_block_t * pcb;
+
+    reset();
+    p = add( 0U, 0U );
+    other = add( 1U, 0U );
+    pcb = maxrtos_process_get( p );
+
+    ( void ) start_running( p );
+    advance( 2U ); /* the two processes rotate, so p runs again */
+
+    next = MAXRTOS_INVALID_PROCESS_ID;
+    assert(
+        maxrtos_kernel_timed_wait( &s_table, p, 5U, &next ) ==
+        MAXRTOS_PENDING );
+    assert( next == other );
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED );
+    assert( pcb->timed_waiting == true );
+    assert( pcb->periodic_waiting == false );
+    assert( pcb->waitlist == NULL );
+    assert( pcb->wake_tick == 7U ); /* 2 + 5, as for an IPC timeout */
+    assert( s_table.current_id[ 0 ] == other );
+
+    /* Still waiting one tick before... */
+    advance( 4U );
+    assert( maxrtos_kernel_tick_now() == 6U );
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED );
+
+    /* ...and runnable again at tick 7, with its result waiting. */
+    advance( 1U );
+    assert(
+        ( pcb->state == MAXRTOS_PROCESS_STATE_READY ) ||
+        ( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING ) );
+    assert( pcb->timed_waiting == false );
+    assert( pcb->wake_tick == MAXRTOS_TICK_NONE );
+    assert( pcb->ipc_result_pending == true );
+    assert( pcb->ipc_result == MAXRTOS_OK );
+
+    printf( "test_timed_wait_blocks_for_the_delay_and_wakes_exactly: PASS\n" );
+}
+
+static void test_a_lone_timed_waiter_blocks_and_the_partition_idles( void )
+{
+    maxrtos_process_id_t p;
+    maxrtos_process_id_t next;
+    maxrtos_process_id_t dispatched;
+
+    reset();
+    p = add( 0U, 0U );
+    ( void ) start_running( p );
+    advance( 1U );
+
+    /* Nothing else is READY: it blocks anyway and the CPU is to idle. */
+    assert(
+        maxrtos_kernel_timed_wait( &s_table, p, 4U, &next ) ==
+        MAXRTOS_PENDING );
+    assert( next == MAXRTOS_INVALID_PROCESS_ID );
+    assert( maxrtos_process_get( p )->state == MAXRTOS_PROCESS_STATE_BLOCKED );
+    assert( s_table.current_id[ 0 ] == MAXRTOS_INVALID_PROCESS_ID );
+    assert(
+        maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
+
+    advance( 4U ); /* tick 5 */
+    assert(
+        maxrtos_partition_dispatch( &s_table, 0U, &dispatched ) == MAXRTOS_OK );
+    assert( dispatched == p );
+
+    printf( "test_a_lone_timed_waiter_blocks_and_the_partition_idles: PASS\n" );
+}
+
+static void test_timed_wait_of_zero_returns_at_once_and_keeps_the_cpu( void )
+{
+    maxrtos_process_id_t p;
+    maxrtos_process_id_t next;
+    maxrtos_process_control_block_t * pcb;
+
+    reset();
+    p = add( 0U, 0U );
+    ( void ) add( 1U, 0U );
+    pcb = maxrtos_process_get( p );
+    ( void ) start_running( p );
+
+    next = MAXRTOS_INVALID_PROCESS_ID;
+    assert( maxrtos_kernel_timed_wait( &s_table, p, 0U, &next ) == MAXRTOS_OK );
+    assert( next == MAXRTOS_INVALID_PROCESS_ID );
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( pcb->timed_waiting == false );
+    assert( s_table.current_id[ 0 ] == p );
+
+    printf(
+        "test_timed_wait_of_zero_returns_at_once_and_keeps_the_cpu: PASS\n" );
+}
+
+static void test_timed_wait_rejects_bad_calls( void )
+{
+    maxrtos_process_id_t p;
+    maxrtos_process_id_t ready;
+    maxrtos_process_id_t next;
+    maxrtos_process_control_block_t * pcb;
+
+    reset();
+    p = add( 0U, 0U );
+    ready = add( 1U, 0U );
+    pcb = maxrtos_process_get( p );
+    ( void ) start_running( p );
+    advance( 2U );
+
+    assert(
+        maxrtos_kernel_timed_wait( NULL, p, 3U, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_timed_wait( &s_table, p, 3U, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_timed_wait(
+            &s_table, MAXRTOS_INVALID_PROCESS_ID, 3U, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+
+    /* A wait that no tick ends would never resume. */
+    assert(
+        maxrtos_kernel_timed_wait(
+            &s_table, p, MAXRTOS_TIMEOUT_INFINITE, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+
+    /* Only the running process can wait. */
+    assert(
+        maxrtos_kernel_timed_wait( &s_table, ready, 3U, &next ) ==
+        MAXRTOS_ERR_INVALID_STATE );
+
+    /* A wake-up tick that does not fit the counter. */
+    assert(
+        maxrtos_kernel_timed_wait(
+            &s_table, p, MAXRTOS_TICK_NONE - 1U, &next ) ==
+        MAXRTOS_ERR_OVERFLOW );
+
+    /* None of them changed the caller. */
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( pcb->timed_waiting == false );
+    assert( pcb->wake_tick == MAXRTOS_TICK_NONE );
+
+    printf( "test_timed_wait_rejects_bad_calls: PASS\n" );
+}
+
+static void test_restart_of_a_timed_waiter_makes_it_ready_now( void )
+{
+    maxrtos_health_monitor_t hm;
+    maxrtos_process_id_t p;
+    maxrtos_process_id_t next;
+    maxrtos_hm_action_t action;
+    maxrtos_process_control_block_t * pcb;
+
+    reset();
+    p = add( 0U, 0U );
+    ( void ) add( 1U, 0U );
+    pcb = maxrtos_process_get( p );
+    ( void ) start_running( p );
+    advance( 2U );
+    assert(
+        maxrtos_kernel_timed_wait( &s_table, p, 50U, &next ) ==
+        MAXRTOS_PENDING );
+
+    assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
+    assert(
+        maxrtos_hm_set_policy(
+            &hm,
+            0U,
+            MAXRTOS_FAULT_MEMORY_ACCESS,
+            MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
+    assert(
+        maxrtos_fault_recovery_handle(
+            &hm, &s_table, p, MAXRTOS_FAULT_MEMORY_ACCESS, &action ) ==
+        MAXRTOS_OK );
+
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_READY );
+    assert( pcb->timed_waiting == false );
+    assert( pcb->wake_tick == MAXRTOS_TICK_NONE );
+
+    /* The old wake-up must not release it a second time. */
+    advance( 60U );
+    assert( pcb->timed_waiting == false );
+
+    printf( "test_restart_of_a_timed_waiter_makes_it_ready_now: PASS\n" );
 }
 
 static void test_restart_of_a_periodic_waiter_makes_it_ready_now( void )
@@ -437,13 +673,20 @@ static void test_restart_of_a_periodic_waiter_makes_it_ready_now( void )
     assert( maxrtos_process_set_timing( p, 50U, 20U ) == MAXRTOS_OK );
     ( void ) start_running( p );
     advance( 2U );
-    assert( maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_periodic_wait( &s_table, p, &next ) == MAXRTOS_PENDING );
 
     assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
-    assert( maxrtos_hm_set_policy( &hm, 0U, MAXRTOS_FAULT_DEADLINE_EXCEEDED,
-                MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
-    assert( maxrtos_fault_recovery_handle( &hm, &s_table, p,
-                MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) == MAXRTOS_OK );
+    assert(
+        maxrtos_hm_set_policy(
+            &hm,
+            0U,
+            MAXRTOS_FAULT_DEADLINE_EXCEEDED,
+            MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
+    assert(
+        maxrtos_fault_recovery_handle(
+            &hm, &s_table, p, MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) ==
+        MAXRTOS_OK );
 
     assert( pcb->state == MAXRTOS_PROCESS_STATE_READY );
     assert( pcb->periodic_waiting == false );
@@ -470,21 +713,30 @@ static void test_restart_of_an_ipc_waiter_leaves_the_wait_list( void )
     ( void ) start_running( a );
     assert( maxrtos_waitlist_init( &waitlist ) == MAXRTOS_OK );
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-    assert( maxrtos_ipc_block_current( &s_table, a, &waitlist, MAXRTOS_TICK_NONE, &op, &next ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table, a, &waitlist, MAXRTOS_TICK_NONE, &op, &next ) ==
+        MAXRTOS_OK );
     assert( next == b );
     assert( maxrtos_waitlist_count( &waitlist ) == 1U );
 
     assert( maxrtos_hm_init( &hm ) == MAXRTOS_OK );
-    assert( maxrtos_hm_set_policy( &hm, 0U, MAXRTOS_FAULT_DEADLINE_EXCEEDED,
-                MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
-    assert( maxrtos_fault_recovery_handle( &hm, &s_table, a,
-                MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) == MAXRTOS_OK );
+    assert(
+        maxrtos_hm_set_policy(
+            &hm,
+            0U,
+            MAXRTOS_FAULT_DEADLINE_EXCEEDED,
+            MAXRTOS_HM_ACTION_RESTART_PROCESS ) == MAXRTOS_OK );
+    assert(
+        maxrtos_fault_recovery_handle(
+            &hm, &s_table, a, MAXRTOS_FAULT_DEADLINE_EXCEEDED, &action ) ==
+        MAXRTOS_OK );
 
     assert( maxrtos_waitlist_count( &waitlist ) == 0U );
     assert( maxrtos_process_get( a )->state == MAXRTOS_PROCESS_STATE_READY );
     assert( maxrtos_process_get( a )->waitlist == NULL );
-    assert( maxrtos_process_get( a )->ipc_operation.kind == MAXRTOS_IPC_OP_NONE );
+    assert(
+        maxrtos_process_get( a )->ipc_operation.kind == MAXRTOS_IPC_OP_NONE );
 
     printf( "test_restart_of_an_ipc_waiter_leaves_the_wait_list: PASS\n" );
 }
@@ -502,7 +754,12 @@ int main( void )
     test_periodic_wait_rejects_bad_callers();
     test_release_is_exact_and_period_does_not_drift();
     test_restart_of_a_ready_process_keeps_it_queued_once();
+    test_timed_wait_blocks_for_the_delay_and_wakes_exactly();
+    test_a_lone_timed_waiter_blocks_and_the_partition_idles();
+    test_timed_wait_of_zero_returns_at_once_and_keeps_the_cpu();
+    test_timed_wait_rejects_bad_calls();
     test_restart_of_a_periodic_waiter_makes_it_ready_now();
+    test_restart_of_a_timed_waiter_makes_it_ready_now();
     test_restart_of_an_ipc_waiter_leaves_the_wait_list();
 
     printf( "all timing tests passed\n" );

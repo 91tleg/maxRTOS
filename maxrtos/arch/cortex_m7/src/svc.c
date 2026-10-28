@@ -25,6 +25,7 @@
 #include "maxrtos/kernel/queue_port.h"
 #include "maxrtos/kernel/semaphore.h"
 #include "maxrtos/kernel/buffer.h"
+#include "maxrtos/kernel/tick.h"
 #include "maxrtos/kernel/timing.h"
 
 /* Keep the IPC handlers out of line. With link-time optimization the
@@ -71,6 +72,12 @@ MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_buffer_receive(
     uint32_t * stacked_args );
 
 MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_buffer_status(
+    uint32_t * stacked_args );
+
+MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_timed_wait(
+    uint32_t * stacked_args );
+
+MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_time_get(
     uint32_t * stacked_args );
 
 void maxrtos_arch_svc_dispatch(
@@ -160,6 +167,18 @@ void maxrtos_arch_svc_dispatch(
         case MAXRTOS_SVC_BUFFER_STATUS:
         {
             maxrtos_arch_svc_buffer_status( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_TIMED_WAIT:
+        {
+            maxrtos_arch_svc_timed_wait( stacked_args );
+            break;
+        }
+
+        case MAXRTOS_SVC_TIME_GET:
+        {
+            maxrtos_arch_svc_time_get( stacked_args );
             break;
         }
 
@@ -373,34 +392,20 @@ static void maxrtos_arch_svc_queue_count( uint32_t * stacked_args )
     }
 }
 
-static void maxrtos_arch_svc_periodic_wait( uint32_t * stacked_args )
+/* Finish a call that may have blocked the caller until a tick: the caller is
+ * BLOCKED if status is MAXRTOS_PENDING, and its final result is delivered when
+ * it resumes. No other process may be READY, in which case the CPU idles until
+ * the wake-up or the end of the slot. Any other status is the caller's result.
+ */
+static void maxrtos_arch_svc_finish_wait(
+    uint32_t * stacked_args,
+    maxrtos_status_t status,
+    maxrtos_process_id_t next_id )
 {
-    maxrtos_process_control_block_t const * current_pcb;
-    maxrtos_partition_table_t * partition_table;
-    maxrtos_process_id_t next_id;
-    maxrtos_status_t status;
-
-    current_pcb = maxrtos_arch_get_current_pcb();
-    partition_table = maxrtos_arch_get_partition_table();
-    next_id = MAXRTOS_INVALID_PROCESS_ID;
-
-    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
-    {
-        status = MAXRTOS_ERR_INVALID_STATE;
-    }
-    else
-    {
-        status = maxrtos_kernel_periodic_wait(
-            partition_table, current_pcb->id, &next_id );
-    }
-
     if( status == MAXRTOS_PENDING )
     {
         maxrtos_process_control_block_t * next_pcb;
 
-        /* The caller is BLOCKED until its next release, and its result is
-         * delivered when it resumes. No other process may be READY, in which
-         * case the CPU idles until the release or the end of the slot. */
         if( next_id == MAXRTOS_INVALID_PROCESS_ID )
         {
             next_pcb = maxrtos_arch_idle_pcb();
@@ -422,6 +427,62 @@ static void maxrtos_arch_svc_periodic_wait( uint32_t * stacked_args )
     {
         stacked_args[ 0 ] = ( uint32_t ) status;
     }
+}
+
+static void maxrtos_arch_svc_periodic_wait( uint32_t * stacked_args )
+{
+    maxrtos_process_control_block_t const * current_pcb;
+    maxrtos_partition_table_t * partition_table;
+    maxrtos_process_id_t next_id;
+    maxrtos_status_t status;
+
+    current_pcb = maxrtos_arch_get_current_pcb();
+    partition_table = maxrtos_arch_get_partition_table();
+    next_id = MAXRTOS_INVALID_PROCESS_ID;
+
+    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
+    {
+        status = MAXRTOS_ERR_INVALID_STATE;
+    }
+    else
+    {
+        status = maxrtos_kernel_periodic_wait(
+            partition_table, current_pcb->id, &next_id );
+    }
+
+    maxrtos_arch_svc_finish_wait( stacked_args, status, next_id );
+}
+
+static void maxrtos_arch_svc_timed_wait( uint32_t * stacked_args )
+{
+    maxrtos_process_control_block_t const * current_pcb;
+    maxrtos_partition_table_t * partition_table;
+    maxrtos_process_id_t next_id;
+    maxrtos_status_t status;
+
+    current_pcb = maxrtos_arch_get_current_pcb();
+    partition_table = maxrtos_arch_get_partition_table();
+    next_id = MAXRTOS_INVALID_PROCESS_ID;
+
+    if( ( current_pcb == NULL ) || ( partition_table == NULL ) )
+    {
+        status = MAXRTOS_ERR_INVALID_STATE;
+    }
+    else
+    {
+        status = maxrtos_kernel_timed_wait(
+            partition_table,
+            current_pcb->id,
+            ( maxrtos_tick_t ) stacked_args[ 0 ],
+            &next_id );
+    }
+
+    maxrtos_arch_svc_finish_wait( stacked_args, status, next_id );
+}
+
+static void maxrtos_arch_svc_time_get( uint32_t * stacked_args )
+{
+    stacked_args[ 0 ] = ( uint32_t ) maxrtos_kernel_tick_now();
 }
 
 static void maxrtos_arch_svc_mutex_lock( uint32_t * stacked_args )

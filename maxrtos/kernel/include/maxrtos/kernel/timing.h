@@ -114,7 +114,46 @@ maxrtos_status_t maxrtos_kernel_periodic_wait(
     maxrtos_process_id_t * out_next_id );
 
 /**
- * @brief Release every process whose next release point has been reached.
+ * @brief Block a process for a number of ticks (ARINC 653 TIMED_WAIT).
+ *
+ * The delay is counted on the kernel tick counter: the process becomes READY
+ * again when the counter reaches the value it had at the call plus
+ * delay_ticks, the same rule as an IPC timeout. A delay of 0 returns at once
+ * and does not give up the CPU; use maxrtos_yield() for that. While the
+ * process waits the partition's other processes run, or the CPU idles.
+ *
+ * @param[in,out] table
+ *     Partition table.
+ *
+ * @param[in] id
+ *     The calling process. Shall be RUNNING.
+ *
+ * @param[in] delay_ticks
+ *     Ticks to wait. MAXRTOS_TIMEOUT_INFINITE is rejected: a wait that no
+ *     tick ends would never resume.
+ *
+ * @param[out] out_next_id
+ *     The process to run in its place if it blocked, or
+ *     MAXRTOS_INVALID_PROCESS_ID to idle. Valid only for MAXRTOS_PENDING.
+ *
+ * @return
+ *     MAXRTOS_OK if there was nothing to wait for (delay_ticks is 0).
+ *     MAXRTOS_PENDING if the process was blocked. Its final result
+ *     (MAXRTOS_OK) is delivered when it resumes.
+ *     MAXRTOS_ERR_INVALID_ARG on a NULL argument or an infinite delay.
+ *     MAXRTOS_ERR_INVALID_ID if id is not a process.
+ *     MAXRTOS_ERR_INVALID_STATE if the process is not RUNNING.
+ *     MAXRTOS_ERR_OVERFLOW if the wake-up tick does not fit the counter.
+ */
+maxrtos_status_t maxrtos_kernel_timed_wait(
+    maxrtos_partition_table_t * table,
+    maxrtos_process_id_t id,
+    maxrtos_tick_t delay_ticks,
+    maxrtos_process_id_t * out_next_id );
+
+/**
+ * @brief Release every process whose next release point has been reached,
+ *        and every process whose timed wait has expired.
  *
  * @return Number of processes released.
  */

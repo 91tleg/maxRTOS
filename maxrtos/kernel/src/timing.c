@@ -12,8 +12,9 @@
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/kernel/timing.h"
 
-_Static_assert( MAXRTOS_MAX_PROCESSES <= 32U,
-                "pending deadline misses are kept in one 32-bit mask" );
+_Static_assert(
+    MAXRTOS_MAX_PROCESSES <= 32U,
+    "pending deadline misses are kept in one 32-bit mask" );
 
 /* One bit per process ID: a miss detected but not yet handled. */
 static uint32_t s_pending_misses = 0U;
@@ -91,6 +92,7 @@ void maxrtos_process_rearm_timing(
     if( pcb != NULL )
     {
         pcb->periodic_waiting = false;
+        pcb->timed_waiting = false;
         pcb->release_time = now;
         arm_deadline( pcb );
     }
@@ -158,8 +160,9 @@ maxrtos_status_t maxrtos_kernel_periodic_wait(
         {
             status = MAXRTOS_ERR_INVALID_ID;
         }
-        else if( ( pcb->state != MAXRTOS_PROCESS_STATE_RUNNING ) ||
-                 ( pcb->period == 0U ) )
+        else if(
+            ( pcb->state != MAXRTOS_PROCESS_STATE_RUNNING ) ||
+            ( pcb->period == 0U ) )
         {
             status = MAXRTOS_ERR_INVALID_STATE;
         }
@@ -216,6 +219,71 @@ maxrtos_status_t maxrtos_kernel_periodic_wait(
     return status;
 }
 
+maxrtos_status_t maxrtos_kernel_timed_wait(
+    maxrtos_partition_table_t * table,
+    maxrtos_process_id_t id,
+    maxrtos_tick_t delay_ticks,
+    maxrtos_process_id_t * out_next_id )
+{
+    maxrtos_status_t status;
+    maxrtos_process_control_block_t * pcb;
+    maxrtos_tick_t wake_tick;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+    wake_tick = MAXRTOS_TICK_NONE;
+
+    if( ( table != NULL ) && ( out_next_id != NULL ) &&
+        ( delay_ticks != MAXRTOS_TIMEOUT_INFINITE ) )
+    {
+        pcb = maxrtos_process_get( id );
+
+        if( pcb == NULL )
+        {
+            status = MAXRTOS_ERR_INVALID_ID;
+        }
+        else if( pcb->state != MAXRTOS_PROCESS_STATE_RUNNING )
+        {
+            status = MAXRTOS_ERR_INVALID_STATE;
+        }
+        else if( delay_ticks == 0U )
+        {
+            /* Nothing to wait for. */
+            status = MAXRTOS_OK;
+        }
+        else
+        {
+            status = maxrtos_kernel_tick_after( delay_ticks, &wake_tick );
+
+            if( status == MAXRTOS_OK )
+            {
+                status = maxrtos_partition_block_and_dispatch(
+                    table, pcb->partition_id, id, out_next_id );
+
+                if( status == MAXRTOS_ERR_QUEUE_EMPTY )
+                {
+                    /* Nothing else to run in this partition: block anyway
+                     * and let the CPU idle until the wake-up. */
+                    status = maxrtos_process_set_state(
+                        id, MAXRTOS_PROCESS_STATE_BLOCKED );
+                    table->current_id[ pcb->partition_id ] =
+                        MAXRTOS_INVALID_PROCESS_ID;
+                    *out_next_id = MAXRTOS_INVALID_PROCESS_ID;
+                }
+
+                if( status == MAXRTOS_OK )
+                {
+                    pcb->timed_waiting = true;
+                    pcb->wake_tick = wake_tick;
+                    maxrtos_kernel_timing_note_due( wake_tick );
+                    status = MAXRTOS_PENDING;
+                }
+            }
+        }
+    }
+
+    return status;
+}
+
 size_t maxrtos_kernel_release_periodic(
     maxrtos_partition_table_t * table,
     maxrtos_tick_t now )
@@ -230,8 +298,7 @@ size_t maxrtos_kernel_release_periodic(
 
         if( ( pcb != NULL ) &&
             ( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED ) &&
-            ( pcb->periodic_waiting == true ) &&
-            ( now >= pcb->wake_tick ) )
+            ( pcb->periodic_waiting == true ) && ( now >= pcb->wake_tick ) )
         {
             pcb->release_time = pcb->wake_tick;
             pcb->wake_tick = MAXRTOS_TICK_NONE;
@@ -242,6 +309,23 @@ size_t maxrtos_kernel_release_periodic(
             {
                 released++;
             }
+        }
+        else if(
+            ( pcb != NULL ) &&
+            ( pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED ) &&
+            ( pcb->timed_waiting == true ) && ( now >= pcb->wake_tick ) )
+        {
+            pcb->wake_tick = MAXRTOS_TICK_NONE;
+            pcb->timed_waiting = false;
+
+            if( maxrtos_ipc_resolve( table, id, MAXRTOS_OK ) == MAXRTOS_OK )
+            {
+                released++;
+            }
+        }
+        else
+        {
+            /* Not waiting for a release or a wake-up, or not yet due. */
         }
     }
 
