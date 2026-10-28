@@ -13,17 +13,15 @@
 
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/arch/cortex_m7/idle.h"
+#include "maxrtos/arch/cortex_m7/mpu_hw.h"
 
 /* SCB ICSR: PendSV set-pending bit. */
-#define MAXRTOS_SCB_ICSR \
-    ( *( volatile uint32_t * ) 0xE000ED04UL )
+#define MAXRTOS_SCB_ICSR ( *( volatile uint32_t * ) 0xE000ED04UL )
 
 /* SHPR3: SysTick and PendSV priority fields. */
-#define MAXRTOS_SCB_SHPR3 \
-    ( *( volatile uint32_t * ) 0xE000ED20UL )
+#define MAXRTOS_SCB_SHPR3 ( *( volatile uint32_t * ) 0xE000ED20UL )
 
-#define MAXRTOS_ICSR_PENDSVSET_BIT \
-    ( UINT32_C( 1 ) << 28U )
+#define MAXRTOS_ICSR_PENDSVSET_BIT ( UINT32_C( 1 ) << 28U )
 
 #define MAXRTOS_CONTROL_NPRIV ( UINT32_C( 1 ) )
 
@@ -32,11 +30,9 @@
  * lower logical priority. PendSV shall execute at the lowest
  * configurable exception priority so that context switching does not
  * preempt higher-priority interrupt handlers. */
-#define MAXRTOS_SHPR3_PENDSV_LOWEST \
-    ( UINT32_C( 0xFF ) << 16U )
+#define MAXRTOS_SHPR3_PENDSV_LOWEST ( UINT32_C( 0xFF ) << 16U )
 
-#define MAXRTOS_SHPR3_SYSTICK_LOWEST \
-    ( UINT32_C( 0xFF ) << 24U )
+#define MAXRTOS_SHPR3_SYSTICK_LOWEST ( UINT32_C( 0xFF ) << 24U )
 
 /* Context-switch state shared with context_switch.S.
  * These objects are intentionally externally visible because the
@@ -46,24 +42,21 @@ maxrtos_process_control_block_t * g_maxrtos_current_pcb = NULL;
 maxrtos_process_control_block_t * g_maxrtos_next_pcb = NULL;
 
 /* Thumb-state bit required in the stacked PC for Cortex-M. */
-#define MAXRTOS_THUMB_BIT  ( UINT32_C( 1 ) )
+#define MAXRTOS_THUMB_BIT ( UINT32_C( 1 ) )
 
 /* Initial xPSR value for a newly-created process.
  * The Thumb-state bit is set and all other fields zeroed. */
-#define MAXRTOS_INITIAL_XPSR \
-    ( 0x01000000UL )
+#define MAXRTOS_INITIAL_XPSR ( 0x01000000UL )
 
 /* Number of 32-bit words in the constructed initial stack frame.
  * 8 software-saved regs (r4-r11) + 8 hardware-stacked regs
  * (r0-r3, r12, LR, PC, xPSR). */
-#define MAXRTOS_INITIAL_FRAME_WORDS \
-    ( 16U )
+#define MAXRTOS_INITIAL_FRAME_WORDS ( 16U )
 
-#define MAXRTOS_ARCH_STACK_ALIGNMENT \
-    ( 8U )
+#define MAXRTOS_ARCH_STACK_ALIGNMENT ( 8U )
 
-#define MAXRTOS_ARCH_MIN_STACK_SIZE \
-    ( ( MAXRTOS_INITIAL_FRAME_WORDS * sizeof( uint32_t ) ) + \
+#define MAXRTOS_ARCH_MIN_STACK_SIZE                                            \
+    ( ( MAXRTOS_INITIAL_FRAME_WORDS * sizeof( uint32_t ) ) +                   \
       ( MAXRTOS_ARCH_STACK_ALIGNMENT - 1U ) )
 
 /* Handle unexpected return from a process entry function.
@@ -72,11 +65,11 @@ maxrtos_process_control_block_t * g_maxrtos_next_pcb = NULL;
  * halted. */
 static void maxrtos_arch_process_return_trap( void )
 {
-    __asm volatile ( "cpsid i" );
+    __asm volatile( "cpsid i" );
 
     for( ;; )
     {
-        __asm volatile ( "bkpt #0" );
+        __asm volatile( "bkpt #0" );
     }
 }
 
@@ -91,15 +84,13 @@ maxrtos_status_t maxrtos_arch_init_stack(
     frame_top = NULL;
     sp = NULL;
 
-    if( ( pcb != NULL ) &&
-        ( pcb->stack_base != NULL ) &&
+    if( ( pcb != NULL ) && ( pcb->stack_base != NULL ) &&
         ( pcb->stack_size >= MAXRTOS_ARCH_MIN_STACK_SIZE ) &&
         ( pcb->entry != NULL ) )
     {
-        frame_top = ( uint32_t * )
-            ( ( ( uintptr_t ) pcb->stack_base +
-                ( uintptr_t ) pcb->stack_size ) &
-              ~( ( uintptr_t ) 0x7U ) );
+        frame_top = ( uint32_t * ) ( ( ( uintptr_t ) pcb->stack_base +
+                                       ( uintptr_t ) pcb->stack_size ) &
+                                     ~( ( uintptr_t ) 0x7U ) );
 
         sp = frame_top - MAXRTOS_INITIAL_FRAME_WORDS;
 
@@ -114,16 +105,14 @@ maxrtos_status_t maxrtos_arch_init_stack(
         sp[ 7 ] = 0UL;
 
         /* Hardware-stacked exception frame. */
-        sp[ 8 ]  = ( uint32_t ) ( uintptr_t ) pcb->entry_arg;
-        sp[ 9 ]  = 0UL;
+        sp[ 8 ] = ( uint32_t ) ( uintptr_t ) pcb->entry_arg;
+        sp[ 9 ] = 0UL;
         sp[ 10 ] = 0UL;
         sp[ 11 ] = 0UL;
         sp[ 12 ] = 0UL;
-        sp[ 13 ] =
-            ( uint32_t ) ( uintptr_t ) maxrtos_arch_process_return_trap;
+        sp[ 13 ] = ( uint32_t ) ( uintptr_t ) maxrtos_arch_process_return_trap;
         sp[ 14 ] =
-            ( ( uint32_t ) ( uintptr_t ) pcb->entry ) |
-            MAXRTOS_THUMB_BIT;
+            ( ( uint32_t ) ( uintptr_t ) pcb->entry ) | MAXRTOS_THUMB_BIT;
         sp[ 15 ] = MAXRTOS_INITIAL_XPSR;
 
         pcb->stack_pointer = ( void * ) sp;
@@ -137,14 +126,12 @@ maxrtos_status_t maxrtos_arch_init_stack(
     return status;
 }
 
-void maxrtos_arch_set_current_pcb(
-    maxrtos_process_control_block_t * pcb )
+void maxrtos_arch_set_current_pcb( maxrtos_process_control_block_t * pcb )
 {
     g_maxrtos_current_pcb = pcb;
 }
 
-void maxrtos_arch_set_next_pcb(
-    maxrtos_process_control_block_t * pcb )
+void maxrtos_arch_set_next_pcb( maxrtos_process_control_block_t * pcb )
 {
     g_maxrtos_next_pcb = pcb;
 }
@@ -154,44 +141,42 @@ maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void )
     return g_maxrtos_current_pcb;
 }
 
-void maxrtos_arch_apply_privilege_for_next_pcb(
+static void maxrtos_arch_apply_privilege_for_next_pcb(
     maxrtos_process_control_block_t const * pcb )
 {
-
     if( pcb != NULL )
     {
-        uint32_t control;
+        uint32_t current;
+        uint32_t wanted;
 
-        __asm volatile (
-            "mrs %0, control"
-            : "=r" ( control )
-            :
-            : "memory" );
+        __asm volatile( "mrs %0, control" : "=r"( current ) : : "memory" );
 
         if( maxrtos_arch_partition_is_privileged( pcb->partition_id ) == false )
         {
-            control |= MAXRTOS_CONTROL_NPRIV;   /* CONTROL.nPRIV = 1 */
+            wanted = current | MAXRTOS_CONTROL_NPRIV; /* CONTROL.nPRIV = 1 */
         }
         else
         {
-            control &= ~MAXRTOS_CONTROL_NPRIV;  /* CONTROL.nPRIV = 0 */
+            wanted = current & ~MAXRTOS_CONTROL_NPRIV; /* CONTROL.nPRIV = 0 */
         }
 
-        __asm volatile (
-            "msr control, %0"
-            :
-            : "r" ( control )
-            : "memory" );
+        /* Most switches stay inside one partition, so the level is usually
+         * already right; skip the write and its barrier then. The live
+         * register is compared, not a remembered value, so a level changed
+         * by anything else is still corrected. */
+        if( wanted != current )
+        {
+            __asm volatile( "msr control, %0" : : "r"( wanted ) : "memory" );
 
-        __asm volatile ( "isb" );
+            __asm volatile( "isb" );
+        }
     }
 }
 
-void maxrtos_arch_apply_resume_result(
+static void maxrtos_arch_apply_resume_result(
     maxrtos_process_control_block_t * pcb )
 {
-    if( ( pcb != NULL ) &&
-        ( pcb->ipc_result_pending == true ) &&
+    if( ( pcb != NULL ) && ( pcb->ipc_result_pending == true ) &&
         ( pcb->stack_pointer != NULL ) )
     {
         uint32_t * frame;
@@ -205,6 +190,22 @@ void maxrtos_arch_apply_resume_result(
 
         pcb->ipc_result_pending = false;
     }
+}
+
+maxrtos_status_t maxrtos_arch_prepare_next_pcb(
+    maxrtos_process_control_block_t * pcb )
+{
+    maxrtos_status_t status;
+
+    status = maxrtos_arch_mpu_configure_for_next_pcb( pcb );
+
+    if( status == MAXRTOS_OK )
+    {
+        maxrtos_arch_apply_privilege_for_next_pcb( pcb );
+        maxrtos_arch_apply_resume_result( pcb );
+    }
+
+    return status;
 }
 
 void maxrtos_arch_request_context_switch( void )
@@ -228,24 +229,29 @@ void maxrtos_arch_context_switch_init( void )
 
     MAXRTOS_SCB_SHPR3 = shpr3;
 
-    __asm volatile ( "dsb" );
-    __asm volatile ( "isb" );
+    __asm volatile( "dsb" );
+    __asm volatile( "isb" );
 
     maxrtos_arch_idle_init();
 }
 
-void maxrtos_arch_start_first_process(
-    maxrtos_process_control_block_t * pcb )
+void maxrtos_arch_start_first_process( maxrtos_process_control_block_t * pcb )
 {
     g_maxrtos_current_pcb = NULL;
     g_maxrtos_next_pcb = pcb;
 
     maxrtos_arch_request_context_switch();
 
+    /* Make sure the pended PendSV is taken before the next instruction
+     * executes. Without the barriers the CPU can reach the breakpoint
+     * below first. */
+    __asm volatile( "dsb" ::: "memory" );
+    __asm volatile( "isb" ::: "memory" );
+
     /* Reaching this point indicates that the requested context switch
      * did not transfer execution to the first process. */
     for( ;; )
     {
-        __asm volatile ( "bkpt #0" );
+        __asm volatile( "bkpt #0" );
     }
 }

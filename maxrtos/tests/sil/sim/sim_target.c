@@ -423,7 +423,8 @@ void maxrtos_arch_context_switch_init( void )
     maxrtos_arch_idle_init();
 }
 
-void maxrtos_arch_apply_resume_result( maxrtos_process_control_block_t * pcb )
+static void maxrtos_arch_apply_resume_result(
+    maxrtos_process_control_block_t * pcb )
 {
     /* On the target this writes r0 of the saved exception frame; here the
      * value is parked with the context and returned by its system call. */

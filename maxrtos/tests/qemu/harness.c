@@ -21,6 +21,7 @@
 #define SEMIHOST_ADP_APPLICATION_EXIT ( 0x20026U )
 
 char const * emu_fail_reason = "unknown";
+volatile uint32_t g_emu_kernel_word;
 
 static uint32_t s_ticks;
 

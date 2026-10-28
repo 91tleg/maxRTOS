@@ -18,6 +18,19 @@ The handoff figures include the send/unlock and the yield, so subtract
 SysTick exception entry (~12 cycles) is not included, and every figure
 contains one cycle-counter read (`overhead`, reported).
 
+Each `TICK_*` sample ends at the first `observe_tick()` call after the tick.
+Three things keep that sample about the kernel:
+
+- The processes loop with a fixed period, so a fixed tick period would
+  always land on the same few phases of the loop and the mean would depend on
+  the loop length. Each tick is lengthened by a pseudo-random 0 to 511 cycles.
+- A process the tick preempted resumes where it was. Each process calls
+  `observe_tick()` before each kernel call that is outside a timed window, so
+  it sees the new tick before the call and the sample does not include it.
+- The mutex group is not sampled: its timed window (stamp, unlock, yield)
+  cannot hold an observation, so a tick that preempts it is followed by
+  kernel calls before the next one.
+
 ## Run
 
 ```
@@ -41,5 +54,5 @@ case. Latest figures: [RESULTS.md](RESULTS.md). Run with the caches on and off (
 - With `--caches`, D-cache gains depend on the MPU memory attributes the
   configuration gives SRAM.
 - The kernel scans every process on a tick where a timeout, release or
-  deadline falls due, and skips the scan otherwise, so the `TICK_*` maxima
-  grow with the process count while ordinary ticks do not.
+  deadline falls due, and skips the scan otherwise. This bench arms none of
+  them.

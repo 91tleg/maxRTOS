@@ -119,6 +119,65 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
     maxrtos_scheduler_context_t * ctx,
     maxrtos_process_id_t id );
 
+/* The ready-queue operations below are inline: the dispatcher calls them on
+ * every context switch, and a call across translation units costs more than
+ * the operation. */
+
+_Static_assert(
+    MAXRTOS_MAX_PRIORITY < 32U,
+    "the ready mask holds one bit per priority in 32 bits" );
+
+/* Index of the lowest set bit of a non-zero mask, by de Bruijn
+ * multiplication: the product's top five bits identify the isolated bit. */
+static inline uint32_t maxrtos_scheduler_lowest_set_bit( uint32_t mask )
+{
+    static const uint8_t s_bit_index[ 32 ] = {
+        0U,  1U,  28U, 2U,  29U, 14U, 24U, 3U,  30U, 22U, 20U,
+        15U, 25U, 17U, 4U,  8U,  31U, 27U, 13U, 23U, 21U, 19U,
+        16U, 7U,  26U, 12U, 18U, 6U,  11U, 5U,  10U, 9U };
+
+    uint32_t isolated;
+
+    isolated = mask & ( ~mask + 1U );
+
+    return s_bit_index[ ( isolated * UINT32_C( 0x077CB531 ) ) >> 27U ];
+}
+
+static inline size_t maxrtos_scheduler_queue_tail(
+    maxrtos_ready_queue_t const * queue )
+{
+    size_t tail;
+
+    tail = ( queue->head + queue->count ) % MAXRTOS_MAX_READY_PER_PRIORITY;
+
+    return tail;
+}
+
+static inline maxrtos_status_t maxrtos_scheduler_queue_push(
+    maxrtos_ready_queue_t * queue,
+    maxrtos_process_id_t id )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_QUEUE_FULL;
+
+    if( queue != NULL )
+    {
+        if( queue->count < MAXRTOS_MAX_READY_PER_PRIORITY )
+        {
+            size_t tail;
+
+            tail = maxrtos_scheduler_queue_tail( queue );
+
+            queue->items[ tail ] = id;
+            queue->count++;
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
+
 /**
  * @brief Select the highest-priority READY process.
  *
@@ -140,9 +199,38 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
  * This function does not modify ready-queue membership, process
  * state, or processor execution state.
  */
-maxrtos_status_t maxrtos_scheduler_next(
+static inline maxrtos_status_t maxrtos_scheduler_next(
     maxrtos_scheduler_context_t const * ctx,
-    maxrtos_process_id_t * out_id );
+    maxrtos_process_id_t * out_id )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( out_id != NULL ) )
+    {
+        if( ctx->ready_mask == 0U )
+        {
+            status = MAXRTOS_ERR_QUEUE_EMPTY;
+        }
+        else
+        {
+            /* Priority 0 is the highest, so the lowest set bit wins.
+             * Peek only. Selection does not remove the process from the
+             * ready queue or modify queue state. */
+            uint32_t priority;
+
+            priority = maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
+
+            *out_id =
+                ctx->queues[ priority ].items[ ctx->queues[ priority ].head ];
+
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
 
 /**
  * @brief Remove and return the process maxrtos_scheduler_next() would pick.
@@ -154,9 +242,43 @@ maxrtos_status_t maxrtos_scheduler_next(
  * @return MAXRTOS_OK, MAXRTOS_ERR_QUEUE_EMPTY if nothing is queued, or
  *         MAXRTOS_ERR_INVALID_ARG.
  */
-maxrtos_status_t maxrtos_scheduler_take_next(
+static inline maxrtos_status_t maxrtos_scheduler_take_next(
     maxrtos_scheduler_context_t * ctx,
-    maxrtos_process_id_t * out_id );
+    maxrtos_process_id_t * out_id )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( out_id != NULL ) )
+    {
+        if( ctx->ready_mask == 0U )
+        {
+            status = MAXRTOS_ERR_QUEUE_EMPTY;
+        }
+        else
+        {
+            maxrtos_ready_queue_t * queue;
+            uint32_t priority;
+
+            priority = maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
+            queue = &ctx->queues[ priority ];
+
+            *out_id = queue->items[ queue->head ];
+            queue->head = ( queue->head + 1U ) % MAXRTOS_MAX_READY_PER_PRIORITY;
+            queue->count--;
+
+            if( queue->count == 0U )
+            {
+                ctx->ready_mask &= ~( UINT32_C( 1 ) << priority );
+            }
+
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
 
 /**
  * @brief Queue a process at the tail of the queue for @p priority without
@@ -164,10 +286,27 @@ maxrtos_status_t maxrtos_scheduler_take_next(
  *
  * @return MAXRTOS_OK, MAXRTOS_ERR_QUEUE_FULL, or MAXRTOS_ERR_INVALID_ARG.
  */
-maxrtos_status_t maxrtos_scheduler_enqueue(
+static inline maxrtos_status_t maxrtos_scheduler_enqueue(
     maxrtos_scheduler_context_t * ctx,
     maxrtos_process_id_t id,
-    uint8_t priority );
+    uint8_t priority )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( priority <= MAXRTOS_MAX_PRIORITY ) )
+    {
+        status = maxrtos_scheduler_queue_push( &ctx->queues[ priority ], id );
+
+        if( status == MAXRTOS_OK )
+        {
+            ctx->ready_mask |= UINT32_C( 1 ) << priority;
+        }
+    }
+
+    return status;
+}
 
 /**
  * @brief Return the number of schedulable processes.
