@@ -34,8 +34,10 @@
 #define EMU_RES                                                                \
     ( ( volatile uint32_t * ) ( ( uint8_t * ) maxrtos_port_results + 1024U ) )
 
-/* Address in kernel (DTCM) memory that unprivileged code may not write. */
-#define EMU_KERNEL_ADDRESS ( ( volatile uint32_t * ) 0x20000100UL )
+/* A word of kernel (DTCM) memory that unprivileged code may not write. It is
+ * a variable of its own, so no live kernel object shares it. */
+extern volatile uint32_t g_emu_kernel_word;
+#define EMU_KERNEL_ADDRESS ( &g_emu_kernel_word )
 
 /** Create the test's processes. Called after maxrtos_config_init(). */
 void emu_test_setup( void );

@@ -36,6 +36,7 @@
 #endif
 
 char const * emu_fail_reason = "unknown";
+volatile uint32_t g_emu_kernel_word;
 
 volatile hil_result_t g_hil_result;
 
