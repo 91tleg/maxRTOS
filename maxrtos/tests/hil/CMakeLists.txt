@@ -157,3 +157,4 @@ add_hil_test(mutex              SOURCE ${QEMU_TESTS}/test_mutex.c)
 add_hil_test(mutex_release_on_restart
     SOURCE ${QEMU_TESTS}/test_mutex_release_on_restart.c)
 add_hil_test(semaphore          SOURCE ${QEMU_TESTS}/test_semaphore.c)
+add_hil_test(timed_wait         SOURCE ${QEMU_TESTS}/test_timed_wait.c)

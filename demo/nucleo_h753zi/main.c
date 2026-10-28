@@ -12,51 +12,45 @@
 #include <stddef.h>
 
 #include "generated/maxrtos_config.h"
-#include "maxrtos/yield.h"
 #include "maxrtos/scheduler.h"
+#include "maxrtos/timing.h"
 #include "maxrtos/queue_port.h"
 
-#define RCC_BASE            ( 0x58024400UL )
-#define RCC_AHB4ENR         \
-    ( *( volatile uint32_t * )( RCC_BASE + 0xE0UL ) )
+#define RCC_BASE    ( 0x58024400UL )
+#define RCC_AHB4ENR ( *( volatile uint32_t * ) ( RCC_BASE + 0xE0UL ) )
 
 #define RCC_AHB4ENR_GPIOBEN ( 1UL << 1U )
 #define RCC_AHB4ENR_GPIOEEN ( 1UL << 4U )
 
-#define GPIOB_BASE          ( 0x58020400UL )
-#define GPIOB_MODER         \
-    ( *( volatile uint32_t * )( GPIOB_BASE + 0x00UL ) )
+#define GPIOB_BASE  ( 0x58020400UL )
+#define GPIOB_MODER ( *( volatile uint32_t * ) ( GPIOB_BASE + 0x00UL ) )
 
-#define GPIOB_ODR           \
-    ( *( volatile uint32_t * )( GPIOB_BASE + 0x14UL ) )
+#define GPIOB_ODR ( *( volatile uint32_t * ) ( GPIOB_BASE + 0x14UL ) )
 
-#define GPIOE_BASE          ( 0x58021000UL )
-#define GPIOE_MODER         \
-    ( *( volatile uint32_t * )( GPIOE_BASE + 0x00UL ) )
+#define GPIOE_BASE  ( 0x58021000UL )
+#define GPIOE_MODER ( *( volatile uint32_t * ) ( GPIOE_BASE + 0x00UL ) )
 
-#define GPIOE_ODR           \
-    ( *( volatile uint32_t * )( GPIOE_BASE + 0x14UL ) )
+#define GPIOE_ODR ( *( volatile uint32_t * ) ( GPIOE_BASE + 0x14UL ) )
 
-#define LED_LD2_PIN         ( 1U )
-#define LED_LD1_PIN         ( 0U )
-#define LED_LD3_PIN         ( 14U )
+#define LED_LD2_PIN ( 1U )
+#define LED_LD1_PIN ( 0U )
+#define LED_LD3_PIN ( 14U )
 
-#define SYSTICK_HZ          ( 100U )
-#define CPU_CLOCK_HZ        ( 200000000UL )
+#define SYSTICK_HZ ( 100U )
+/* The core clock. This demo does not set up the clock, so the core stays on
+ * the HSI it starts on: 64 MHz. */
+#define CPU_CLOCK_HZ ( 64000000UL )
 
-#define SYSTICK_BASE        ( 0xE000E010UL )
-#define SYSTICK_CTRL        \
-    ( *( volatile uint32_t * )( SYSTICK_BASE + 0x00UL ) )
+#define SYSTICK_BASE ( 0xE000E010UL )
+#define SYSTICK_CTRL ( *( volatile uint32_t * ) ( SYSTICK_BASE + 0x00UL ) )
 
-#define SYSTICK_LOAD        \
-    ( *( volatile uint32_t * )( SYSTICK_BASE + 0x04UL ) )
+#define SYSTICK_LOAD ( *( volatile uint32_t * ) ( SYSTICK_BASE + 0x04UL ) )
 
-#define SYSTICK_VAL         \
-    ( *( volatile uint32_t * )( SYSTICK_BASE + 0x08UL ) )
+#define SYSTICK_VAL ( *( volatile uint32_t * ) ( SYSTICK_BASE + 0x08UL ) )
 
-#define SYSTICK_CTRL_ENABLE     ( 1UL << 0U )
-#define SYSTICK_CTRL_TICKINT    ( 1UL << 1U )
-#define SYSTICK_CTRL_CLKSOURCE  ( 1UL << 2U )
+#define SYSTICK_CTRL_ENABLE    ( 1UL << 0U )
+#define SYSTICK_CTRL_TICKINT   ( 1UL << 1U )
+#define SYSTICK_CTRL_CLKSOURCE ( 1UL << 2U )
 
 static void board_systick_init( void )
 {
@@ -69,9 +63,7 @@ static void board_systick_init( void )
     SYSTICK_VAL = 0U;
 
     SYSTICK_CTRL =
-        SYSTICK_CTRL_ENABLE |
-        SYSTICK_CTRL_TICKINT |
-        SYSTICK_CTRL_CLKSOURCE;
+        SYSTICK_CTRL_ENABLE | SYSTICK_CTRL_TICKINT | SYSTICK_CTRL_CLKSOURCE;
 }
 
 static void board_leds_init( void )
@@ -79,13 +71,10 @@ static void board_leds_init( void )
     RCC_AHB4ENR |= RCC_AHB4ENR_GPIOBEN | RCC_AHB4ENR_GPIOEEN;
 
     GPIOB_MODER &= ~(
-        ( 0x3UL << ( LED_LD1_PIN * 2U ) ) |
-        ( 0x3UL << ( LED_LD3_PIN * 2U ) )
-    );
+        ( 0x3UL << ( LED_LD1_PIN * 2U ) ) | ( 0x3UL << ( LED_LD3_PIN * 2U ) ) );
 
     GPIOB_MODER |=
-        ( 0x1UL << ( LED_LD1_PIN * 2U ) ) |
-        ( 0x1UL << ( LED_LD3_PIN * 2U ) );
+        ( 0x1UL << ( LED_LD1_PIN * 2U ) ) | ( 0x1UL << ( LED_LD3_PIN * 2U ) );
 
     GPIOE_MODER &= ~( 0x3UL << ( LED_LD2_PIN * 2U ) );
     GPIOE_MODER |= ( 0x1UL << ( LED_LD2_PIN * 2U ) );
@@ -106,6 +95,10 @@ static void led_ld2_toggle( void )
     GPIOE_ODR ^= ( 1UL << LED_LD2_PIN );
 }
 
+/* Ticks each process waits between toggles: 0.5 s at SYSTICK_HZ. A waiting
+ * process gives the CPU to the partition's other process, or the CPU idles. */
+#define BLINK_TICKS ( 50U )
+
 /* The sender never waits: if the queue is full the message is dropped. The
  * receiver blocks until a message arrives. Blocking needs another READY
  * process in the caller's partition to run meanwhile, which the *_aux
@@ -113,7 +106,7 @@ static void led_ld2_toggle( void )
 #define IPC_SEND_TIMEOUT    ( 0U )
 #define IPC_RECEIVE_TIMEOUT ( MAXRTOS_TIMEOUT_INFINITE )
 
-static maxrtos_queue_port_t * const s_cmd_channel = 
+static maxrtos_queue_port_t * const s_cmd_channel =
     ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_cmd_channel;
 
 static void process_control_entry( void * arg )
@@ -135,12 +128,7 @@ static void process_control_entry( void * arg )
             IPC_SEND_TIMEOUT );
         counter++;
 
-        for( volatile uint32_t i = 0U; i < 200000UL; i++ )
-        {
-
-        }
-
-        maxrtos_yield();
+        ( void ) maxrtos_timed_wait( BLINK_TICKS );
     }
 }
 
@@ -160,21 +148,15 @@ static void process_application_entry( void * arg )
                 sizeof( received ),
                 IPC_RECEIVE_TIMEOUT ) == MAXRTOS_OK )
         {
-
         }
 
-        for( volatile uint32_t i = 0U; i < 200000UL; i++ )
-        {
-
-        }
-
-        maxrtos_yield();
+        ( void ) maxrtos_timed_wait( BLINK_TICKS );
     }
 }
 
-/* Same priority as the partition's main process, so maxrtos_yield() in either
- * hands the CPU to the other. Yield goes only to another READY process in the
- * caller's own partition.
+/* Same priority as the partition's main process, so while either waits the
+ * CPU goes to the other. A wait or a yield goes only to another READY process
+ * in the caller's own partition.
  *
  * These processes are unprivileged, so they may only touch what the MPU maps
  * for them: their partition's domain, their ports, and the peripheral region.
@@ -188,12 +170,7 @@ static void process_control_aux_entry( void * arg )
     {
         led_ld2_toggle();
 
-        for( volatile uint32_t i = 0U; i < 200000UL; i++ )
-        {
-
-        }
-
-        maxrtos_yield();
+        ( void ) maxrtos_timed_wait( BLINK_TICKS );
     }
 }
 
@@ -205,12 +182,7 @@ static void process_application_aux_entry( void * arg )
     {
         led_ld2_toggle();
 
-        for( volatile uint32_t i = 0U; i < 200000UL; i++ )
-        {
-
-        }
-
-        maxrtos_yield();
+        ( void ) maxrtos_timed_wait( BLINK_TICKS );
     }
 }
 
@@ -240,7 +212,7 @@ int main( void )
     {
         for( ;; )
         {
-            __asm volatile ( "bkpt #0" );
+            __asm volatile( "bkpt #0" );
         }
     }
 
@@ -255,7 +227,7 @@ int main( void )
     {
         for( ;; )
         {
-            __asm volatile ( "bkpt #0" );
+            __asm volatile( "bkpt #0" );
         }
     }
 
@@ -270,7 +242,7 @@ int main( void )
     {
         for( ;; )
         {
-            __asm volatile ( "bkpt #0" );
+            __asm volatile( "bkpt #0" );
         }
     }
 
@@ -285,7 +257,7 @@ int main( void )
     {
         for( ;; )
         {
-            __asm volatile ( "bkpt #0" );
+            __asm volatile( "bkpt #0" );
         }
     }
 
@@ -293,6 +265,6 @@ int main( void )
 
     for( ;; )
     {
-        __asm volatile ( "bkpt #0" );
+        __asm volatile( "bkpt #0" );
     }
 }

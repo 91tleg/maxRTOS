@@ -754,6 +754,17 @@ maxrtos_status_t maxrtos_periodic_wait( void )
         MAXRTOS_SVC_PERIODIC_WAIT, 0U, 0U, 0U, 0U );
 }
 
+maxrtos_status_t maxrtos_timed_wait( maxrtos_tick_t delay_ticks )
+{
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_TIMED_WAIT, ( uint32_t ) delay_ticks, 0U, 0U, 0U );
+}
+
+maxrtos_tick_t maxrtos_get_time( void )
+{
+    return ( maxrtos_tick_t ) sim_svc( MAXRTOS_SVC_TIME_GET, 0U, 0U, 0U, 0U );
+}
+
 void maxrtos_yield( void )
 {
     ( void ) sim_svc( MAXRTOS_SVC_YIELD, 0U, 0U, 0U, 0U );

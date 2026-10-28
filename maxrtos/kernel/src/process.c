@@ -14,8 +14,7 @@
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/timing.h"
 
-static maxrtos_process_control_block_t
-    s_process_pool[ MAXRTOS_MAX_PROCESSES ];
+static maxrtos_process_control_block_t s_process_pool[ MAXRTOS_MAX_PROCESSES ];
 
 static maxrtos_status_t slot_index_from_id(
     maxrtos_process_id_t id,
@@ -61,6 +60,7 @@ void maxrtos_process_pool_init( void )
         s_process_pool[ i ].release_time = 0U;
         s_process_pool[ i ].deadline_time = MAXRTOS_TICK_NONE;
         s_process_pool[ i ].periodic_waiting = false;
+        s_process_pool[ i ].timed_waiting = false;
         s_process_pool[ i ].deadline_misses = 0U;
         s_process_pool[ i ].entry = NULL;
         s_process_pool[ i ].entry_arg = NULL;
@@ -81,11 +81,9 @@ maxrtos_status_t maxrtos_process_create(
 
     status = MAXRTOS_ERR_POOL_FULL;
 
-    if( ( stack_base == NULL ) ||
-        ( stack_size == 0U ) ||
+    if( ( stack_base == NULL ) || ( stack_size == 0U ) ||
         ( partition_id >= MAXRTOS_MAX_PARTITIONS ) ||
-        ( priority > MAXRTOS_MAX_PRIORITY ) ||
-        ( entry == NULL ) ||
+        ( priority > MAXRTOS_MAX_PRIORITY ) || ( entry == NULL ) ||
         ( out_id == NULL ) )
     {
         status = MAXRTOS_ERR_INVALID_ARG;
@@ -94,8 +92,7 @@ maxrtos_status_t maxrtos_process_create(
     {
         size_t i;
 
-        for( i = 0U;
-             ( i < MAXRTOS_MAX_PROCESSES ) && ( status != MAXRTOS_OK );
+        for( i = 0U; ( i < MAXRTOS_MAX_PROCESSES ) && ( status != MAXRTOS_OK );
              i++ )
         {
             if( s_process_pool[ i ].state == MAXRTOS_PROCESS_STATE_UNUSED )
@@ -119,6 +116,7 @@ maxrtos_status_t maxrtos_process_create(
                 pcb->release_time = 0U;
                 pcb->deadline_time = MAXRTOS_TICK_NONE;
                 pcb->periodic_waiting = false;
+                pcb->timed_waiting = false;
                 pcb->deadline_misses = 0U;
                 pcb->entry = entry;
                 pcb->entry_arg = entry_arg;
@@ -134,8 +132,7 @@ maxrtos_status_t maxrtos_process_create(
     return status;
 }
 
-maxrtos_process_control_block_t *
-maxrtos_process_get( maxrtos_process_id_t id )
+maxrtos_process_control_block_t * maxrtos_process_get( maxrtos_process_id_t id )
 {
     maxrtos_process_control_block_t * result;
     size_t index;
@@ -147,8 +144,7 @@ maxrtos_process_get( maxrtos_process_id_t id )
     status = slot_index_from_id( id, &index );
 
     if( ( status == MAXRTOS_OK ) &&
-        ( s_process_pool[ index ].state !=
-          MAXRTOS_PROCESS_STATE_UNUSED ) )
+        ( s_process_pool[ index ].state != MAXRTOS_PROCESS_STATE_UNUSED ) )
     {
         result = &s_process_pool[ index ];
     }
@@ -168,8 +164,7 @@ maxrtos_status_t maxrtos_process_set_state(
     status = slot_index_from_id( id, &index );
 
     if( ( status == MAXRTOS_OK ) &&
-        ( s_process_pool[ index ].state !=
-          MAXRTOS_PROCESS_STATE_UNUSED ) )
+        ( s_process_pool[ index ].state != MAXRTOS_PROCESS_STATE_UNUSED ) )
     {
         s_process_pool[ index ].state = new_state;
         status = MAXRTOS_OK;
