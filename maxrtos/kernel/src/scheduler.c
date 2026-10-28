@@ -11,18 +11,22 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "maxrtos/kernel/scheduler.h"
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/waitlist.h"
+
+_Static_assert(
+    MAXRTOS_MAX_PRIORITY < 32U,
+    "the ready mask holds one bit per priority in 32 bits" );
 
 static size_t maxrtos_scheduler_queue_tail(
     maxrtos_ready_queue_t const * queue )
 {
     size_t tail;
 
-    tail = ( queue->head + queue->count ) %
-           MAXRTOS_MAX_READY_PER_PRIORITY;
+    tail = ( queue->head + queue->count ) % MAXRTOS_MAX_READY_PER_PRIORITY;
 
     return tail;
 }
@@ -73,12 +77,9 @@ static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
         found_index = 0U;
         found = false;
 
-        for( scan = 0U;
-             ( scan < queue->count ) && ( found == false );
-             scan++ )
+        for( scan = 0U; ( scan < queue->count ) && ( found == false ); scan++ )
         {
-            index = ( queue->head + scan ) %
-                    MAXRTOS_MAX_READY_PER_PRIORITY;
+            index = ( queue->head + scan ) % MAXRTOS_MAX_READY_PER_PRIORITY;
 
             if( queue->items[ index ] == id )
             {
@@ -89,17 +90,13 @@ static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
 
         if( found == true )
         {
-            for( scan = found_index;
-                 ( scan + 1U ) < queue->count;
-                 scan++ )
+            for( scan = found_index; ( scan + 1U ) < queue->count; scan++ )
             {
-                index = ( queue->head + scan ) %
-                        MAXRTOS_MAX_READY_PER_PRIORITY;
+                index = ( queue->head + scan ) % MAXRTOS_MAX_READY_PER_PRIORITY;
 
-                queue->items[ index ] =
-                    queue->items[
-                        ( queue->head + scan + 1U ) %
-                        MAXRTOS_MAX_READY_PER_PRIORITY ];
+                queue->items[ index ] = queue->items
+                                            [ ( queue->head + scan + 1U ) %
+                                              MAXRTOS_MAX_READY_PER_PRIORITY ];
             }
 
             queue->count--;
@@ -110,8 +107,7 @@ static maxrtos_status_t maxrtos_scheduler_queue_remove_id(
     return status;
 }
 
-maxrtos_status_t maxrtos_scheduler_init(
-    maxrtos_scheduler_context_t * ctx )
+maxrtos_status_t maxrtos_scheduler_init( maxrtos_scheduler_context_t * ctx )
 {
     maxrtos_status_t status;
 
@@ -121,13 +117,13 @@ maxrtos_status_t maxrtos_scheduler_init(
     {
         size_t priority;
 
-        for( priority = 0U;
-             priority <= MAXRTOS_MAX_PRIORITY;
-             priority++ )
+        for( priority = 0U; priority <= MAXRTOS_MAX_PRIORITY; priority++ )
         {
             ctx->queues[ priority ].head = 0U;
             ctx->queues[ priority ].count = 0U;
         }
+
+        ctx->ready_mask = 0U;
 
         status = MAXRTOS_OK;
     }
@@ -160,9 +156,7 @@ maxrtos_status_t maxrtos_scheduler_add_process(
             }
             else
             {
-                status = maxrtos_scheduler_queue_push(
-                    &ctx->queues[ pcb->priority ],
-                    id );
+                status = maxrtos_scheduler_enqueue( ctx, id, pcb->priority );
             }
         }
     }
@@ -196,8 +190,12 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
             else
             {
                 status = maxrtos_scheduler_queue_remove_id(
-                    &ctx->queues[ pcb->priority ],
-                    id );
+                    &ctx->queues[ pcb->priority ], id );
+
+                if( ctx->queues[ pcb->priority ].count == 0U )
+                {
+                    ctx->ready_mask &= ~( UINT32_C( 1 ) << pcb->priority );
+                }
             }
         }
     }
@@ -215,25 +213,83 @@ maxrtos_status_t maxrtos_scheduler_next(
 
     if( ( ctx != NULL ) && ( out_id != NULL ) )
     {
-        size_t priority;
-
-        priority = 0U;
-        status = MAXRTOS_ERR_QUEUE_EMPTY;
-
-        for( priority = 0U;
-             ( priority <= MAXRTOS_MAX_PRIORITY ) &&
-             ( status != MAXRTOS_OK );
-             priority++ )
+        if( ctx->ready_mask == 0U )
         {
-            if( ctx->queues[ priority ].count > 0U )
-            {
-                /* Peek only. Selection does not remove the process from the
-                 * ready queue or modify queue state. */
-                *out_id = ctx->queues[ priority ].items[
-                    ctx->queues[ priority ].head ];
+            status = MAXRTOS_ERR_QUEUE_EMPTY;
+        }
+        else
+        {
+            /* Priority 0 is the highest, so the lowest set bit wins.
+             * Peek only. Selection does not remove the process from the
+             * ready queue or modify queue state. */
+            uint32_t priority;
 
-                status = MAXRTOS_OK;
+            priority = ( uint32_t ) __builtin_ctz( ctx->ready_mask );
+
+            *out_id =
+                ctx->queues[ priority ].items[ ctx->queues[ priority ].head ];
+
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
+
+maxrtos_status_t maxrtos_scheduler_take_next(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t * out_id )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( out_id != NULL ) )
+    {
+        if( ctx->ready_mask == 0U )
+        {
+            status = MAXRTOS_ERR_QUEUE_EMPTY;
+        }
+        else
+        {
+            maxrtos_ready_queue_t * queue;
+            uint32_t priority;
+
+            priority = ( uint32_t ) __builtin_ctz( ctx->ready_mask );
+            queue = &ctx->queues[ priority ];
+
+            *out_id = queue->items[ queue->head ];
+            queue->head = ( queue->head + 1U ) % MAXRTOS_MAX_READY_PER_PRIORITY;
+            queue->count--;
+
+            if( queue->count == 0U )
+            {
+                ctx->ready_mask &= ~( UINT32_C( 1 ) << priority );
             }
+
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
+
+maxrtos_status_t maxrtos_scheduler_enqueue(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t id,
+    uint8_t priority )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( priority <= MAXRTOS_MAX_PRIORITY ) )
+    {
+        status = maxrtos_scheduler_queue_push( &ctx->queues[ priority ], id );
+
+        if( status == MAXRTOS_OK )
+        {
+            ctx->ready_mask |= UINT32_C( 1 ) << priority;
         }
     }
 
@@ -251,9 +307,7 @@ size_t maxrtos_scheduler_process_count(
     {
         size_t priority;
 
-        for( priority = 0U;
-             priority <= MAXRTOS_MAX_PRIORITY;
-             priority++ )
+        for( priority = 0U; priority <= MAXRTOS_MAX_PRIORITY; priority++ )
         {
             count += ctx->queues[ priority ].count;
         }

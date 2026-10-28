@@ -12,6 +12,7 @@
 #define MAXRTOS_KERNEL_SCHEDULER_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include "maxrtos/status.h"
 #include "maxrtos/config.h"
@@ -42,6 +43,9 @@ typedef struct
 typedef struct maxrtos_scheduler_context_s
 {
     maxrtos_ready_queue_t queues[ MAXRTOS_MAX_PRIORITY + 1U ];
+
+    /* Bit p is set while queues[ p ] is not empty. */
+    uint32_t ready_mask;
 } maxrtos_scheduler_context_t;
 
 /**
@@ -59,8 +63,7 @@ typedef struct maxrtos_scheduler_context_s
  *
  * @pre The process pool shall have been initialized.
  */
-maxrtos_status_t maxrtos_scheduler_init(
-    maxrtos_scheduler_context_t * ctx );
+maxrtos_status_t maxrtos_scheduler_init( maxrtos_scheduler_context_t * ctx );
 
 /**
  * @brief Add a READY process to a scheduler context.
@@ -140,6 +143,31 @@ maxrtos_status_t maxrtos_scheduler_remove_process(
 maxrtos_status_t maxrtos_scheduler_next(
     maxrtos_scheduler_context_t const * ctx,
     maxrtos_process_id_t * out_id );
+
+/**
+ * @brief Remove and return the process maxrtos_scheduler_next() would pick.
+ *
+ * Unlike maxrtos_scheduler_add_process() and _remove_process() this does
+ * not look the process up or check its state: the caller (the dispatcher)
+ * has already done both.
+ *
+ * @return MAXRTOS_OK, MAXRTOS_ERR_QUEUE_EMPTY if nothing is queued, or
+ *         MAXRTOS_ERR_INVALID_ARG.
+ */
+maxrtos_status_t maxrtos_scheduler_take_next(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t * out_id );
+
+/**
+ * @brief Queue a process at the tail of the queue for @p priority without
+ *        looking it up or checking its state.
+ *
+ * @return MAXRTOS_OK, MAXRTOS_ERR_QUEUE_FULL, or MAXRTOS_ERR_INVALID_ARG.
+ */
+maxrtos_status_t maxrtos_scheduler_enqueue(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t id,
+    uint8_t priority );
 
 /**
  * @brief Return the number of schedulable processes.
