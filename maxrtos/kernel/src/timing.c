@@ -18,9 +18,57 @@ _Static_assert( MAXRTOS_MAX_PROCESSES <= 32U,
 /* One bit per process ID: a miss detected but not yet handled. */
 static uint32_t s_pending_misses = 0U;
 
+/* Lower bound on the tick of the next timed event (IPC timeout, periodic
+ * release or deadline). Every site that sets a wake_tick or deadline_time
+ * lowers it through maxrtos_kernel_timing_note_due(); the tick handler scans
+ * the process pool only once the tick reaches it, then recomputes it. It
+ * starts at 0 so the first tick after a reset scans and establishes it. */
+static maxrtos_tick_t s_next_due = 0U;
+
 void maxrtos_kernel_timing_reset( void )
 {
     s_pending_misses = 0U;
+    s_next_due = 0U;
+}
+
+void maxrtos_kernel_timing_note_due( maxrtos_tick_t tick )
+{
+    if( ( tick != MAXRTOS_TICK_NONE ) && ( tick < s_next_due ) )
+    {
+        s_next_due = tick;
+    }
+}
+
+bool maxrtos_kernel_timing_is_due( maxrtos_tick_t now )
+{
+    return now >= s_next_due;
+}
+
+void maxrtos_kernel_timing_refresh_due( void )
+{
+    maxrtos_tick_t earliest = MAXRTOS_TICK_NONE;
+
+    for( maxrtos_process_id_t id = 0U;
+         id < ( maxrtos_process_id_t ) MAXRTOS_MAX_PROCESSES;
+         id++ )
+    {
+        maxrtos_process_control_block_t const * pcb = maxrtos_process_get( id );
+
+        if( pcb != NULL )
+        {
+            if( pcb->wake_tick < earliest )
+            {
+                earliest = pcb->wake_tick;
+            }
+
+            if( pcb->deadline_time < earliest )
+            {
+                earliest = pcb->deadline_time;
+            }
+        }
+    }
+
+    s_next_due = earliest;
 }
 
 static void arm_deadline( maxrtos_process_control_block_t * pcb )
@@ -28,6 +76,7 @@ static void arm_deadline( maxrtos_process_control_block_t * pcb )
     if( pcb->time_capacity > 0U )
     {
         pcb->deadline_time = pcb->release_time + pcb->time_capacity;
+        maxrtos_kernel_timing_note_due( pcb->deadline_time );
     }
     else
     {
@@ -152,6 +201,7 @@ maxrtos_status_t maxrtos_kernel_periodic_wait(
                 {
                     pcb->periodic_waiting = true;
                     pcb->wake_tick = next_release;
+                    maxrtos_kernel_timing_note_due( next_release );
                     status = MAXRTOS_PENDING;
                 }
                 else

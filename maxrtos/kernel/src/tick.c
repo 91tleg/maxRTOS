@@ -35,16 +35,24 @@ maxrtos_status_t maxrtos_kernel_on_tick(
 
     s_current_tick++;
 
-    /* Resume processes whose timed IPC wait has expired before choosing
-     * what to run, so a timed-out process can run in its own slot. A wait
-     * of N ticks, started when the tick counter read T, expires when the
-     * counter reaches T + N. */
-    ( void ) maxrtos_ipc_expire_timeouts( table, s_current_tick );
+    /* The scans below walk the whole process pool, so they run only when a
+     * timeout, release or deadline can actually be due. */
+    if( maxrtos_kernel_timing_is_due( s_current_tick ) )
+    {
+        /* Resume processes whose timed IPC wait has expired before choosing
+         * what to run, so a timed-out process can run in its own slot. A
+         * wait of N ticks, started when the tick counter read T, expires
+         * when the counter reaches T + N. */
+        ( void ) maxrtos_ipc_expire_timeouts( table, s_current_tick );
 
-    /* Periodic releases first, so a process released at this tick is judged
-     * against its new deadline; then record any deadline that has passed. */
-    ( void ) maxrtos_kernel_release_periodic( table, s_current_tick );
-    ( void ) maxrtos_kernel_check_deadlines( table, s_current_tick );
+        /* Periodic releases first, so a process released at this tick is
+         * judged against its new deadline; then record any deadline that
+         * has passed. */
+        ( void ) maxrtos_kernel_release_periodic( table, s_current_tick );
+        ( void ) maxrtos_kernel_check_deadlines( table, s_current_tick );
+
+        maxrtos_kernel_timing_refresh_due();
+    }
 
     if( status == MAXRTOS_OK )
     {
@@ -94,4 +102,7 @@ maxrtos_tick_t maxrtos_kernel_tick_now( void )
 void maxrtos_kernel_tick_reset( void )
 {
     s_current_tick = 0U;
+
+    /* The due bound was in the old timeline: scan on the next tick. */
+    maxrtos_kernel_timing_note_due( 0U );
 }
