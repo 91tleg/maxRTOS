@@ -34,13 +34,27 @@ file(GLOB CODEGEN_SOURCES CONFIGURE_DEPENDS
 set(gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 
 add_custom_command(
-    OUTPUT ${gen}/maxrtos_config.c ${gen}/maxrtos_config.h ${gen}/link.ld
+    OUTPUT
+        ${gen}/maxrtos_config.c
+        ${gen}/maxrtos_config.h
+        ${gen}/maxrtos_limits.h
+        ${gen}/link.ld
     COMMAND ${CMAKE_COMMAND} -E env
         PYTHONPATH=${MAXRTOS_ROOT}/tools/maxrtos_codegen
         ${Python3_EXECUTABLE} -m maxrtos_codegen.cli
-        ${CMAKE_CURRENT_SOURCE_DIR}/module.json --out-dir ${gen}
+        ${CMAKE_CURRENT_SOURCE_DIR}/module.json --out-dir ${gen} --emit-limits
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/module.json ${CODEGEN_SOURCES}
 )
+add_custom_target(bench_generated DEPENDS
+    ${gen}/maxrtos_config.c
+    ${gen}/maxrtos_config.h
+    ${gen}/maxrtos_limits.h
+    ${gen}/link.ld
+)
+
+# Size the kernel's tables to this module (cmake/maxrtos_limits.cmake).
+include(${MAXRTOS_ROOT}/cmake/maxrtos_limits.cmake)
+maxrtos_use_generated_limits(${gen}/maxrtos_limits.h bench_generated)
 
 add_executable(bench_context_switch
     bench_context_switch.c

@@ -17,6 +17,11 @@
     }
   },
   "stack_region": "sram",
+  "limits": {
+    "mutexes": 1,
+    "semaphores": 1,
+    "buffers": 1
+  },
   "partitions": [
     {
       "id": 0,

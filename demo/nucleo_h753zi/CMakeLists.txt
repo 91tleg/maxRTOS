@@ -15,6 +15,12 @@ add_subdirectory(
     EXCLUDE_FROM_ALL
 )
 
+# Size the kernel's tables to this module (cmake/maxrtos_limits.cmake). The
+# directory is generated with `maxrtos-codegen module.json --out-dir generated
+# --emit-limits` before configuring.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/maxrtos_limits.cmake)
+maxrtos_use_generated_limits(${CMAKE_CURRENT_SOURCE_DIR}/generated/maxrtos_limits.h)
+
 add_executable(maxrtos_demo_nucleo_h753zi
     main.c
     generated/maxrtos_config.c

@@ -184,7 +184,8 @@ jobs:
         run: |
           maxrtos-codegen \
             demo/nucleo_h753zi/module.json \
-            --out-dir demo/nucleo_h753zi/generated
+            --out-dir demo/nucleo_h753zi/generated \
+            --emit-limits
 
       - name: Configure
         run: |
