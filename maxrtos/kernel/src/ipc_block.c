@@ -20,6 +20,7 @@
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/dispatch.h"
 #include "maxrtos/kernel/mutex.h"
+#include "maxrtos/kernel/timing.h"
 
 /**
  * @brief Clear the blocked IPC state of a process.
@@ -85,6 +86,7 @@ maxrtos_status_t maxrtos_ipc_block_current(
             {
                 pcb->waitlist = waitlist;
                 pcb->wake_tick = wake_tick;
+                maxrtos_kernel_timing_note_due( wake_tick );
 
                 /*
                  * RUNNING -> BLOCKED

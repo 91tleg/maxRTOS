@@ -156,4 +156,19 @@ void maxrtos_kernel_rearm_all_timing( void );
 /** @brief Forget recorded misses. Called when the process pool is reset. */
 void maxrtos_kernel_timing_reset( void );
 
+/**
+ * @brief Record that a timed event (timeout, release or deadline) may fall
+ * due at the given tick.
+ *
+ * Shall be called wherever a process's wake_tick or deadline_time is set to
+ * a finite value. MAXRTOS_TICK_NONE is ignored.
+ */
+void maxrtos_kernel_timing_note_due( maxrtos_tick_t tick );
+
+/** @brief True when a timed event may be due at or before @p now. */
+bool maxrtos_kernel_timing_is_due( maxrtos_tick_t now );
+
+/** @brief Recompute the next due tick from the process pool. */
+void maxrtos_kernel_timing_refresh_due( void );
+
 #endif /* MAXRTOS_KERNEL_TIMING_H */
