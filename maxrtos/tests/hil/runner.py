@@ -58,7 +58,7 @@ def run(cmd, **kwargs):
         raise SystemExit(f"{cmd[0]} not found; is it installed and on PATH?")
 
 
-def build(build_dir):
+def build(build_dir, opt, lto):
     try:
         import jinja2  # noqa: F401  (needed by the code generator)
     except ImportError:
@@ -69,7 +69,9 @@ def build(build_dir):
          f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake' / 'arm-none-eabi.cmake'}",
          # The code generator needs jinja2: use the interpreter running this
          # script, not whichever python CMake finds first.
-         f"-DPython3_EXECUTABLE={sys.executable}"])
+         f"-DPython3_EXECUTABLE={sys.executable}",
+         f"-DMAXRTOS_OPT_LEVEL={opt}",
+         f"-DMAXRTOS_LTO={'ON' if lto else 'OFF'}"])
     run(["cmake", "--build", str(build_dir)])
 
 
@@ -255,6 +257,7 @@ def run_test(oc, name, elf, timeout_scale, info):
         oc.command("reset run")
 
         block = None
+        resumed = False
         last_halt_check = time.monotonic()
         start_deadline = time.monotonic() + STARTUP_SECONDS
         run_deadline = None
@@ -281,6 +284,15 @@ def run_test(oc, name, elf, timeout_scale, info):
             if now - last_halt_check > HALT_CHECK_SECONDS:
                 last_halt_check = now
                 if oc.state() == "halted":
+                    # After reset the core can be found halted on the first
+                    # instruction of PendSV_Handler, with nothing wrong (seen
+                    # on -O2 images, which reach it within milliseconds). Let
+                    # it go once; any other halt, or a second one, is a fault.
+                    if (not resumed and
+                            oc.pc() == (symbol(elf, "PendSV_Handler") & ~1)):
+                        resumed = True
+                        oc.command("resume")
+                        continue
                     raise HilError("core halted (HALT or breakpoint) before a verdict; "
                                    + diagnostics(oc, elf))
 
@@ -325,6 +337,10 @@ def main():
                    help="run only tests whose name contains this (repeatable)")
     p.add_argument("--list", action="store_true", help="list the tests and exit")
     p.add_argument("--no-build", action="store_true", help="use the existing build")
+    p.add_argument("--opt", default="-O0",
+                   help="optimization flag for kernel, arch and tests (default -O0)")
+    p.add_argument("--no-lto", action="store_true",
+                   help="build without link-time optimization (it is on above -O0)")
     p.add_argument("--build-dir", type=Path, default=ROOT / "build" / "hil")
     p.add_argument("--junit", type=Path, metavar="FILE", help="also write a JUnit XML report")
     p.add_argument("--timeout-scale", type=float, default=1.0,
@@ -333,7 +349,7 @@ def main():
     args = p.parse_args()
 
     if not args.no_build:
-        build(args.build_dir)
+        build(args.build_dir, args.opt, args.opt != "-O0" and not args.no_lto)
 
     names = discover(args.build_dir)
     if args.filters:

@@ -94,7 +94,8 @@ jobs:
           sudo apt-get install -y \
             python3-jinja2 \
             cmake \
-            ninja-build
+            ninja-build \
+            libfdt1
 
       - name: Install Arm GNU toolchain
         uses: carlosperate/arm-none-eabi-gcc-action@v1

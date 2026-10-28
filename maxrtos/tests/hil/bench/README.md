@@ -32,7 +32,7 @@ core clock (the reset default is the 64 MHz HSI unless your startup changes
 it); it only converts cycles to microseconds.
 
 Report the **max**, not the mean: a partitioned system is judged on its worst
-case. Latest figures: [RESULTS.md](RESULTS.md). Run with the caches on and off (`--caches`), and note the optimization level: `--opt=-O2` builds the kernel, arch and bench at -O2 (default -O0). The build is soft-float.
+case. Latest figures: [RESULTS.md](RESULTS.md). Run with the caches on and off (`--caches`), and note the optimization level: `--opt=-O2` builds the kernel, arch and bench at -O2 (default -O0). Above -O0 the build uses link-time optimization (`-flto`); `--no-lto` turns it off. The build is soft-float.
 
 ## Limits
 
