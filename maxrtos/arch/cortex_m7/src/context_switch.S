@@ -3,8 +3,9 @@
  * @brief Cortex-M7 PendSV context switch.
  *
  * Saves and restores the software-saved process context around the
- * hardware exception frame, configures the incoming process MPU and
- * privilege state, and returns to it using PSP.
+ * hardware exception frame, prepares the incoming process (MPU, privilege
+ * and pending blocking-call result) with one call to
+ * maxrtos_arch_prepare_next_pcb(), and returns to it using PSP.
  *
  * The PCB's stack_pointer member shall be at offset zero.
  *
@@ -44,27 +45,21 @@ PendSV_Handler:
     str     r1, [r0]              /* pcb->stack_pointer */
 
 1:
-    /* Configure the incoming process before restoring its context. */
-    ldr     r0, =g_maxrtos_next_pcb
-    ldr     r0, [r0]
-    bl      maxrtos_arch_mpu_configure_for_next_pcb
+    /* Configure the incoming process before restoring its context: MPU,
+     * privilege, and the result of a completed blocking call. r4 is free
+     * here (the outgoing r4-r11 are saved, the incoming ones not yet
+     * restored) and survives the call, so the process is loaded once. */
+    ldr     r4, =g_maxrtos_next_pcb
+    ldr     r4, [r4]
+    mov     r0, r4
+    bl      maxrtos_arch_prepare_next_pcb
 
     cmp     r0, #0
     beq     2f
     b       maxrtos_mpu_configure_failed
 
 2:
-    ldr     r0, =g_maxrtos_next_pcb
-    ldr     r0, [r0]
-    bl      maxrtos_arch_apply_privilege_for_next_pcb
-
-    /* Deliver the result of a completed blocking call, if any. */
-    ldr     r0, =g_maxrtos_next_pcb
-    ldr     r0, [r0]
-    bl      maxrtos_arch_apply_resume_result
-
-    ldr     r0, =g_maxrtos_next_pcb
-    ldr     r0, [r0]
+    mov     r0, r4
 
     /* Restore the incoming software-saved context. */
     ldr     r1, [r0]              /* pcb->stack_pointer */

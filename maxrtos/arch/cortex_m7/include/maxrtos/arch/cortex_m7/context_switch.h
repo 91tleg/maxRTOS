@@ -26,7 +26,7 @@ extern maxrtos_process_control_block_t * g_maxrtos_next_pcb;
  * @param[in,out] pcb
  *     Process control block to initialize.
  *
- * @return 
+ * @return
  *     MAXRTOS_OK if the stack was initialized successfully.
  *     MAXRTOS_ERR_INVALID_ARG if pcb or any required PCB field
  *     is invalid.
@@ -44,12 +44,11 @@ maxrtos_status_t maxrtos_arch_init_stack(
  * This state is used when starting the first process and when the
  * current process context has been discarded during fault recovery.
  *
- * @param[in] pcb 
+ * @param[in] pcb
  *     Process control block of the currently executing
  *     process, or NULL when no current context exists.
  */
-void maxrtos_arch_set_current_pcb(
-    maxrtos_process_control_block_t * pcb );
+void maxrtos_arch_set_current_pcb( maxrtos_process_control_block_t * pcb );
 
 /**
  * @brief Set the process for the next context switch.
@@ -62,8 +61,7 @@ void maxrtos_arch_set_current_pcb(
  *
  * @pre pcb shall not be NULL when a context switch is requested.
  */
-void maxrtos_arch_set_next_pcb(
-    maxrtos_process_control_block_t * pcb );
+void maxrtos_arch_set_next_pcb( maxrtos_process_control_block_t * pcb );
 
 /**
  * @brief Get the architecture-layer current process.
@@ -71,42 +69,37 @@ void maxrtos_arch_set_next_pcb(
  * Returns the process control block currently registered with the
  * architecture context-switch mechanism.
  *
- * @return 
+ * @return
  *     Pointer to the current process control block.
  *     NULL if no process context is currently registered.
  */
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void );
 
 /**
- * @brief Deliver a completed blocking operation's result to a process.
+ * @brief Prepare the hardware and the process for its restore.
  *
- * If the kernel completed an operation the process was blocked in
- * (ipc_result_pending), writes ipc_result into the process's saved
- * exception frame as the system-call return value (r0) and clears the
- * flag. Called by the PendSV handler before the process is restored.
+ * Called once by the PendSV handler, after the outgoing context is saved
+ * and before the incoming one is restored. In order, it:
+ *   1. configures the MPU for the process's partition
+ *      (maxrtos_arch_mpu_configure_for_next_pcb()),
+ *   2. applies its privilege level: CONTROL.nPRIV follows the privilege of
+ *      the process's partition (maxrtos_arch_partition_is_privileged()), and
+ *      is written only if it differs, and
+ *   3. delivers a completed blocking call's result: if the kernel completed
+ *      an operation the process was blocked in (ipc_result_pending), writes
+ *      ipc_result into its saved exception frame as the system-call return
+ *      value (r0) and clears the flag.
+ * Steps 2 and 3 run only if step 1 succeeds.
  *
  * @param[in,out] pcb
- *     Process about to be restored. May be NULL.
+ *     Process about to be restored.
+ *
+ * @return
+ *     MAXRTOS_OK, or the MPU configuration error. The PendSV handler
+ *     treats an error as fatal.
  */
-void maxrtos_arch_apply_resume_result(
+maxrtos_status_t maxrtos_arch_prepare_next_pcb(
     maxrtos_process_control_block_t * pcb );
-
-/**
- * @brief Apply the privilege level for the next process.
- *
- * Updates the Cortex-M CONTROL.nPRIV bit from the privilege of the
- * process's partition (see maxrtos_arch_partition_is_privileged()). A
- * process of an application partition executes in unprivileged Thread
- * mode; a process of a system partition, and the architecture idle
- * context (which belongs to no partition), execute in privileged Thread
- * mode.
- *
- * @param[in] pcb
- *     Process control block describing the privilege level to apply.
- *     If NULL, no action is performed.
- */
-void maxrtos_arch_apply_privilege_for_next_pcb(
-    maxrtos_process_control_block_t const * pcb );
 
 /**
  * @brief Declare a partition a system partition (privileged).
@@ -181,7 +174,6 @@ void maxrtos_arch_context_switch_init( void );
  *
  * @note This function does not return during normal operation.
  */
-void maxrtos_arch_start_first_process(
-    maxrtos_process_control_block_t * pcb );
+void maxrtos_arch_start_first_process( maxrtos_process_control_block_t * pcb );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_CONTEXT_SWITCH_H */
