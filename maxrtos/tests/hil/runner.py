@@ -257,6 +257,7 @@ def run_test(oc, name, elf, timeout_scale, info):
         oc.command("reset run")
 
         block = None
+        resumed = False
         last_halt_check = time.monotonic()
         start_deadline = time.monotonic() + STARTUP_SECONDS
         run_deadline = None
@@ -283,6 +284,15 @@ def run_test(oc, name, elf, timeout_scale, info):
             if now - last_halt_check > HALT_CHECK_SECONDS:
                 last_halt_check = now
                 if oc.state() == "halted":
+                    # After reset the core can be found halted on the first
+                    # instruction of PendSV_Handler, with nothing wrong (seen
+                    # on -O2 images, which reach it within milliseconds). Let
+                    # it go once; any other halt, or a second one, is a fault.
+                    if (not resumed and
+                            oc.pc() == (symbol(elf, "PendSV_Handler") & ~1)):
+                        resumed = True
+                        oc.command("resume")
+                        continue
                     raise HilError("core halted (HALT or breakpoint) before a verdict; "
                                    + diagnostics(oc, elf))
 
