@@ -32,7 +32,7 @@ def run(cmd, **kw):
         sys.exit(f"{cmd[0]} not found; is it installed and on PATH?")
 
 
-def build(build_dir, caches, opt, mhz480=False):
+def build(build_dir, caches, opt, mhz480=False, lto=True):
     try:
         import jinja2  # noqa: F401  (needed by the code generator)
     except ImportError:
@@ -43,6 +43,7 @@ def build(build_dir, caches, opt, mhz480=False):
          f"-DBENCH_CACHES={'ON' if caches else 'OFF'}",
          f"-DBENCH_480MHZ={'ON' if mhz480 else 'OFF'}",
          f"-DMAXRTOS_OPT_LEVEL={opt}",
+         f"-DMAXRTOS_LTO={'ON' if lto and opt != '-O0' else 'OFF'}",
          # The code generator needs jinja2: use the interpreter running this
          # script, not whichever python CMake finds first.
          f"-DPython3_EXECUTABLE={sys.executable}"])
@@ -112,6 +113,8 @@ def main():
     p.add_argument("--caches", action="store_true")
     p.add_argument("--opt", default="-O0",
                    help="optimization flag for kernel, arch and bench (default -O0)")
+    p.add_argument("--no-lto", action="store_true",
+                   help="build without link-time optimization (it is on above -O0)")
     p.add_argument("--seconds", type=int, default=15,
                    help="how long to let the benchmark run before reading")
     p.add_argument("--no-build", action="store_true")
@@ -123,7 +126,8 @@ def main():
 
     elf = args.build_dir / "bench_context_switch"
     if not args.no_build:
-        elf = build(args.build_dir, args.caches, args.opt, args.mhz480)
+        elf = build(args.build_dir, args.caches, args.opt, args.mhz480,
+                    not args.no_lto)
 
     report(read_words(elf, symbol(elf, "g_bench"), args.seconds), args.cpu_hz)
 
