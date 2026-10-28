@@ -112,13 +112,16 @@ jobs:
         if: steps.qemu-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get install -y \
-            libglib2.0-dev libpixman-1-dev pkg-config python3-venv
+            libglib2.0-dev libpixman-1-dev libfdt-dev pkg-config python3-venv
           curl -fsSL https://download.qemu.org/qemu-10.1.0.tar.xz | tar -xJ
           cd qemu-10.1.0
+          # Use the system libfdt: the bundled dtc subproject is built with
+          # -Werror and fails on glibc's const-correct memchr().
           ./configure \
             --target-list=arm-softmmu \
             --prefix=$HOME/qemu-10.1.0 \
-            --disable-docs --disable-werror
+            --disable-docs --disable-werror \
+            --enable-fdt=system
           make -j$(nproc)
           make install
 
