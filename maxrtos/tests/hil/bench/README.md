@@ -40,5 +40,6 @@ case. Latest figures: [RESULTS.md](RESULTS.md). Run with the caches on and off (
   read the DWT, so `nPRIV` switching is not measured.
 - With `--caches`, D-cache gains depend on the MPU memory attributes the
   configuration gives SRAM.
-- The kernel scans every process on each tick (timeouts, releases,
-  deadlines), so the `TICK_*` figures grow with the process count.
+- The kernel scans every process on a tick where a timeout, release or
+  deadline falls due, and skips the scan otherwise, so the `TICK_*` maxima
+  grow with the process count while ordinary ticks do not.
