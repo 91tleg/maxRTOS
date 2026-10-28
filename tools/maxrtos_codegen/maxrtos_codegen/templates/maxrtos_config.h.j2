@@ -21,6 +21,14 @@
 #include "maxrtos/kernel/frame.h"
 #include "maxrtos/arch/cortex_m7/systick.h" /* declares maxrtos_arch_systick(), called from your SysTick_Handler */
 
+/* The kernel limits in effect (the defaults in maxrtos/config.h, or
+ * maxrtos_limits.h when the build force-includes it) must be large enough for
+ * this configuration. */
+{% for name, value in limit_minimums %}
+_Static_assert( {{ name }} >= {{ value }}U,
+                "{{ name }} is too small for this configuration" );
+{% endfor %}
+
 #ifdef __cplusplus
 extern "C" {
 #endif

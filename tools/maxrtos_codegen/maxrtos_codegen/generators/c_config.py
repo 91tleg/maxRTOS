@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from ..schema import HM_ACTIONS, HM_FAULTS, RtosConfig
+from .limits import limit_definitions, limit_minimums
 
 
 _TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / "templates"
@@ -147,6 +148,17 @@ def generate_header(cfg: RtosConfig, config_path: str) -> str:
         module_name=cfg.module_name,
         partitions=cfg.partitions,
         port_regions=_port_regions_with_mask_expr(cfg),
+        limit_minimums=limit_minimums(cfg.limits),
+    )
+
+
+def generate_limits_header(cfg: RtosConfig, config_path: str) -> str:
+    template = _env().get_template("maxrtos_limits.h.j2")
+
+    return template.render(
+        config_path=config_path,
+        module_name=cfg.module_name,
+        limits=limit_definitions(cfg.limits),
     )
 
 

@@ -153,10 +153,24 @@ class PortRegion:
 
 MAX_PORT_REGIONS = 7
 
-# Must match MAXRTOS_MAX_PROCESSES / MAXRTOS_MAX_PRIORITY in
-# include/maxrtos/config.h.
+# Must match the kernel defaults in include/maxrtos/config.h. They are the
+# upper bounds of the limits the generator derives (see Limits).
 MAX_PROCESSES = 16
 MAX_PRIORITY = 31
+MAX_PARTITIONS = 8
+MAX_FRAME_SLOTS = 16
+MAX_MUTEXES = 8
+MAX_SEMAPHORES = 8
+MAX_BUFFERS = 8
+
+# Optional "limits" keys -> the kernel limit they set and its upper bound.
+# These objects are created by the application at run time, so the model
+# cannot count them; a limit that is not given keeps the kernel default.
+_RUNTIME_OBJECT_LIMITS = {
+    "mutexes": ("max_mutexes", MAX_MUTEXES),
+    "semaphores": ("max_semaphores", MAX_SEMAPHORES),
+    "buffers": ("max_buffers", MAX_BUFFERS),
+}
 
 MPU_MIN_REGION_SIZE = 32
 
@@ -229,6 +243,37 @@ def _pack_domain(processes: list[Process]) -> tuple[int, int, list[int]]:
 
 
 @dataclass
+class Limits:
+    """Sizes of the kernel's static tables for this configuration.
+
+    The kernel sizes its tables from the MAXRTOS_MAX_* macros in
+    maxrtos/config.h, whose defaults suit the largest configuration. These
+    values are the smallest that fit the model, so a small configuration does
+    not pay RAM for 8 partitions of 32 priorities it never uses.
+    maxrtos-codegen --emit-limits writes them as maxrtos_limits.h, which the
+    build force-includes into the kernel, the architecture layer and the
+    application alike: they change the size of structures that are shared
+    between them.
+    """
+    # One more than the highest partition id.
+    max_partitions: int
+    max_processes: int
+    # The highest priority a process is declared with, unless raised.
+    max_priority: int
+    # Depth of one ready queue: a power of two (the queue index wraps with a
+    # mask) at least the most processes any one partition has, since all of
+    # them may end up at one priority.
+    max_ready_per_priority: int
+    max_frame_slots: int
+    # The most processes any one partition has: what a ready queue must hold.
+    max_processes_per_partition: int
+    # None keeps the kernel default.
+    max_mutexes: int | None = None
+    max_semaphores: int | None = None
+    max_buffers: int | None = None
+
+
+@dataclass
 class RtosConfig:
     module_name: str
     memory: dict[str, MemoryRegion]
@@ -240,6 +285,55 @@ class RtosConfig:
     # Value of MPU_CTRL.PRIVDEFENA. False (the default) denies every access
     # not permitted by a region, privileged included.
     privileged_default_map: bool = False
+    limits: Limits | None = None
+
+
+def _parse_limits(raw: object, partitions: list["Partition"],
+                  frame_slots: int) -> Limits:
+    """Derive the kernel limits from the model and the optional "limits" object."""
+    if not isinstance(raw, dict):
+        raise ConfigError("limits must be an object")
+    allowed = {"max_priority", *_RUNTIME_OBJECT_LIMITS}
+    for key in raw:
+        if key not in allowed:
+            raise ConfigError(
+                f"limits.{key}: unknown key; expected one of {sorted(allowed)}"
+            )
+
+    def _int_in(key: str, low: int, high: int) -> int:
+        value = raw[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not (low <= value <= high):
+            raise ConfigError(
+                f"limits.{key} must be an integer in [{low}, {high}], got {value!r}"
+            )
+        return value
+
+    used_priority = max(pr.priority for p in partitions for pr in p.processes)
+    max_priority = used_priority
+    if "max_priority" in raw:
+        # Raise it when the application sets a priority at run time that no
+        # process is declared with.
+        max_priority = _int_in("max_priority", used_priority, MAX_PRIORITY)
+
+    per_partition = max(len(p.processes) for p in partitions)
+    ready = 1
+    while ready < per_partition:
+        ready <<= 1
+
+    runtime: dict[str, int] = {}
+    for key, (field_name, upper) in _RUNTIME_OBJECT_LIMITS.items():
+        if key in raw:
+            runtime[field_name] = _int_in(key, 1, upper)
+
+    return Limits(
+        max_partitions=max(p.id for p in partitions) + 1,
+        max_processes=sum(len(p.processes) for p in partitions),
+        max_priority=max_priority,
+        max_ready_per_priority=ready,
+        max_frame_slots=frame_slots,
+        max_processes_per_partition=per_partition,
+        **runtime,
+    )
 
 
 def _parse_health_policy(raw: object, ctx: str) -> dict[str, str]:
@@ -321,6 +415,11 @@ def load_config(raw: dict) -> RtosConfig:
                     f"(name, stack_size, stack_alignment, priority)"
                 )
         pid = p["id"]
+        if isinstance(pid, bool) or not isinstance(pid, int) or not (0 <= pid < MAX_PARTITIONS):
+            raise ConfigError(
+                f"{ctx}.id must be an integer in [0, {MAX_PARTITIONS - 1}] "
+                f"(MAXRTOS_MAX_PARTITIONS is {MAX_PARTITIONS}), got {pid!r}"
+            )
         name = require_c_ident(p["name"], f"{ctx}.name")
         if pid in seen_ids:
             raise ConfigError(f"duplicate partition id {pid}")
@@ -453,6 +552,12 @@ def load_config(raw: dict) -> RtosConfig:
     if not schedule_raw:
         raise ConfigError(
             "missing required key: schedule.major_frame (at least one slot)"
+        )
+
+    if len(schedule_raw) > MAX_FRAME_SLOTS:
+        raise ConfigError(
+            f"schedule.major_frame has {len(schedule_raw)} slots but "
+            f"MAXRTOS_MAX_FRAME_SLOTS is {MAX_FRAME_SLOTS}"
         )
 
     frame_schedule: list[FrameSlot] = []
@@ -689,4 +794,5 @@ def load_config(raw: dict) -> RtosConfig:
         stack_region_name=stack_region_name,
         port_regions=port_regions,
         privileged_default_map=privdefena,
+        limits=_parse_limits(raw.get("limits", {}), partitions, len(frame_schedule)),
     )
