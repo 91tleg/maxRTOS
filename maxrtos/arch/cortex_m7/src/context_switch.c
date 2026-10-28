@@ -242,6 +242,12 @@ void maxrtos_arch_start_first_process(
 
     maxrtos_arch_request_context_switch();
 
+    /* Make sure the pended PendSV is taken before the next instruction
+     * executes. Without the barriers the CPU can reach the breakpoint
+     * below first. */
+    __asm volatile ( "dsb" ::: "memory" );
+    __asm volatile ( "isb" ::: "memory" );
+
     /* Reaching this point indicates that the requested context switch
      * did not transfer execution to the first process. */
     for( ;; )
