@@ -21,6 +21,22 @@ _Static_assert(
     MAXRTOS_MAX_PRIORITY < 32U,
     "the ready mask holds one bit per priority in 32 bits" );
 
+/* Index of the lowest set bit of a non-zero mask, by de Bruijn
+ * multiplication: the product's top five bits identify the isolated bit. */
+static uint32_t maxrtos_scheduler_lowest_set_bit( uint32_t mask )
+{
+    static const uint8_t s_bit_index[ 32 ] = {
+        0U,  1U,  28U, 2U,  29U, 14U, 24U, 3U,  30U, 22U, 20U,
+        15U, 25U, 17U, 4U,  8U,  31U, 27U, 13U, 23U, 21U, 19U,
+        16U, 7U,  26U, 12U, 18U, 6U,  11U, 5U,  10U, 9U };
+
+    uint32_t isolated;
+
+    isolated = mask & ( ~mask + 1U );
+
+    return s_bit_index[ ( isolated * UINT32_C( 0x077CB531 ) ) >> 27U ];
+}
+
 static size_t maxrtos_scheduler_queue_tail(
     maxrtos_ready_queue_t const * queue )
 {
@@ -141,7 +157,7 @@ maxrtos_status_t maxrtos_scheduler_add_process(
 
     if( ctx != NULL )
     {
-        maxrtos_process_control_block_t * pcb;
+        maxrtos_process_control_block_t const * pcb;
 
         pcb = NULL;
         status = MAXRTOS_ERR_INVALID_ID;
@@ -224,7 +240,7 @@ maxrtos_status_t maxrtos_scheduler_next(
              * ready queue or modify queue state. */
             uint32_t priority;
 
-            priority = ( uint32_t ) __builtin_ctz( ctx->ready_mask );
+            priority = maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
 
             *out_id =
                 ctx->queues[ priority ].items[ ctx->queues[ priority ].head ];
@@ -255,7 +271,7 @@ maxrtos_status_t maxrtos_scheduler_take_next(
             maxrtos_ready_queue_t * queue;
             uint32_t priority;
 
-            priority = ( uint32_t ) __builtin_ctz( ctx->ready_mask );
+            priority = maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
             queue = &ctx->queues[ priority ];
 
             *out_id = queue->items[ queue->head ];
