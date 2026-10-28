@@ -10,6 +10,7 @@ maxrtos partitioned application, from a single JSON config.
 | `link.ld`         | `MEMORY` map + one `NOLOAD` MPU-domain section per partition holding all its process stacks |
 | `maxrtos_config.h`   | `PARTITION_ID_*`, `PARTITION_DOMAIN_SIZE_*`, per-process `extern` stacks + `PROCESS_STACK_SIZE_*`/`PROCESS_PRIORITY_*`, `maxrtos_config_init()` |
 | `maxrtos_config.c`   | MPU region setup (one per partition), partition table wiring, frame schedule |
+| `maxrtos_limits.h`   | Only with `--emit-limits`: the smallest kernel table sizes that fit the config (see [Kernel limits](#kernel-limits)) |
 
 ## What it deliberately does NOT generate
 
@@ -34,6 +35,46 @@ maxrtos-codegen config.json --out-dir generated/
 Re-run any time the config changes; output is deterministic and safe to
 regenerate. Recommended: gitignore `generated/` and run this as a pre-build
 step, or check it in and diff it in CI to catch drift from hand edits.
+
+## Kernel limits
+
+The kernel sizes its static tables (partition table, process pool, ready
+queues, buffer pool, ...) from the `MAXRTOS_MAX_*` macros in
+`maxrtos/config.h`. Their defaults suit the largest configuration: 8 partitions
+of 32 priorities cost about 10 KB of RAM whether or not they are used.
+
+The generator derives the smallest values that fit a config:
+
+| Macro | Value |
+|---|---|
+| `MAXRTOS_MAX_PARTITIONS` | highest partition id + 1 |
+| `MAXRTOS_MAX_PROCESSES` | processes declared |
+| `MAXRTOS_MAX_PRIORITY` | highest priority declared (or `limits.max_priority`) |
+| `MAXRTOS_MAX_READY_PER_PRIORITY` | most processes in one partition, rounded up to a power of two |
+| `MAXRTOS_MAX_FRAME_SLOTS` | slots in the major frame |
+
+Mutexes, semaphores and buffers are created by the application at run time, so
+the config cannot count them. Give their counts in an optional `limits` object
+(`mutexes`, `semaphores`, `buffers`, each 1 to the kernel default of 8); one
+that is not given keeps the kernel default. `limits.max_priority` raises the
+priority limit if the application sets a priority at run time that no process is
+declared with.
+
+`maxrtos-codegen config.json --out-dir generated/ --emit-limits` also writes
+`maxrtos_limits.h`. The kernel does not know about it: the build force-includes
+it, so its definitions come before the defaults in `maxrtos/config.h`, which
+skip any macro that is already defined. The limits change the size of
+structures that the kernel, the architecture layer and the application share,
+so the header must reach all of them: `cmake/maxrtos_limits.cmake` provides
+`maxrtos_use_generated_limits(<maxrtos_limits.h> [<generation target>])`,
+which adds it as a PUBLIC `-include` of `maxrtos_kernel` and makes the kernel
+build after the generation step. The generated `maxrtos_config.h`
+checks, with a `_Static_assert` per limit, that the limits in effect are at
+least what the config needs, whether or not `--emit-limits` was used.
+
+A project that builds several configs against one copy of the kernel (the
+QEMU and HIL test projects) must not emit the header: it would size the
+application for one config and the shared kernel for the defaults.
 
 ## Config format
 

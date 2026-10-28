@@ -21,6 +21,20 @@
 #include "maxrtos/kernel/frame.h"
 #include "maxrtos/arch/cortex_m7/systick.h" /* declares maxrtos_arch_systick(), called from your SysTick_Handler */
 
+/* The kernel limits in effect (the defaults in maxrtos/config.h, or
+ * maxrtos_limits.h when the build force-includes it) must be large enough for
+ * this configuration. */
+_Static_assert( MAXRTOS_MAX_PARTITIONS >= 2U,
+                "MAXRTOS_MAX_PARTITIONS is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_PROCESSES >= 2U,
+                "MAXRTOS_MAX_PROCESSES is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_PRIORITY >= 5U,
+                "MAXRTOS_MAX_PRIORITY is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_READY_PER_PRIORITY >= 1U,
+                "MAXRTOS_MAX_READY_PER_PRIORITY is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_FRAME_SLOTS >= 2U,
+                "MAXRTOS_MAX_FRAME_SLOTS is too small for this configuration" );
+
 #ifdef __cplusplus
 extern "C" {
 #endif

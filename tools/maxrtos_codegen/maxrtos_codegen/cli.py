@@ -5,7 +5,11 @@ import json
 import pathlib
 import sys
 
-from .generators.c_config import generate_header, generate_source
+from .generators.c_config import (
+    generate_header,
+    generate_limits_header,
+    generate_source,
+)
 from .generators.linker import generate_linker_script
 from .schema import ConfigError, load_config
 
@@ -46,6 +50,17 @@ def main(argv: list[str] | None = None) -> int:
         help="output directory (default: ./generated)",
     )
 
+    parser.add_argument(
+        "--emit-limits",
+        action="store_true",
+        help=(
+            "also write maxrtos_limits.h, the smallest kernel table sizes "
+            "that fit this config. The build must then force-include it into "
+            "the kernel and the architecture layer as well as the "
+            "application (default: not written, so the kernel defaults apply)"
+        ),
+    )
+
     args = parser.parse_args(argv)
 
     try:
@@ -71,9 +86,16 @@ def main(argv: list[str] | None = None) -> int:
         generate_source(cfg, config_path_str)
     )
 
+    if args.emit_limits:
+        (args.out_dir / "maxrtos_limits.h").write_text(
+            generate_limits_header(cfg, config_path_str)
+        )
+
     print(f"generated: {args.out_dir}/link.ld")
     print(f"generated: {args.out_dir}/maxrtos_config.h")
     print(f"generated: {args.out_dir}/maxrtos_config.c")
+    if args.emit_limits:
+        print(f"generated: {args.out_dir}/maxrtos_limits.h")
 
     return 0
 
