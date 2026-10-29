@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "test_support.h"
 #include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/ipc_block.h"
 #include "maxrtos/kernel/partition.h"
@@ -43,8 +44,13 @@ static maxrtos_process_id_t make_process(
 
     assert(
         maxrtos_process_create(
-            s_stacks[ s_next_stack ], STACK_SIZE, partition, priority,
-            dummy_entry, NULL, &id ) == MAXRTOS_OK );
+            s_stacks[ s_next_stack ],
+            STACK_SIZE,
+            partition,
+            priority,
+            dummy_entry,
+            NULL,
+            &id ) == MAXRTOS_OK );
     s_next_stack++;
     assert( maxrtos_partition_add_process( &s_table, id ) == MAXRTOS_OK );
 
@@ -90,14 +96,16 @@ static void test_create_binds_partition_and_exhausts_pool( void )
     setup();
 
     assert( maxrtos_mutex_create( 0U, NULL ) == MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_mutex_create( MAXRTOS_MAX_PARTITIONS, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_mutex_create( MAXRTOS_MAX_PARTITIONS, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
 
     for( i = 0U; i < MAXRTOS_MAX_MUTEXES; i++ )
     {
         assert( maxrtos_mutex_create( 0U, &ids[ i ] ) == MAXRTOS_OK );
-        assert( maxrtos_kernel_mutex_owner( ids[ i ] ) ==
-                MAXRTOS_INVALID_PROCESS_ID );
+        assert(
+            maxrtos_kernel_mutex_owner( ids[ i ] ) ==
+            MAXRTOS_INVALID_PROCESS_ID );
     }
 
     assert( maxrtos_mutex_create( 0U, &id ) == MAXRTOS_ERR_POOL_FULL );
@@ -114,7 +122,7 @@ static void test_uncontended_lock_and_unlock( void )
     setup();
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( lock( m, 0U, a, &next ) == MAXRTOS_OK );
     assert( maxrtos_kernel_mutex_owner( m ) == a );
@@ -139,22 +147,25 @@ static void test_recursive_lock_and_foreign_unlock_rejected( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     /* Unlocking an unlocked mutex is an error. */
-    assert( maxrtos_kernel_mutex_unlock( m, &s_table, a ) ==
-            MAXRTOS_ERR_INVALID_STATE );
+    assert(
+        maxrtos_kernel_mutex_unlock( m, &s_table, a ) ==
+        MAXRTOS_ERR_INVALID_STATE );
 
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
 
     /* Recursive lock must not deadlock the owner on itself. */
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
-            MAXRTOS_ERR_INVALID_STATE );
+    assert(
+        lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_ERR_INVALID_STATE );
     assert( maxrtos_kernel_mutex_owner( m ) == a );
 
     /* Only the owner may unlock. */
-    assert( maxrtos_kernel_mutex_unlock( m, &s_table, b ) ==
-            MAXRTOS_ERR_INVALID_STATE );
+    assert(
+        maxrtos_kernel_mutex_unlock( m, &s_table, b ) ==
+        MAXRTOS_ERR_INVALID_STATE );
     assert( maxrtos_kernel_mutex_owner( m ) == a );
 
     printf( "test_recursive_lock_and_foreign_unlock_rejected: PASS\n" );
@@ -171,31 +182,37 @@ static void test_other_partition_and_bad_handles_rejected( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     other = make_process( 1U, 5U );
-    assert( dispatch( 0U ) == a );
-    assert( dispatch( 1U ) == other );
+    test_run_as( &s_table, a );
+    test_run_as( &s_table, other );
 
     assert( lock( m, 0U, other, &next ) == MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_kernel_mutex_unlock( m, &s_table, other ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_mutex_unlock( m, &s_table, other ) ==
+        MAXRTOS_ERR_INVALID_ID );
     assert( maxrtos_kernel_mutex_owner( m ) == MAXRTOS_INVALID_PROCESS_ID );
 
-    assert( lock( MAXRTOS_MAX_MUTEXES, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( lock( MAXRTOS_INVALID_MUTEX_ID, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( lock( m, 0U, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        lock( MAXRTOS_MAX_MUTEXES, 0U, a, &next ) == MAXRTOS_ERR_INVALID_ID );
+    assert(
+        lock( MAXRTOS_INVALID_MUTEX_ID, 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        lock( m, 0U, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
     /* A handle that was never created. */
-    assert( lock( MAXRTOS_MAX_MUTEXES - 1U, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        lock( MAXRTOS_MAX_MUTEXES - 1U, 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
-    assert( maxrtos_kernel_mutex_lock( m, 0U, NULL, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_mutex_lock( m, 0U, &s_table, a, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_mutex_unlock( m, NULL, a ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_mutex_lock( m, 0U, NULL, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_mutex_lock( m, 0U, &s_table, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_mutex_unlock( m, NULL, a ) == MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_other_partition_and_bad_handles_rejected: PASS\n" );
 }
@@ -211,10 +228,10 @@ static void test_try_lock_fails_when_held( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( lock( m, 0U, a, &next ) == MAXRTOS_OK );
 
-    assert( dispatch( 0U ) == b );
+    test_run_as( &s_table, b );
     assert( lock( m, 0U, b, &next ) == MAXRTOS_ERR_TIMEOUT );
     assert( state_of( b ) == MAXRTOS_PROCESS_STATE_RUNNING );
 
@@ -233,12 +250,11 @@ static void test_contended_lock_blocks_and_unlock_hands_off( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
 
-    assert( dispatch( 0U ) == b );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, b );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) == MAXRTOS_PENDING );
 
     /* b is blocked and a was selected to run in its place. */
     assert( next == a );
@@ -271,7 +287,7 @@ static void test_lock_fails_when_nothing_else_can_run( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
 
     /* a blocks on something else, leaving b as the only runner. */
@@ -281,16 +297,17 @@ static void test_lock_fails_when_nothing_else_can_run( void )
 
         op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
         assert( maxrtos_waitlist_init( &other ) == MAXRTOS_OK );
-        assert( maxrtos_ipc_block_current(
-                    &s_table, a, &other, MAXRTOS_TICK_NONE, &op, &next ) ==
-                MAXRTOS_OK );
+        assert(
+            maxrtos_ipc_block_current(
+                &s_table, a, &other, MAXRTOS_TICK_NONE, &op, &next ) ==
+            MAXRTOS_OK );
         assert( next == b );
     }
 
     /* b wants the mutex a holds, but no READY process could run while
      * it waits, so it must fail instead of blocking. */
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_ERR_TIMEOUT );
+    assert(
+        lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) == MAXRTOS_ERR_TIMEOUT );
     assert( state_of( b ) == MAXRTOS_PROCESS_STATE_RUNNING );
 
     printf( "test_lock_fails_when_nothing_else_can_run: PASS\n" );
@@ -315,30 +332,29 @@ static void test_waiters_served_by_priority( void )
     b = make_process( 0U, 5U );
     c = make_process( 0U, 2U );
 
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, o, &next ) == MAXRTOS_OK );
 
     /* Park c on an unrelated wait list so b reaches the mutex first. */
     assert( maxrtos_waitlist_init( &elsewhere ) == MAXRTOS_OK );
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-    assert( dispatch( 0U ) == c );
-    assert( maxrtos_ipc_block_current(
-                &s_table, c, &elsewhere, MAXRTOS_TICK_NONE, &op, &next ) ==
-            MAXRTOS_OK );
+    test_run_as( &s_table, c );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table, c, &elsewhere, MAXRTOS_TICK_NONE, &op, &next ) ==
+        MAXRTOS_OK );
     assert( next == o );
 
-    assert( dispatch( 0U ) == b );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, b );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, b, &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     /* c comes back and queues behind b. */
     assert( maxrtos_ipc_wake_one( &elsewhere, &woken, &op ) == MAXRTOS_OK );
     assert( woken == c );
     assert( maxrtos_ipc_resolve( &s_table, c, MAXRTOS_OK ) == MAXRTOS_OK );
-    assert( dispatch( 0U ) == c );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, c, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, c );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, c, &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     assert( maxrtos_kernel_mutex_unlock( m, &s_table, o ) == MAXRTOS_OK );
@@ -363,15 +379,13 @@ static void test_equal_priority_waiters_are_fifo( void )
     x = make_process( 0U, 5U );
     y = make_process( 0U, 5U );
 
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, o, &next ) == MAXRTOS_OK );
 
-    assert( dispatch( 0U ) == x );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, x, &next ) ==
-            MAXRTOS_PENDING );
-    assert( dispatch( 0U ) == y );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, y, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, x );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, x, &next ) == MAXRTOS_PENDING );
+    test_run_as( &s_table, y );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, y, &next ) == MAXRTOS_PENDING );
 
     assert( maxrtos_kernel_mutex_unlock( m, &s_table, o ) == MAXRTOS_OK );
     assert( maxrtos_kernel_mutex_owner( m ) == x );
@@ -391,9 +405,9 @@ static void test_timed_lock_expires_and_leaves_wait_list( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
-    assert( dispatch( 0U ) == b );
+    test_run_as( &s_table, b );
     assert( lock( m, 3U, b, &next ) == MAXRTOS_PENDING );
 
     /* Not yet. */
@@ -425,14 +439,13 @@ static void test_release_all_hands_off_or_unlocks( void )
     assert( maxrtos_mutex_create( 0U, &m2 ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
     assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, a, &next ) == MAXRTOS_OK );
 
     /* b waits for m1 only. */
-    assert( dispatch( 0U ) == b );
-    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, b );
+    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, b, &next ) == MAXRTOS_PENDING );
 
     /* a is restarted by fault recovery: m1 goes to b, m2 is freed. */
     maxrtos_kernel_mutex_release_all( &s_table, a );
@@ -458,39 +471,32 @@ static void test_holder_inherits_priority_and_is_not_starved( void )
     maxrtos_process_id_t m2;
     maxrtos_process_id_t next;
     size_t i;
-    bool l_ran;
 
     setup();
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     h = make_process( 0U, 1U );
     m1 = make_process( 0U, 5U );
     m2 = make_process( 0U, 5U );
 
-    assert( dispatch( 0U ) == h );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) == MAXRTOS_PENDING );
 
     /* L now runs at H's priority, so it is picked ahead of M1 and M2. */
     assert( priority_of( l ) == 1U );
     assert( next == l );
 
-    /* However the medium processes rotate, L keeps getting the CPU. */
-    l_ran = false;
-
+    /* L runs at H's priority, above M1 and M2, and nothing time slices it:
+     * it keeps the CPU however often the partition is rescheduled. */
     for( i = 0U; i < 6U; i++ )
     {
-        if( dispatch( 0U ) == l )
-        {
-            l_ran = true;
-        }
+        assert( dispatch( 0U ) == l );
     }
 
-    assert( l_ran == true );
     ( void ) m1;
     ( void ) m2;
 
@@ -508,13 +514,12 @@ static void test_unlock_restores_base_priority( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     h = make_process( 0U, 1U );
-    assert( dispatch( 0U ) == h );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) == MAXRTOS_PENDING );
     assert( next == l );
     assert( priority_of( l ) == 1U );
 
@@ -540,14 +545,13 @@ static void test_lower_priority_waiter_does_not_change_holder( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
 
     hi = make_process( 0U, 2U );
-    assert( dispatch( 0U ) == hi );
+    test_run_as( &s_table, hi );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, hi, &next ) == MAXRTOS_OK );
     assert( priority_of( hi ) == 2U );
 
     lo = make_process( 0U, 8U );
-    assert( dispatch( 0U ) == lo );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, lo, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, lo );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, lo, &next ) == MAXRTOS_PENDING );
     assert( priority_of( hi ) == 2U );
     assert( priority_of( lo ) == 8U );
 
@@ -569,22 +573,20 @@ static void test_inheritance_is_transitive( void )
     assert( maxrtos_mutex_create( 0U, &m2 ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     mid = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == mid );
-    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) ==
-            MAXRTOS_OK );
-    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, mid );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) == MAXRTOS_OK );
+    assert(
+        lock( m1, MAXRTOS_TIMEOUT_INFINITE, mid, &next ) == MAXRTOS_PENDING );
     assert( next == l );
     assert( priority_of( l ) == 5U );
 
     h = make_process( 0U, 1U );
-    assert( dispatch( 0U ) == h );
-    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h );
+    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, h, &next ) == MAXRTOS_PENDING );
     assert( priority_of( mid ) == 1U );
     assert( priority_of( l ) == 1U );
 
@@ -594,7 +596,7 @@ static void test_inheritance_is_transitive( void )
     assert( priority_of( l ) == 9U );
     assert( priority_of( mid ) == 1U );
 
-    assert( dispatch( 0U ) == mid );
+    test_run_as( &s_table, mid );
     assert( maxrtos_kernel_mutex_unlock( m2, &s_table, mid ) == MAXRTOS_OK );
     assert( maxrtos_kernel_mutex_owner( m2 ) == h );
     assert( priority_of( mid ) == 5U );
@@ -618,22 +620,22 @@ static void test_boost_follows_remaining_waiters( void )
     assert( maxrtos_mutex_create( 0U, &m2 ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
     assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     h1 = make_process( 0U, 1U );
     h3 = make_process( 0U, 3U );
 
-    assert( dispatch( 0U ) == h1 );
-    assert( lock( m1, MAXRTOS_TIMEOUT_INFINITE, h1, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h1 );
+    assert(
+        lock( m1, MAXRTOS_TIMEOUT_INFINITE, h1, &next ) == MAXRTOS_PENDING );
     assert( next == l );
     assert( priority_of( l ) == 1U );
 
-    assert( dispatch( 0U ) == h3 );
-    assert( lock( m2, MAXRTOS_TIMEOUT_INFINITE, h3, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h3 );
+    assert(
+        lock( m2, MAXRTOS_TIMEOUT_INFINITE, h3, &next ) == MAXRTOS_PENDING );
     assert( next == l );
     assert( priority_of( l ) == 1U );
 
@@ -658,11 +660,11 @@ static void test_timeout_drops_the_boost( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     h = make_process( 0U, 1U );
-    assert( dispatch( 0U ) == h );
+    test_run_as( &s_table, h );
     assert( lock( m, 3U, h, &next ) == MAXRTOS_PENDING );
     assert( priority_of( l ) == 1U );
 
@@ -686,13 +688,12 @@ static void test_release_all_restores_base_priority( void )
     assert( maxrtos_mutex_create( 0U, &m ) == MAXRTOS_OK );
 
     l = make_process( 0U, 9U );
-    assert( dispatch( 0U ) == l );
+    test_run_as( &s_table, l );
     assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, l, &next ) == MAXRTOS_OK );
 
     h = make_process( 0U, 1U );
-    assert( dispatch( 0U ) == h );
-    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, h );
+    assert( lock( m, MAXRTOS_TIMEOUT_INFINITE, h, &next ) == MAXRTOS_PENDING );
     assert( priority_of( l ) == 1U );
 
     maxrtos_kernel_mutex_release_all( &s_table, l );

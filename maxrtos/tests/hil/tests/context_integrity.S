@@ -51,6 +51,10 @@ hil_register_soak:
     add    r11, r0, #11
     add    r12, r0, #12
 
+    /* The loop is 8 bytes. Aligned to 8 it cannot straddle a 32-byte flash
+     * line; one that does costs an extra line fetch on every iteration with
+     * the caches off, which made a spin ten times slower in one build. */
+    .balign 8
 spin:
     ldr    r0, [sp, #8]
     subs   r0, r0, #1

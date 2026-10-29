@@ -51,9 +51,7 @@ static void reset_all( maxrtos_partition_table_t * table )
 
 static void test_table_init_rejects_null( void )
 {
-    assert(
-        maxrtos_partition_table_init( NULL ) ==
-        MAXRTOS_ERR_INVALID_ARG );
+    assert( maxrtos_partition_table_init( NULL ) == MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_table_init_rejects_null: PASS\n" );
 }
@@ -65,17 +63,14 @@ static void test_table_init_resets_current_id_for_every_partition( void )
 
     reset_all( &table );
 
-    for( partition_id = 0U;
-         partition_id < MAXRTOS_MAX_PARTITIONS;
+    for( partition_id = 0U; partition_id < MAXRTOS_MAX_PARTITIONS;
          partition_id++ )
     {
         assert(
-            table.current_id[ partition_id ] ==
-            MAXRTOS_INVALID_PROCESS_ID );
+            table.current_id[ partition_id ] == MAXRTOS_INVALID_PROCESS_ID );
     }
 
-    printf(
-        "test_table_init_resets_current_id_for_every_partition: PASS\n" );
+    printf( "test_table_init_resets_current_id_for_every_partition: PASS\n" );
 }
 
 static void test_add_process_rejects_null_table_and_bad_id( void )
@@ -88,17 +83,14 @@ static void test_add_process_rejects_null_table_and_bad_id( void )
     id = make_ready_process( 0U, 5U );
 
     assert(
-        maxrtos_partition_add_process( NULL, id ) ==
-        MAXRTOS_ERR_INVALID_ARG );
+        maxrtos_partition_add_process( NULL, id ) == MAXRTOS_ERR_INVALID_ARG );
 
     assert(
         maxrtos_partition_add_process(
-            &table,
-            ( maxrtos_process_id_t ) 9999U ) ==
+            &table, ( maxrtos_process_id_t ) 9999U ) ==
         MAXRTOS_ERR_INVALID_ID );
 
-    printf(
-        "test_add_process_rejects_null_table_and_bad_id: PASS\n" );
+    printf( "test_add_process_rejects_null_table_and_bad_id: PASS\n" );
 }
 
 static void test_add_process_routes_to_own_partition_context( void )
@@ -112,24 +104,17 @@ static void test_add_process_routes_to_own_partition_context( void )
     p0_proc = make_ready_process( 0U, 5U );
     p1_proc = make_ready_process( 1U, 5U );
 
-    assert(
-        maxrtos_partition_add_process( &table, p0_proc ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, p0_proc ) == MAXRTOS_OK );
+
+    assert( maxrtos_partition_add_process( &table, p1_proc ) == MAXRTOS_OK );
 
     assert(
-        maxrtos_partition_add_process( &table, p1_proc ) ==
-        MAXRTOS_OK );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0U ] ) == 1U );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 0U ] ) == 1U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 1U ] ) == 1U );
 
-    assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 1U ] ) == 1U );
-
-    printf(
-        "test_add_process_routes_to_own_partition_context: PASS\n" );
+    printf( "test_add_process_routes_to_own_partition_context: PASS\n" );
 }
 
 static void test_dispatch_rejects_bad_args( void )
@@ -144,17 +129,11 @@ static void test_dispatch_rejects_bad_args( void )
         MAXRTOS_ERR_INVALID_ARG );
 
     assert(
-        maxrtos_partition_dispatch(
-            &table,
-            MAXRTOS_MAX_PARTITIONS,
-            &out ) ==
+        maxrtos_partition_dispatch( &table, MAXRTOS_MAX_PARTITIONS, &out ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
     assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            NULL ) ==
+        maxrtos_partition_dispatch( &table, 0U, NULL ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_dispatch_rejects_bad_args: PASS\n" );
@@ -170,33 +149,18 @@ static void test_dispatch_boot_case_and_current_id_persists( void )
 
     process_id = make_ready_process( 2U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            process_id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, process_id ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            2U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 2U, &out ) == MAXRTOS_OK );
 
     assert( out == process_id );
     assert( table.current_id[ 2U ] == process_id );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            2U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 2U, &out ) == MAXRTOS_OK );
 
     assert( out == process_id );
 
-    printf(
-        "test_dispatch_boot_case_and_current_id_persists: PASS\n" );
+    printf( "test_dispatch_boot_case_and_current_id_persists: PASS\n" );
 }
 
 static void test_dispatch_current_id_is_updated_after_handoff( void )
@@ -204,45 +168,35 @@ static void test_dispatch_current_id_is_updated_after_handoff( void )
     maxrtos_partition_table_t table;
     maxrtos_process_id_t a;
     maxrtos_process_id_t b;
+    maxrtos_process_id_t c;
     maxrtos_process_id_t out;
 
     reset_all( &table );
 
     a = make_ready_process( 0U, 5U );
     b = make_ready_process( 0U, 2U );
+    c = make_ready_process( 0U, 2U );
 
-    assert(
-        maxrtos_partition_add_process( &table, a ) ==
-        MAXRTOS_OK );
-
-    assert(
-        maxrtos_partition_add_process( &table, b ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, a ) == MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, b ) == MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, c ) == MAXRTOS_OK );
 
     /* Higher-priority process runs first. */
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
-
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
     assert( out == b );
     assert( table.current_id[ 0U ] == b );
 
-    /* Remaining READY process runs next. */
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    /* Rescheduling leaves it running: its peer c is not a preemption. */
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
+    assert( out == b );
+    assert( table.current_id[ 0U ] == b );
 
-    assert( out == a );
-    assert( table.current_id[ 0U ] == a );
+    /* Giving way hands the CPU to the peer. */
+    assert( maxrtos_partition_yield( &table, 0U, &out ) == MAXRTOS_OK );
+    assert( out == c );
+    assert( table.current_id[ 0U ] == c );
 
-    printf(
-        "test_dispatch_current_id_is_updated_after_handoff: PASS\n" );
+    printf( "test_dispatch_current_id_is_updated_after_handoff: PASS\n" );
 }
 
 static void test_dispatch_rejects_halted_partition( void )
@@ -255,27 +209,17 @@ static void test_dispatch_rejects_halted_partition( void )
 
     process_id = make_ready_process( 0U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            process_id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, process_id ) == MAXRTOS_OK );
 
     table.halted[ 0U ] = true;
 
     assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
+        maxrtos_partition_dispatch( &table, 0U, &out ) ==
         MAXRTOS_ERR_PARTITION_HALTED );
 
-    assert(
-        table.current_id[ 0U ] ==
-        MAXRTOS_INVALID_PROCESS_ID );
+    assert( table.current_id[ 0U ] == MAXRTOS_INVALID_PROCESS_ID );
 
-    printf(
-        "test_dispatch_rejects_halted_partition: PASS\n" );
+    printf( "test_dispatch_rejects_halted_partition: PASS\n" );
 }
 
 static void test_dispatch_partitions_are_independent( void )
@@ -290,37 +234,20 @@ static void test_dispatch_partitions_are_independent( void )
     p0_proc = make_ready_process( 0U, 5U );
     p1_proc = make_ready_process( 1U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            p0_proc ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, p0_proc ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            p1_proc ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, p1_proc ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
 
     assert( out == p0_proc );
 
-    assert(
-        table.current_id[ 1U ] ==
-        MAXRTOS_INVALID_PROCESS_ID );
+    assert( table.current_id[ 1U ] == MAXRTOS_INVALID_PROCESS_ID );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 1U ] ) == 1U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 1U ] ) == 1U );
 
-    printf(
-        "test_dispatch_partitions_are_independent: PASS\n" );
+    printf( "test_dispatch_partitions_are_independent: PASS\n" );
 }
 
 static void test_ready_process_rejects_bad_args( void )
@@ -333,21 +260,14 @@ static void test_ready_process_rejects_bad_args( void )
     id = make_ready_process( 0U, 5U );
 
     assert(
-        maxrtos_partition_ready_process(
-            NULL,
-            0U,
-            id ) ==
+        maxrtos_partition_ready_process( NULL, 0U, id ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
     assert(
-        maxrtos_partition_ready_process(
-            &table,
-            MAXRTOS_MAX_PARTITIONS,
-            id ) ==
+        maxrtos_partition_ready_process( &table, MAXRTOS_MAX_PARTITIONS, id ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
-    printf(
-        "test_ready_process_rejects_bad_args: PASS\n" );
+    printf( "test_ready_process_rejects_bad_args: PASS\n" );
 }
 
 static void test_ready_process_rejects_invalid_id( void )
@@ -358,13 +278,10 @@ static void test_ready_process_rejects_invalid_id( void )
 
     assert(
         maxrtos_partition_ready_process(
-            &table,
-            0U,
-            ( maxrtos_process_id_t ) 9999U ) ==
+            &table, 0U, ( maxrtos_process_id_t ) 9999U ) ==
         MAXRTOS_ERR_INVALID_ID );
 
-    printf(
-        "test_ready_process_rejects_invalid_id: PASS\n" );
+    printf( "test_ready_process_rejects_invalid_id: PASS\n" );
 }
 
 static void test_ready_process_sets_ready_and_adds_to_queue( void )
@@ -384,32 +301,20 @@ static void test_ready_process_sets_ready_and_adds_to_queue( void )
     /* make_ready_process() creates the process in READY state, so
      * move it to another state before testing the READY transition. */
     assert(
-        maxrtos_process_set_state(
-            id,
-            MAXRTOS_PROCESS_STATE_BLOCKED ) ==
+        maxrtos_process_set_state( id, MAXRTOS_PROCESS_STATE_BLOCKED ) ==
         MAXRTOS_OK );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 0U ] ) == 0U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0U ] ) == 0U );
+
+    assert( maxrtos_partition_ready_process( &table, 0U, id ) == MAXRTOS_OK );
+
+    assert( pcb->state == MAXRTOS_PROCESS_STATE_READY );
 
     assert(
-        maxrtos_partition_ready_process(
-            &table,
-            0U,
-            id ) ==
-        MAXRTOS_OK );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0U ] ) == 1U );
 
-    assert(
-        pcb->state ==
-        MAXRTOS_PROCESS_STATE_READY );
-
-    assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 0U ] ) == 1U );
-
-    printf(
-        "test_ready_process_sets_ready_and_adds_to_queue: PASS\n" );
+    printf( "test_ready_process_sets_ready_and_adds_to_queue: PASS\n" );
 }
 
 static void test_ready_process_uses_specified_partition_context( void )
@@ -422,28 +327,18 @@ static void test_ready_process_uses_specified_partition_context( void )
     id = make_ready_process( 0U, 5U );
 
     assert(
-        maxrtos_process_set_state(
-            id,
-            MAXRTOS_PROCESS_STATE_BLOCKED ) ==
+        maxrtos_process_set_state( id, MAXRTOS_PROCESS_STATE_BLOCKED ) ==
         MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_ready_process(
-            &table,
-            1U,
-            id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_ready_process( &table, 1U, id ) == MAXRTOS_OK );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 0U ] ) == 0U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0U ] ) == 0U );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 1U ] ) == 1U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 1U ] ) == 1U );
 
-    printf(
-        "test_ready_process_uses_specified_partition_context: PASS\n" );
+    printf( "test_ready_process_uses_specified_partition_context: PASS\n" );
 }
 
 static void test_block_and_dispatch_rejects_bad_args( void )
@@ -457,31 +352,19 @@ static void test_block_and_dispatch_rejects_bad_args( void )
     id = make_ready_process( 0U, 5U );
 
     assert(
-        maxrtos_partition_block_and_dispatch(
-            NULL,
-            0U,
-            id,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( NULL, 0U, id, &out ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
     assert(
         maxrtos_partition_block_and_dispatch(
-            &table,
-            MAXRTOS_MAX_PARTITIONS,
-            id,
-            &out ) ==
+            &table, MAXRTOS_MAX_PARTITIONS, id, &out ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            id,
-            NULL ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, id, NULL ) ==
         MAXRTOS_ERR_INVALID_ARG );
 
-    printf(
-        "test_block_and_dispatch_rejects_bad_args: PASS\n" );
+    printf( "test_block_and_dispatch_rejects_bad_args: PASS\n" );
 }
 
 static void test_block_and_dispatch_rejects_halted_partition( void )
@@ -494,33 +377,19 @@ static void test_block_and_dispatch_rejects_halted_partition( void )
 
     id = make_ready_process( 0U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, id ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
 
     table.halted[ 0U ] = true;
 
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            id,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, id, &out ) ==
         MAXRTOS_ERR_PARTITION_HALTED );
 
     assert( table.current_id[ 0U ] == id );
 
-    printf(
-        "test_block_and_dispatch_rejects_halted_partition: PASS\n" );
+    printf( "test_block_and_dispatch_rejects_halted_partition: PASS\n" );
 }
 
 static void test_block_and_dispatch_rejects_non_running_process( void )
@@ -534,15 +403,10 @@ static void test_block_and_dispatch_rejects_non_running_process( void )
     id = make_ready_process( 0U, 5U );
 
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            id,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, id, &out ) ==
         MAXRTOS_ERR_INVALID_STATE );
 
-    printf(
-        "test_block_and_dispatch_rejects_non_running_process: PASS\n" );
+    printf( "test_block_and_dispatch_rejects_non_running_process: PASS\n" );
 }
 
 static void test_block_and_dispatch_rejects_empty_ready_queue( void )
@@ -555,18 +419,9 @@ static void test_block_and_dispatch_rejects_empty_ready_queue( void )
 
     id = make_ready_process( 0U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, id ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
 
     assert( out == id );
     assert( table.current_id[ 0U ] == id );
@@ -574,21 +429,15 @@ static void test_block_and_dispatch_rejects_empty_ready_queue( void )
     /* The current process is RUNNING and is not in the READY queue.
      * No other process is available, so blocking cannot proceed. */
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            id,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, id, &out ) ==
         MAXRTOS_ERR_QUEUE_EMPTY );
 
     assert( table.current_id[ 0U ] == id );
 
-    printf(
-        "test_block_and_dispatch_rejects_empty_ready_queue: PASS\n" );
+    printf( "test_block_and_dispatch_rejects_empty_ready_queue: PASS\n" );
 }
 
-static void test_block_and_dispatch_blocks_current_and_runs_next(
-    void )
+static void test_block_and_dispatch_blocks_current_and_runs_next( void )
 {
     maxrtos_partition_table_t table;
     maxrtos_process_id_t running_id;
@@ -602,24 +451,11 @@ static void test_block_and_dispatch_blocks_current_and_runs_next(
     running_id = make_ready_process( 0U, 5U );
     next_id = make_ready_process( 0U, 2U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            running_id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, running_id ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            next_id ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, next_id ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
 
     assert( out == next_id );
 
@@ -629,48 +465,33 @@ static void test_block_and_dispatch_blocks_current_and_runs_next(
     assert( running_pcb != NULL );
     assert( next_pcb != NULL );
 
-    assert(
-        running_pcb->state ==
-        MAXRTOS_PROCESS_STATE_READY );
+    assert( running_pcb->state == MAXRTOS_PROCESS_STATE_READY );
 
-    assert(
-        next_pcb->state ==
-        MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( next_pcb->state == MAXRTOS_PROCESS_STATE_RUNNING );
 
     assert( table.current_id[ 0U ] == next_id );
 
     /* The running process is now in the ready queue. Blocking it
      * must select the remaining READY process. */
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            next_id,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, next_id, &out ) ==
         MAXRTOS_OK );
 
     assert( out == running_id );
 
-    assert(
-        next_pcb->state ==
-        MAXRTOS_PROCESS_STATE_BLOCKED );
+    assert( next_pcb->state == MAXRTOS_PROCESS_STATE_BLOCKED );
 
-    assert(
-        running_pcb->state ==
-        MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( running_pcb->state == MAXRTOS_PROCESS_STATE_RUNNING );
 
     assert( table.current_id[ 0U ] == running_id );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 0U ] ) == 0U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0U ] ) == 0U );
 
-    printf(
-        "test_block_and_dispatch_blocks_current_and_runs_next: PASS\n" );
+    printf( "test_block_and_dispatch_blocks_current_and_runs_next: PASS\n" );
 }
 
-static void test_block_and_dispatch_does_not_change_other_partition(
-    void )
+static void test_block_and_dispatch_does_not_change_other_partition( void )
 {
     maxrtos_partition_table_t table;
     maxrtos_process_id_t p0;
@@ -682,46 +503,25 @@ static void test_block_and_dispatch_does_not_change_other_partition(
     p0 = make_ready_process( 0U, 5U );
     p1 = make_ready_process( 1U, 5U );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            p0 ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, p0 ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_add_process(
-            &table,
-            p1 ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_add_process( &table, p1 ) == MAXRTOS_OK );
 
-    assert(
-        maxrtos_partition_dispatch(
-            &table,
-            0U,
-            &out ) ==
-        MAXRTOS_OK );
+    assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
 
     assert( out == p0 );
 
     assert(
-        maxrtos_partition_block_and_dispatch(
-            &table,
-            0U,
-            p0,
-            &out ) ==
+        maxrtos_partition_block_and_dispatch( &table, 0U, p0, &out ) ==
         MAXRTOS_ERR_QUEUE_EMPTY );
 
     assert( table.current_id[ 0U ] == p0 );
-    assert(
-        table.current_id[ 1U ] ==
-        MAXRTOS_INVALID_PROCESS_ID );
+    assert( table.current_id[ 1U ] == MAXRTOS_INVALID_PROCESS_ID );
 
     assert(
-        maxrtos_scheduler_process_count(
-            &table.scheduler_ctx[ 1U ] ) == 1U );
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 1U ] ) == 1U );
 
-    printf(
-        "test_block_and_dispatch_does_not_change_other_partition: PASS\n" );
+    printf( "test_block_and_dispatch_does_not_change_other_partition: PASS\n" );
 }
 
 static void test_set_priority_rejects_bad_args( void )
@@ -732,14 +532,16 @@ static void test_set_priority_rejects_bad_args( void )
     reset_all( &table );
     a = make_ready_process( 0U, 5U );
 
-    assert( maxrtos_partition_set_process_priority( NULL, a, 1U ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_partition_set_process_priority(
-                &table, a, MAXRTOS_MAX_PRIORITY + 1U ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_partition_set_process_priority(
-                &table, MAXRTOS_INVALID_PROCESS_ID, 1U ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_partition_set_process_priority( NULL, a, 1U ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_partition_set_process_priority(
+            &table, a, MAXRTOS_MAX_PRIORITY + 1U ) == MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_partition_set_process_priority(
+            &table, MAXRTOS_INVALID_PROCESS_ID, 1U ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
     printf( "test_set_priority_rejects_bad_args: PASS\n" );
 }
@@ -757,16 +559,16 @@ static void test_set_priority_moves_queued_process( void )
     assert( maxrtos_partition_add_process( &table, a ) == MAXRTOS_OK );
     assert( maxrtos_partition_add_process( &table, b ) == MAXRTOS_OK );
 
-    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_partition_set_process_priority( &table, a, 1U ) == MAXRTOS_OK );
     assert( maxrtos_process_get( a )->priority == 1U );
     assert( maxrtos_process_get( a )->base_priority == 5U );
 
     /* a now outranks b, and is in the queue exactly once. */
     assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
     assert( out == a );
-    assert( maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) ==
-            1U );
+    assert(
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) == 1U );
 
     printf( "test_set_priority_moves_queued_process: PASS\n" );
 }
@@ -780,11 +582,12 @@ static void test_set_priority_leaves_unqueued_process_unqueued( void )
     reset_all( &table );
     a = make_ready_process( 0U, 5U );
 
-    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_partition_set_process_priority( &table, a, 1U ) == MAXRTOS_OK );
     assert( maxrtos_process_get( a )->priority == 1U );
-    assert( maxrtos_partition_dispatch( &table, 0U, &out ) ==
-            MAXRTOS_ERR_QUEUE_EMPTY );
+    assert(
+        maxrtos_partition_dispatch( &table, 0U, &out ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
 
     printf( "test_set_priority_leaves_unqueued_process_unqueued: PASS\n" );
 }
@@ -800,27 +603,30 @@ static void test_set_priority_full_queue_keeps_old_priority( void )
 
     for( i = 0U; i < MAXRTOS_MAX_READY_PER_PRIORITY; i++ )
     {
-        assert( maxrtos_partition_add_process(
-                    &table, make_ready_process( 0U, 1U ) ) == MAXRTOS_OK );
+        assert(
+            maxrtos_partition_add_process(
+                &table, make_ready_process( 0U, 1U ) ) == MAXRTOS_OK );
     }
 
     a = make_ready_process( 0U, 5U );
     assert( maxrtos_partition_add_process( &table, a ) == MAXRTOS_OK );
 
-    assert( maxrtos_partition_set_process_priority( &table, a, 1U ) ==
-            MAXRTOS_ERR_QUEUE_FULL );
+    assert(
+        maxrtos_partition_set_process_priority( &table, a, 1U ) ==
+        MAXRTOS_ERR_QUEUE_FULL );
     assert( maxrtos_process_get( a )->priority == 5U );
-    assert( maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) ==
-            MAXRTOS_MAX_READY_PER_PRIORITY + 1U );
+    assert(
+        maxrtos_scheduler_process_count( &table.scheduler_ctx[ 0 ] ) ==
+        MAXRTOS_MAX_READY_PER_PRIORITY + 1U );
 
     /* Still queued at its old priority: drain the others, then a runs. */
     for( i = 0U; i < MAXRTOS_MAX_READY_PER_PRIORITY; i++ )
     {
-        assert( maxrtos_partition_dispatch( &table, 0U, &out ) ==
-                MAXRTOS_OK );
+        assert( maxrtos_partition_dispatch( &table, 0U, &out ) == MAXRTOS_OK );
         assert( maxrtos_process_get( out )->priority == 1U );
-        assert( maxrtos_process_set_state(
-                    out, MAXRTOS_PROCESS_STATE_SUSPENDED ) == MAXRTOS_OK );
+        assert(
+            maxrtos_process_set_state( out, MAXRTOS_PROCESS_STATE_SUSPENDED ) ==
+            MAXRTOS_OK );
         table.current_id[ 0 ] = MAXRTOS_INVALID_PROCESS_ID;
     }
 

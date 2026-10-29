@@ -83,6 +83,7 @@ static void bystander( void * arg )
     {
         s_progress++;
         sim_cpu_work( 100U );
+        maxrtos_yield();
     }
 }
 

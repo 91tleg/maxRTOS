@@ -44,6 +44,7 @@ static void watcher( void * arg )
     {
         s_peer_progress++;
         sim_cpu_work( 100U );
+        maxrtos_yield();
     }
 }
 

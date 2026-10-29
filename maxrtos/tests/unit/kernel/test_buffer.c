@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#include "test_support.h"
 #include "maxrtos/kernel/buffer.h"
 #include "maxrtos/kernel/ipc_block.h"
 #include "maxrtos/kernel/partition.h"
@@ -42,23 +43,17 @@ static maxrtos_process_id_t make_process(
 
     assert(
         maxrtos_process_create(
-            s_stacks[ s_next_stack ], STACK_SIZE, partition, priority,
-            dummy_entry, NULL, &id ) == MAXRTOS_OK );
+            s_stacks[ s_next_stack ],
+            STACK_SIZE,
+            partition,
+            priority,
+            dummy_entry,
+            NULL,
+            &id ) == MAXRTOS_OK );
     s_next_stack++;
     assert( maxrtos_partition_add_process( &s_table, id ) == MAXRTOS_OK );
 
     return id;
-}
-
-static maxrtos_process_id_t dispatch( maxrtos_partition_id_t partition )
-{
-    maxrtos_process_id_t running;
-
-    assert(
-        maxrtos_partition_dispatch( &s_table, partition, &running ) ==
-        MAXRTOS_OK );
-
-    return running;
 }
 
 static maxrtos_status_t send_on(
@@ -98,35 +93,44 @@ static void test_create_validates_arguments_and_exhausts_pool( void )
 
     setup();
 
-    assert( maxrtos_buffer_create(
-                0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_buffer_create(
-                MAXRTOS_MAX_PARTITIONS, 4U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_buffer_create(
-                0U, 0U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_buffer_create(
-                0U, 4U, 0U, MAXRTOS_QUEUING_FIFO, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_buffer_create(
-                0U, MAXRTOS_MAX_BUFFER_MESSAGE_SIZE + 1U, 4U,
-                MAXRTOS_QUEUING_FIFO, &id ) == MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_buffer_create(
-                0U, 4U, MAXRTOS_MAX_BUFFER_CAPACITY + 1U,
-                MAXRTOS_QUEUING_FIFO, &id ) == MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create( 0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create(
+            MAXRTOS_MAX_PARTITIONS, 4U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create( 0U, 0U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create( 0U, 4U, 0U, MAXRTOS_QUEUING_FIFO, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create(
+            0U,
+            MAXRTOS_MAX_BUFFER_MESSAGE_SIZE + 1U,
+            4U,
+            MAXRTOS_QUEUING_FIFO,
+            &id ) == MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_buffer_create(
+            0U,
+            4U,
+            MAXRTOS_MAX_BUFFER_CAPACITY + 1U,
+            MAXRTOS_QUEUING_FIFO,
+            &id ) == MAXRTOS_ERR_INVALID_ARG );
 
     for( i = 0U; i < MAXRTOS_MAX_BUFFERS; i++ )
     {
-        assert( maxrtos_buffer_create(
-                    0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &ids[ i ] ) ==
-                MAXRTOS_OK );
+        assert(
+            maxrtos_buffer_create(
+                0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &ids[ i ] ) == MAXRTOS_OK );
     }
 
-    assert( maxrtos_buffer_create(
-                0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
-            MAXRTOS_ERR_POOL_FULL );
+    assert(
+        maxrtos_buffer_create( 0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &id ) ==
+        MAXRTOS_ERR_POOL_FULL );
 
     printf( "test_create_validates_arguments_and_exhausts_pool: PASS\n" );
 }
@@ -139,13 +143,14 @@ static void test_send_rejects_wrong_message_size( void )
     uint32_t message = 42U;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &buf ) == MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create( 0U, 4U, 4U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
-    assert( send_on( buf, &message, 3U, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        send_on( buf, &message, 3U, 0U, a, &next ) == MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_send_rejects_wrong_message_size: PASS\n" );
 }
@@ -159,17 +164,20 @@ static void test_single_send_receive_roundtrip_preserves_data( void )
     uint32_t received_value = 0U;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( sent_value ), 8U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( sent_value ), 8U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
-    assert( send_on( buf, &sent_value, sizeof( sent_value ), 0U, a, &next ) ==
-            MAXRTOS_OK );
-    assert( receive_on(
-                buf, &received_value, sizeof( received_value ), 0U, a,
-                &next ) == MAXRTOS_OK );
+    assert(
+        send_on( buf, &sent_value, sizeof( sent_value ), 0U, a, &next ) ==
+        MAXRTOS_OK );
+    assert(
+        receive_on(
+            buf, &received_value, sizeof( received_value ), 0U, a, &next ) ==
+        MAXRTOS_OK );
     assert( received_value == sent_value );
 
     printf( "test_single_send_receive_roundtrip_preserves_data: PASS\n" );
@@ -184,22 +192,25 @@ static void test_send_fails_when_genuinely_full( void )
     size_t i;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 4U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 4U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     for( i = 0U; i < 4U; i++ )
     {
         value = ( uint32_t ) i;
-        assert( send_on( buf, &value, sizeof( value ), 0U, a, &next ) ==
-                MAXRTOS_OK );
+        assert(
+            send_on( buf, &value, sizeof( value ), 0U, a, &next ) ==
+            MAXRTOS_OK );
     }
 
     value = 999U;
-    assert( send_on( buf, &value, sizeof( value ), 0U, a, &next ) ==
-            MAXRTOS_ERR_QUEUE_FULL );
+    assert(
+        send_on( buf, &value, sizeof( value ), 0U, a, &next ) ==
+        MAXRTOS_ERR_QUEUE_FULL );
 
     printf( "test_send_fails_when_genuinely_full: PASS\n" );
 }
@@ -213,35 +224,50 @@ static void test_other_partition_and_bad_handles_rejected( void )
     uint32_t value = 1U;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 4U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 4U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
     other = make_process( 1U, 5U );
-    assert( dispatch( 0U ) == a );
-    assert( dispatch( 1U ) == other );
+    test_run_as( &s_table, a );
+    test_run_as( &s_table, other );
 
-    assert( send_on( buf, &value, sizeof( value ), 0U, other, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( receive_on( buf, &value, sizeof( value ), 0U, other, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        send_on( buf, &value, sizeof( value ), 0U, other, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        receive_on( buf, &value, sizeof( value ), 0U, other, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
-    assert( send_on(
-                MAXRTOS_MAX_BUFFERS, &value, sizeof( value ), 0U, a,
-                &next ) == MAXRTOS_ERR_INVALID_ID );
-    assert( send_on(
-                MAXRTOS_INVALID_BUFFER_ID, &value, sizeof( value ), 0U, a,
-                &next ) == MAXRTOS_ERR_INVALID_ID );
-    assert( send_on( buf, &value, sizeof( value ), 0U,
-                      MAXRTOS_INVALID_PROCESS_ID, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        send_on( MAXRTOS_MAX_BUFFERS, &value, sizeof( value ), 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        send_on(
+            MAXRTOS_INVALID_BUFFER_ID,
+            &value,
+            sizeof( value ),
+            0U,
+            a,
+            &next ) == MAXRTOS_ERR_INVALID_ID );
+    assert(
+        send_on(
+            buf,
+            &value,
+            sizeof( value ),
+            0U,
+            MAXRTOS_INVALID_PROCESS_ID,
+            &next ) == MAXRTOS_ERR_INVALID_ID );
 
-    assert( maxrtos_kernel_buffer_send(
-                buf, &value, sizeof( value ), 0U, NULL, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_buffer_send(
-                buf, &value, sizeof( value ), 0U, &s_table, a, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_buffer_send(
+            buf, &value, sizeof( value ), 0U, NULL, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_buffer_send(
+            buf, &value, sizeof( value ), 0U, &s_table, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_other_partition_and_bad_handles_rejected: PASS\n" );
 }
@@ -259,22 +285,25 @@ static void test_blocked_receiver_gets_message_from_sender( void )
     maxrtos_process_control_block_t * pcb_a;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     rx = 0U;
-    assert( receive_on( buf, &rx, sizeof( rx ), MAXRTOS_TIMEOUT_INFINITE,
-                        a, &next ) == MAXRTOS_PENDING );
+    assert(
+        receive_on(
+            buf, &rx, sizeof( rx ), MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_PENDING );
     assert( next == b );
     pcb_a = maxrtos_process_get( a );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_BLOCKED );
 
     tx = 0xA5A5F00DU;
-    assert( dispatch( 0U ) == b );
+    test_run_as( &s_table, b );
     assert( send_on( buf, &tx, sizeof( tx ), 0U, b, &next ) == MAXRTOS_OK );
 
     assert( rx == tx );
@@ -299,12 +328,13 @@ static void test_blocked_sender_admitted_when_receiver_frees_slot( void )
     maxrtos_process_control_block_t * pcb_a;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     m = 1U;
     assert( send_on( buf, &m, sizeof( m ), 0U, a, &next ) == MAXRTOS_OK );
@@ -312,26 +342,27 @@ static void test_blocked_sender_admitted_when_receiver_frees_slot( void )
     assert( send_on( buf, &m, sizeof( m ), 0U, a, &next ) == MAXRTOS_OK );
 
     m = 3U;
-    assert( send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE, a,
-                     &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_PENDING );
     assert( next == b );
     pcb_a = maxrtos_process_get( a );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_BLOCKED );
 
-    assert( dispatch( 0U ) == b );
-    assert( receive_on( buf, &out, sizeof( out ), 0U, b, &next ) ==
-            MAXRTOS_OK );
+    test_run_as( &s_table, b );
+    assert(
+        receive_on( buf, &out, sizeof( out ), 0U, b, &next ) == MAXRTOS_OK );
     assert( out == 1U );
 
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_READY );
     assert( pcb_a->ipc_result_pending == true );
     assert( pcb_a->ipc_result == MAXRTOS_OK );
 
-    assert( receive_on( buf, &out, sizeof( out ), 0U, b, &next ) ==
-            MAXRTOS_OK );
+    assert(
+        receive_on( buf, &out, sizeof( out ), 0U, b, &next ) == MAXRTOS_OK );
     assert( out == 2U );
-    assert( receive_on( buf, &out, sizeof( out ), 0U, b, &next ) ==
-            MAXRTOS_OK );
+    assert(
+        receive_on( buf, &out, sizeof( out ), 0U, b, &next ) == MAXRTOS_OK );
     assert( out == 3U );
 
     printf( "test_blocked_sender_admitted_when_receiver_frees_slot: PASS\n" );
@@ -356,14 +387,15 @@ static void test_fifo_discipline_ignores_priority( void )
     uint32_t m;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     o = make_process( 0U, 0U );
     low_prio_first = make_process( 0U, 9U );
     high_prio_second = make_process( 0U, 2U );
 
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
     m = 1U;
     assert( send_on( buf, &m, sizeof( m ), 0U, o, &next ) == MAXRTOS_OK );
 
@@ -371,35 +403,54 @@ static void test_fifo_discipline_ignores_priority( void )
      * buffer first. */
     assert( maxrtos_waitlist_init( &elsewhere ) == MAXRTOS_OK );
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-    assert( dispatch( 0U ) == high_prio_second );
-    assert( maxrtos_ipc_block_current(
-                &s_table, high_prio_second, &elsewhere, MAXRTOS_TICK_NONE,
-                &op, &next ) == MAXRTOS_OK );
+    test_run_as( &s_table, high_prio_second );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table,
+            high_prio_second,
+            &elsewhere,
+            MAXRTOS_TICK_NONE,
+            &op,
+            &next ) == MAXRTOS_OK );
     assert( next == o );
 
     /* Buffer is now full (capacity 1). low_prio_first blocks first. */
-    assert( dispatch( 0U ) == low_prio_first );
+    test_run_as( &s_table, low_prio_first );
     m = 2U;
-    assert( send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE,
-                     low_prio_first, &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on(
+            buf,
+            &m,
+            sizeof( m ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            low_prio_first,
+            &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     /* high_prio_second comes back and queues behind low_prio_first. */
     assert( maxrtos_ipc_wake_one( &elsewhere, &woken, &op ) == MAXRTOS_OK );
     assert( woken == high_prio_second );
-    assert( maxrtos_ipc_resolve( &s_table, high_prio_second, MAXRTOS_OK ) ==
-            MAXRTOS_OK );
-    assert( dispatch( 0U ) == high_prio_second );
+    assert(
+        maxrtos_ipc_resolve( &s_table, high_prio_second, MAXRTOS_OK ) ==
+        MAXRTOS_OK );
+    test_run_as( &s_table, high_prio_second );
     m = 3U;
-    assert( send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE,
-                     high_prio_second, &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on(
+            buf,
+            &m,
+            sizeof( m ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            high_prio_second,
+            &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     {
         uint32_t out;
 
-        assert( receive_on( buf, &out, sizeof( out ), 0U, o, &next ) ==
-                MAXRTOS_OK );
+        assert(
+            receive_on( buf, &out, sizeof( out ), 0U, o, &next ) ==
+            MAXRTOS_OK );
         assert( out == 1U );
     }
 
@@ -427,46 +478,66 @@ static void test_priority_discipline_serves_by_priority_then_fifo( void )
     uint32_t m;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_PRIORITY,
-                &buf ) == MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_PRIORITY, &buf ) ==
+        MAXRTOS_OK );
     o = make_process( 0U, 0U );
     low_prio_first = make_process( 0U, 9U );
     high_prio_second = make_process( 0U, 2U );
 
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
     m = 1U;
     assert( send_on( buf, &m, sizeof( m ), 0U, o, &next ) == MAXRTOS_OK );
 
     assert( maxrtos_waitlist_init( &elsewhere ) == MAXRTOS_OK );
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-    assert( dispatch( 0U ) == high_prio_second );
-    assert( maxrtos_ipc_block_current(
-                &s_table, high_prio_second, &elsewhere, MAXRTOS_TICK_NONE,
-                &op, &next ) == MAXRTOS_OK );
+    test_run_as( &s_table, high_prio_second );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table,
+            high_prio_second,
+            &elsewhere,
+            MAXRTOS_TICK_NONE,
+            &op,
+            &next ) == MAXRTOS_OK );
     assert( next == o );
 
-    assert( dispatch( 0U ) == low_prio_first );
+    test_run_as( &s_table, low_prio_first );
     m = 2U;
-    assert( send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE,
-                     low_prio_first, &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on(
+            buf,
+            &m,
+            sizeof( m ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            low_prio_first,
+            &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     assert( maxrtos_ipc_wake_one( &elsewhere, &woken, &op ) == MAXRTOS_OK );
     assert( woken == high_prio_second );
-    assert( maxrtos_ipc_resolve( &s_table, high_prio_second, MAXRTOS_OK ) ==
-            MAXRTOS_OK );
-    assert( dispatch( 0U ) == high_prio_second );
+    assert(
+        maxrtos_ipc_resolve( &s_table, high_prio_second, MAXRTOS_OK ) ==
+        MAXRTOS_OK );
+    test_run_as( &s_table, high_prio_second );
     m = 3U;
-    assert( send_on( buf, &m, sizeof( m ), MAXRTOS_TIMEOUT_INFINITE,
-                     high_prio_second, &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on(
+            buf,
+            &m,
+            sizeof( m ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            high_prio_second,
+            &next ) == MAXRTOS_PENDING );
     assert( next == o );
 
     {
         uint32_t out;
 
-        assert( receive_on( buf, &out, sizeof( out ), 0U, o, &next ) ==
-                MAXRTOS_OK );
+        assert(
+            receive_on( buf, &out, sizeof( out ), 0U, o, &next ) ==
+            MAXRTOS_OK );
         assert( out == 1U );
     }
 
@@ -485,19 +556,23 @@ static void test_cannot_block_without_another_ready_process( void )
     uint32_t v;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 1U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
-    assert( receive_on( buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a,
-                        &next ) == MAXRTOS_ERR_QUEUE_EMPTY );
+    assert(
+        receive_on(
+            buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
 
     v = 1U;
     assert( send_on( buf, &v, sizeof( v ), 0U, a, &next ) == MAXRTOS_OK );
-    assert( send_on( buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a,
-                     &next ) == MAXRTOS_ERR_QUEUE_FULL );
+    assert(
+        send_on( buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_ERR_QUEUE_FULL );
 
     assert( state_of( a ) == MAXRTOS_PROCESS_STATE_RUNNING );
 
@@ -514,15 +589,16 @@ static void test_timed_receive_expires_and_leaves_wait_list( void )
     uint32_t rx;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 2U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
-    assert( receive_on( buf, &rx, sizeof( rx ), 3U, a, &next ) ==
-            MAXRTOS_PENDING );
+    assert(
+        receive_on( buf, &rx, sizeof( rx ), 3U, a, &next ) == MAXRTOS_PENDING );
     assert( next == b );
 
     assert( maxrtos_ipc_expire_timeouts( &s_table, 2U ) == 0U );
@@ -547,13 +623,14 @@ static void test_get_status_reports_configuration_fill_and_waiters( void )
     uint32_t v;
 
     setup();
-    assert( maxrtos_buffer_create(
-                0U, sizeof( uint32_t ), 3U, MAXRTOS_QUEUING_FIFO, &buf ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_buffer_create(
+            0U, sizeof( uint32_t ), 3U, MAXRTOS_QUEUING_FIFO, &buf ) ==
+        MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
     other = make_process( 1U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( maxrtos_kernel_buffer_get_status( buf, a, &st ) == MAXRTOS_OK );
     assert( st.max_message_size == sizeof( uint32_t ) );
@@ -570,8 +647,9 @@ static void test_get_status_reports_configuration_fill_and_waiters( void )
     /* Fill it and block a sender. */
     assert( send_on( buf, &v, sizeof( v ), 0U, a, &next ) == MAXRTOS_OK );
     assert( send_on( buf, &v, sizeof( v ), 0U, a, &next ) == MAXRTOS_OK );
-    assert( send_on( buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a,
-                     &next ) == MAXRTOS_PENDING );
+    assert(
+        send_on( buf, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+        MAXRTOS_PENDING );
     assert( next == b );
 
     assert( maxrtos_kernel_buffer_get_status( buf, b, &st ) == MAXRTOS_OK );
@@ -580,13 +658,15 @@ static void test_get_status_reports_configuration_fill_and_waiters( void )
 
     /* Errors leave the output alone. */
     st.nb_message = 77U;
-    assert( maxrtos_kernel_buffer_get_status( buf, other, &st ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_kernel_buffer_get_status(
-                MAXRTOS_INVALID_BUFFER_ID, a, &st ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_kernel_buffer_get_status( buf, a, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_buffer_get_status( buf, other, &st ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_buffer_get_status( MAXRTOS_INVALID_BUFFER_ID, a, &st ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_buffer_get_status( buf, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
     assert( st.nb_message == 77U );
 
     printf( "test_get_status_reports_configuration_fill_and_waiters: PASS\n" );
