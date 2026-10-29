@@ -1,6 +1,6 @@
 /**
  * @file yield.h
- * @brief Interface for kernel-level process yield operations. 
+ * @brief Interface for kernel-level process yield operations.
  */
 
 #include <stdbool.h>
@@ -29,7 +29,7 @@
  * @return
  *     MAXRTOS_OK on success.
  *     MAXRTOS_ERR_INVALID_ARG if required pointer arguments are NULL.
- *     MAXRTOS_ERR_* Partition dispatch error returned by maxrtos_partition_dispatch().
+ *     MAXRTOS_ERR_* Partition error returned by maxrtos_partition_yield().
  */
 maxrtos_status_t maxrtos_kernel_yield(
     maxrtos_partition_table_t * table,

@@ -2,15 +2,18 @@
  * @file scheduler.h
  * @brief Fixed-priority process scheduler interface.
  *
- * Scheduling uses strict fixed-priority ordering. Lower numeric
- * priority values represent higher priority. Processes with equal
- * priority are selected in FIFO order based on ready-queue insertion
- * order.
+ * The ready queues order processes for priority-preemptive scheduling. Lower
+ * numeric priority values represent higher priority. Processes with equal
+ * priority are selected in FIFO order based on ready-queue insertion order. The
+ * scheduler only orders the READY processes: when the running one is replaced
+ * is decided by the dispatch layer (dispatch.h): it is preempted by a strictly
+ * higher priority, and gives way to an equal one only when it yields.
  */
 
 #ifndef MAXRTOS_KERNEL_SCHEDULER_H
 #define MAXRTOS_KERNEL_SCHEDULER_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -232,6 +235,23 @@ static inline maxrtos_status_t maxrtos_scheduler_next(
     return status;
 }
 
+/* Remove the head of the non-empty queue for @p priority. */
+static inline void maxrtos_scheduler_pop(
+    maxrtos_scheduler_context_t * ctx,
+    uint32_t priority )
+{
+    maxrtos_ready_queue_t * queue;
+
+    queue = &ctx->queues[ priority ];
+    queue->head = ( queue->head + 1U ) % MAXRTOS_MAX_READY_PER_PRIORITY;
+    queue->count--;
+
+    if( queue->count == 0U )
+    {
+        ctx->ready_mask &= ~( UINT32_C( 1 ) << priority );
+    }
+}
+
 /**
  * @brief Remove and return the process maxrtos_scheduler_next() would pick.
  *
@@ -258,20 +278,13 @@ static inline maxrtos_status_t maxrtos_scheduler_take_next(
         }
         else
         {
-            maxrtos_ready_queue_t * queue;
             uint32_t priority;
 
             priority = maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
-            queue = &ctx->queues[ priority ];
 
-            *out_id = queue->items[ queue->head ];
-            queue->head = ( queue->head + 1U ) % MAXRTOS_MAX_READY_PER_PRIORITY;
-            queue->count--;
-
-            if( queue->count == 0U )
-            {
-                ctx->ready_mask &= ~( UINT32_C( 1 ) << priority );
-            }
+            *out_id =
+                ctx->queues[ priority ].items[ ctx->queues[ priority ].head ];
+            maxrtos_scheduler_pop( ctx, priority );
 
             status = MAXRTOS_OK;
         }
@@ -306,6 +319,62 @@ static inline maxrtos_status_t maxrtos_scheduler_enqueue(
     }
 
     return status;
+}
+
+/**
+ * @brief Queue a process at the head of the queue for @p priority without
+ *        looking it up or checking its state.
+ *
+ * Used for a process that was preempted: it stays the oldest READY process
+ * of its priority and runs again before its equal-priority peers.
+ *
+ * @return MAXRTOS_OK, MAXRTOS_ERR_QUEUE_FULL, or MAXRTOS_ERR_INVALID_ARG.
+ */
+static inline maxrtos_status_t maxrtos_scheduler_enqueue_front(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t id,
+    uint8_t priority )
+{
+    maxrtos_status_t status;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( ( ctx != NULL ) && ( priority <= MAXRTOS_MAX_PRIORITY ) )
+    {
+        maxrtos_ready_queue_t * queue;
+
+        queue = &ctx->queues[ priority ];
+        status = MAXRTOS_ERR_QUEUE_FULL;
+
+        if( queue->count < MAXRTOS_MAX_READY_PER_PRIORITY )
+        {
+            queue->head =
+                ( queue->head + MAXRTOS_MAX_READY_PER_PRIORITY - 1U ) %
+                MAXRTOS_MAX_READY_PER_PRIORITY;
+            queue->items[ queue->head ] = id;
+            queue->count++;
+            ctx->ready_mask |= UINT32_C( 1 ) << priority;
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
+
+/**
+ * @brief True if a READY process has a strictly higher priority than
+ *        @p priority (a numerically lower value).
+ *
+ * This is the test for preemption: a running process of @p priority keeps the
+ * CPU until this is true.
+ */
+static inline bool maxrtos_scheduler_has_higher(
+    maxrtos_scheduler_context_t const * ctx,
+    uint8_t priority )
+{
+    return ( ctx != NULL ) &&
+           ( ( ctx->ready_mask & ( ( UINT32_C( 1 ) << priority ) - 1U ) ) !=
+             0U );
 }
 
 /**

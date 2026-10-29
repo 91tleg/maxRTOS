@@ -80,6 +80,8 @@ MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_timed_wait(
 MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_time_get(
     uint32_t * stacked_args );
 
+MAXRTOS_SVC_OUT_OF_LINE static void maxrtos_arch_svc_preempt_check( void );
+
 void maxrtos_arch_svc_dispatch(
     uint32_t * stacked_args,
     uint8_t svc_number )
@@ -187,6 +189,16 @@ void maxrtos_arch_svc_dispatch(
             maxrtos_arch_svc_invalid();
             break;
         }
+    }
+
+    /* A call can make a higher-priority process of the caller's partition
+     * READY: an IPC wake-up, a mutex release, a priority change. The caller
+     * is preempted at once. A yield only gives way, and reading the time
+     * changes nothing, so they skip the check. */
+    if( ( svc_number != ( uint8_t ) MAXRTOS_SVC_YIELD ) &&
+        ( svc_number != ( uint8_t ) MAXRTOS_SVC_TIME_GET ) )
+    {
+        maxrtos_arch_svc_preempt_check();
     }
 }
 
@@ -460,6 +472,9 @@ static void maxrtos_arch_svc_timed_wait( uint32_t * stacked_args )
     maxrtos_process_id_t next_id;
     maxrtos_status_t status;
 
+    maxrtos_tick_t delay_ticks;
+
+    delay_ticks = ( maxrtos_tick_t ) stacked_args[ 0 ];
     current_pcb = maxrtos_arch_get_current_pcb();
     partition_table = maxrtos_arch_get_partition_table();
     next_id = MAXRTOS_INVALID_PROCESS_ID;
@@ -471,13 +486,53 @@ static void maxrtos_arch_svc_timed_wait( uint32_t * stacked_args )
     else
     {
         status = maxrtos_kernel_timed_wait(
-            partition_table,
-            current_pcb->id,
-            ( maxrtos_tick_t ) stacked_args[ 0 ],
-            &next_id );
+            partition_table, current_pcb->id, delay_ticks, &next_id );
     }
 
     maxrtos_arch_svc_finish_wait( stacked_args, status, next_id );
+
+    if( ( status == MAXRTOS_OK ) && ( delay_ticks == 0U ) )
+    {
+        /* A zero delay lets processes of the same priority take turns. The
+         * caller's result (OK) is already in its frame. */
+        maxrtos_arch_svc_yield( stacked_args );
+    }
+}
+
+static void maxrtos_arch_svc_preempt_check( void )
+{
+    maxrtos_process_control_block_t const * caller;
+    maxrtos_partition_table_t * table;
+
+    caller = maxrtos_arch_get_current_pcb();
+    table = maxrtos_arch_get_partition_table();
+
+    /* Only a caller that is still RUNNING can be preempted by what the call
+     * made READY. One that blocked was replaced by the best READY process,
+     * so nothing in its partition outranks the process now running. */
+    if( ( caller != NULL ) && ( table != NULL ) &&
+        ( caller->state == MAXRTOS_PROCESS_STATE_RUNNING ) &&
+        ( caller->partition_id < MAXRTOS_MAX_PARTITIONS ) &&
+        maxrtos_scheduler_has_higher(
+            &table->scheduler_ctx[ caller->partition_id ], caller->priority ) )
+    {
+        maxrtos_process_id_t next_id;
+
+        if( ( maxrtos_partition_dispatch(
+                  table, caller->partition_id, &next_id ) == MAXRTOS_OK ) &&
+            ( next_id != caller->id ) )
+        {
+            maxrtos_process_control_block_t * next_pcb;
+
+            next_pcb = maxrtos_process_get( next_id );
+
+            if( next_pcb != NULL )
+            {
+                maxrtos_arch_set_next_pcb( next_pcb );
+                maxrtos_arch_request_context_switch();
+            }
+        }
+    }
 }
 
 static void maxrtos_arch_svc_time_get( uint32_t * stacked_args )

@@ -115,10 +115,13 @@ maxrtos_status_t maxrtos_partition_add_process(
     maxrtos_process_id_t id );
 
 /**
- * @brief Select the next process for execution within a partition.
+ * @brief Reschedule a partition: a READY process of strictly higher
+ *        priority preempts the running one.
  *
- * Dispatches the next eligible READY process from the specified
- * partition scheduler.
+ * Priority-preemptive: the running process keeps the CPU
+ * until it blocks, waits, or is outranked (see maxrtos_kernel_dispatch()).
+ * Equal priorities are not time sliced; use maxrtos_partition_yield() to give
+ * way to them.
  *
  * If current_id[partition_id] is
  * MAXRTOS_INVALID_PROCESS_ID, the partition is treated as having no
@@ -158,6 +161,19 @@ maxrtos_status_t maxrtos_partition_add_process(
  *     state is unchanged.
  */
 maxrtos_status_t maxrtos_partition_dispatch(
+    maxrtos_partition_table_t * table,
+    maxrtos_partition_id_t partition_id,
+    maxrtos_process_id_t * out_next_id );
+
+/**
+ * @brief Give way within a partition: a READY process of equal or higher
+ *        priority runs, and the caller goes behind its peers.
+ *
+ * The round-robin point (see maxrtos_kernel_dispatch_yield()).
+ * Parameters, return values and postconditions are those of
+ * maxrtos_partition_dispatch().
+ */
+maxrtos_status_t maxrtos_partition_yield(
     maxrtos_partition_table_t * table,
     maxrtos_partition_id_t partition_id,
     maxrtos_process_id_t * out_next_id );

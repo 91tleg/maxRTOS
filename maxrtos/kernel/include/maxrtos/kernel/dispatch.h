@@ -18,22 +18,25 @@
 #include "maxrtos/kernel/scheduler.h"
 
 /**
- * @brief Select and dispatch the next READY process.
+ * @brief Reschedule: let a higher-priority READY process preempt the
+ *        running one.
  *
- * Obtains the highest-priority process selected by the scheduler.
- * If the selected process differs from the currently running process,
- * the scheduler ready queues are updated before either process state
- * is changed.
+ * Priority-preemptive scheduling: the running
+ * process keeps the CPU until it blocks, waits, or a READY process with a
+ * strictly higher priority exists. Equal priorities are not time sliced. When
+ * a preemption happens, the preempted process becomes READY at the head of
+ * its priority's queue, the oldest of its priority.
  *
- * On successful completion, the previously running process is placed
- * in the READY state and the selected process is placed in the RUNNING
- * state. If the scheduler operation fails, the current process remains
- * RUNNING and no process-state transition is performed.
+ * Called at every point where a process may have become runnable: a tick, a
+ * wake-up, a priority change. If current_id is
+ * MAXRTOS_INVALID_PROCESS_ID, the call is treated as the initial dispatch and
+ * the highest-priority READY process is selected.
  *
- * If current_id is MAXRTOS_INVALID_PROCESS_ID, the call is treated as
- * the initial dispatch and no current process state is modified.
+ * On a preemption the previously running process becomes READY and the
+ * selected process RUNNING. If nothing outranks the running process,
+ * out_next_id is current_id and no state changes.
  *
- * @param[in] ctx 
+ * @param[in] ctx
  *    the scheduler context (one partition's ready queues) to
  *    dispatch within. Must not be NULL.
  *
@@ -45,10 +48,10 @@
  *     Receives the process ID selected for execution. Must not be NULL.
  *
  * @return
- *     MAXRTOS_OK if a process was successfully selected and the
- *     required state transition was completed.
+ *     MAXRTOS_OK if a process was selected (possibly current_id).
  *     MAXRTOS_ERR_INVALID_ARG if out_next_id is NULL.
- *     MAXRTOS_ERR_QUEUE_EMPTY if no READY process is available.
+ *     MAXRTOS_ERR_QUEUE_EMPTY if there is no current process and no READY
+ *     process is available.
  *     MAXRTOS_ERR_INVALID_ID if a referenced process ID is invalid.
  *     MAXRTOS_ERR_INVALID_STATE if a referenced process is not in the
  *     expected state.
@@ -61,15 +64,30 @@ maxrtos_status_t maxrtos_kernel_dispatch(
     maxrtos_process_id_t * out_next_id );
 
 /**
+ * @brief Give way: let a READY process of equal or higher priority run.
+ *
+ * Like maxrtos_kernel_dispatch(), except that a READY process of the same
+ * priority also takes the CPU, and the process that gives way goes to the
+ * tail of its priority's queue behind its peers. This is the round-robin
+ * point: maxrtos_timed_wait( 0 ) and maxrtos_yield(). A
+ * READY process of lower priority never takes the CPU.
+ *
+ * Parameters and return values are those of maxrtos_kernel_dispatch().
+ */
+maxrtos_status_t maxrtos_kernel_dispatch_yield(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t current_id,
+    maxrtos_process_id_t * out_next_id );
+
+/**
  * @brief Transition the currently-running process to BLOCKED and
  *        dispatch a replacement, WITHOUT requeuing the blocking
  *        process into the ready queue.
  *
- * This is distinct from maxrtos_kernel_dispatch(), which always
- * transitions "current" back to READY and re-adds it to the
- * scheduler -- that is correct for cooperative yield and tick-driven
- * preemption, where the outgoing process remains eligible to run
- * again immediately. It is NOT correct for blocking on a contended
+ * This is distinct from maxrtos_kernel_dispatch(), which puts "current"
+ * back in the ready queue -- that is correct for yielding and preemption,
+ * where the outgoing process remains eligible to run again. It is NOT
+ * correct for blocking on a contended
  * resource (e.g. a mutex): a blocked process must not be selected by
  * maxrtos_scheduler_next() again until something else (e.g. a mutex
  * unlock) explicitly makes it READY.

@@ -7,16 +7,33 @@
  * READY state. A RUNNING process is not a member of a ready queue.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "maxrtos/kernel/dispatch.h"
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/scheduler.h"
 
-maxrtos_status_t maxrtos_kernel_dispatch(
+/* True if a READY process of priority @p next may take the CPU from a
+ * RUNNING one of priority @p current.
+ *
+ * A higher priority (a numerically lower value) always may: that is
+ * preemption. An equal one may only if @p yield is set, since there is no time
+ * slice: the running process keeps the CPU until it blocks, waits, or gives
+ * way to its peers. A lower priority never may. */
+static bool maxrtos_dispatch_takes_over(
+    uint32_t next,
+    uint32_t current,
+    bool yield )
+{
+    return yield ? ( next <= current ) : ( next < current );
+}
+
+static maxrtos_status_t maxrtos_dispatch_select(
     maxrtos_scheduler_context_t * ctx,
     maxrtos_process_id_t current_id,
-    maxrtos_process_id_t * out_next_id )
+    maxrtos_process_id_t * out_next_id,
+    bool yield )
 {
     maxrtos_status_t status;
 
@@ -59,22 +76,36 @@ maxrtos_status_t maxrtos_kernel_dispatch(
 
             next_id = MAXRTOS_INVALID_PROCESS_ID;
 
-            status = maxrtos_scheduler_next( ctx, &next_id );
-
             /* If no READY process is available, retain the current
              * RUNNING process. Initial dispatch requires a READY
              * process to be selected. */
-            if( ( status == MAXRTOS_ERR_QUEUE_EMPTY ) &&
-                ( current_pcb != NULL ) )
+            if( ctx->ready_mask == 0U )
             {
-                *out_next_id = current_id;
-                status = MAXRTOS_OK;
+                if( current_pcb != NULL )
+                {
+                    *out_next_id = current_id;
+                    status = MAXRTOS_OK;
+                }
+                else
+                {
+                    status = MAXRTOS_ERR_QUEUE_EMPTY;
+                }
             }
-            else if( status == MAXRTOS_OK )
+            else
             {
                 maxrtos_process_control_block_t * next_pcb;
+                uint32_t next_priority;
+                bool take_over;
+
+                /* Peek the best READY process; priority 0 is the highest,
+                 * so the lowest set bit wins. */
+                next_priority =
+                    maxrtos_scheduler_lowest_set_bit( ctx->ready_mask );
+                next_id = ctx->queues[ next_priority ]
+                              .items[ ctx->queues[ next_priority ].head ];
 
                 next_pcb = maxrtos_process_get( next_id );
+                take_over = true;
 
                 if( next_pcb == NULL )
                 {
@@ -84,16 +115,24 @@ maxrtos_status_t maxrtos_kernel_dispatch(
                 {
                     status = MAXRTOS_ERR_INVALID_STATE;
                 }
+                else if(
+                    ( current_pcb != NULL ) &&
+                    !maxrtos_dispatch_takes_over(
+                        next_priority, current_pcb->priority, yield ) )
+                {
+                    /* The running process keeps the CPU; nothing changes. */
+                    take_over = false;
+                    *out_next_id = current_id;
+                }
                 else
                 {
                     /* Remove the selected process from the READY queue
                      * before transitioning it to RUNNING. A RUNNING
-                     * process shall not be present in the READY queue.
-                     * It was just peeked, so it is the one taken. */
-                    status = maxrtos_scheduler_take_next( ctx, &next_id );
+                     * process shall not be present in the READY queue. */
+                    maxrtos_scheduler_pop( ctx, next_priority );
                 }
 
-                if( status == MAXRTOS_OK )
+                if( ( status == MAXRTOS_OK ) && take_over )
                 {
                     if( current_pcb == NULL )
                     {
@@ -104,24 +143,29 @@ maxrtos_status_t maxrtos_kernel_dispatch(
                     }
                     else
                     {
-                        /* Transition the current process to READY before
-                         * inserting it into the READY queue. */
+                        /* The outgoing process becomes READY. Giving way
+                         * puts it behind its peers; being preempted leaves
+                         * it the oldest at its priority, so it runs again
+                         * before them. */
                         current_pcb->state = MAXRTOS_PROCESS_STATE_READY;
 
-                        status = maxrtos_scheduler_enqueue(
-                            ctx, current_id, current_pcb->priority );
+                        status =
+                            yield
+                                ? maxrtos_scheduler_enqueue(
+                                      ctx, current_id, current_pcb->priority )
+                                : maxrtos_scheduler_enqueue_front(
+                                      ctx, current_id, current_pcb->priority );
 
                         if( status != MAXRTOS_OK )
                         {
                             /* Restore the current process to its original
-                             * RUNNING state and restore the selected
-                             * process to the READY queue. Recovery is
-                             * performed without replacing the original
-                             * error status. */
+                             * RUNNING state and the selected process to
+                             * the head of its queue. Recovery is performed
+                             * without replacing the original error status. */
                             current_pcb->state = MAXRTOS_PROCESS_STATE_RUNNING;
 
-                            ( void ) maxrtos_scheduler_enqueue(
-                                ctx, next_id, next_pcb->priority );
+                            ( void ) maxrtos_scheduler_enqueue_front(
+                                ctx, next_id, ( uint8_t ) next_priority );
                         }
                         else
                         {
@@ -130,19 +174,31 @@ maxrtos_status_t maxrtos_kernel_dispatch(
                     }
                 }
 
-                if( status == MAXRTOS_OK )
+                if( ( status == MAXRTOS_OK ) && take_over )
                 {
                     *out_next_id = next_id;
                 }
-            }
-            else
-            {
-                /* The scheduler reported an error; return it. */
             }
         }
     }
 
     return status;
+}
+
+maxrtos_status_t maxrtos_kernel_dispatch(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t current_id,
+    maxrtos_process_id_t * out_next_id )
+{
+    return maxrtos_dispatch_select( ctx, current_id, out_next_id, false );
+}
+
+maxrtos_status_t maxrtos_kernel_dispatch_yield(
+    maxrtos_scheduler_context_t * ctx,
+    maxrtos_process_id_t current_id,
+    maxrtos_process_id_t * out_next_id )
+{
+    return maxrtos_dispatch_select( ctx, current_id, out_next_id, true );
 }
 
 maxrtos_status_t maxrtos_kernel_block_and_dispatch(

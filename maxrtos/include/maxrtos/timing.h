@@ -31,7 +31,7 @@
 maxrtos_status_t maxrtos_periodic_wait( void );
 
 /**
- * @brief Wait for a number of ticks (ARINC 653 TIMED_WAIT).
+ * @brief Wait for a number of ticks.
  *
  * Blocks the calling process until the kernel tick counter has advanced by
  * delay_ticks, counted the way an IPC timeout is: a wait of N ticks begun when
@@ -41,8 +41,9 @@ maxrtos_status_t maxrtos_periodic_wait( void );
  * processes, or idles. The process runs again once it is READY and its
  * partition's slot is on.
  *
- * A delay of 0 returns at once and does not give up the CPU; call
- * maxrtos_yield() for that.
+ * A delay of 0 does not wait. It is a rescheduling point: READY processes of
+ * the same priority run first, and the caller goes behind them, exactly as
+ * for maxrtos_yield().
  *
  * @param[in] delay_ticks
  *     Ticks to wait. MAXRTOS_TIMEOUT_INFINITE is rejected.
@@ -55,7 +56,7 @@ maxrtos_status_t maxrtos_periodic_wait( void );
 maxrtos_status_t maxrtos_timed_wait( maxrtos_tick_t delay_ticks );
 
 /**
- * @brief Read the kernel tick counter (ARINC 653 GET_TIME).
+ * @brief Read the kernel tick counter.
  *
  * The counter starts at 0 when the scheduler starts and advances by one on
  * every tick.
