@@ -114,12 +114,13 @@ maxrtos_status_t maxrtos_kernel_periodic_wait(
     maxrtos_process_id_t * out_next_id );
 
 /**
- * @brief Block a process for a number of ticks (ARINC 653 TIMED_WAIT).
+ * @brief Block a process for a number of ticks.
  *
  * The delay is counted on the kernel tick counter: the process becomes READY
  * again when the counter reaches the value it had at the call plus
- * delay_ticks, the same rule as an IPC timeout. A delay of 0 returns at once
- * and does not give up the CPU; use maxrtos_yield() for that. While the
+ * delay_ticks, the same rule as an IPC timeout. A delay of 0 returns
+ * MAXRTOS_OK without blocking; the caller (the architecture layer) then gives
+ * way to its equal-priority peers. While the
  * process waits the partition's other processes run, or the CPU idles.
  *
  * @param[in,out] table

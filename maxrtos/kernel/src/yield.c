@@ -21,16 +21,12 @@ maxrtos_status_t maxrtos_kernel_yield(
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( table != NULL ) &&
-        ( out_next_id != NULL ) &&
+    if( ( table != NULL ) && ( out_next_id != NULL ) &&
         ( out_switch_needed != NULL ) )
     {
         maxrtos_process_id_t next_id;
 
-        status = maxrtos_partition_dispatch(
-            table,
-            partition_id,
-            &next_id );
+        status = maxrtos_partition_yield( table, partition_id, &next_id );
 
         if( status == MAXRTOS_OK )
         {

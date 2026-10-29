@@ -6,12 +6,10 @@
  * exact core cycles. All partitions are "system" partitions (privileged)
  * because unprivileged code cannot read the DWT.
  *
- * Five latencies are measured, each as min / mean / max over many samples:
+ * Four latencies are measured, each as min / mean / max over many samples:
  *
  *   YIELD          maxrtos_yield() in one process -> first instruction of
  *                  its partition peer (SVC + kernel + PendSV + restore).
- *   TICK_ROTATE    SysTick entry -> first instruction of the process that
- *                  runs next in the SAME partition.
  *   TICK_SWITCH    SysTick entry -> first instruction of the first process
  *                  of a DIFFERENT partition (adds the MPU domain switch).
  *   QUEUE_HANDOFF  "t0; send; yield" -> the woken receiver returns from
@@ -73,7 +71,6 @@
 enum
 {
     STAT_YIELD,
-    STAT_TICK_ROTATE,
     STAT_TICK_SWITCH,
     STAT_QUEUE_HANDOFF,
     STAT_MUTEX_HANDOFF,
@@ -81,8 +78,7 @@ enum
 };
 
 /* Samples wanted per statistic before the run is finished. */
-static const uint32_t s_target[ STAT_COUNT ] = {
-    20000U, 1000U, 1000U, 2000U, 2000U };
+static const uint32_t s_target[ STAT_COUNT ] = { 20000U, 1000U, 2000U, 2000U };
 
 typedef struct
 {
@@ -253,14 +249,11 @@ static void observe_tick( uint32_t part )
          * preempts it is followed by kernel calls before the next one. */
         if( ( seen != NOT_SEEN ) && ( part != 2U ) )
         {
-            if( ( seen + 1U ) == tick )
-            {
-                record_locked(
-                    STAT_TICK_ROTATE,
-                    now - entry,
-                    ( part << 24U ) | ( tick & 0xFFFFFFU ) );
-            }
-            else
+            /* A partition that saw the previous tick too was already
+             * running: nothing switched, and a process noticing a tick is
+             * not a latency (processes are not time sliced). A
+             * partition that missed ticks has just been switched in. */
+            if( ( seen + 1U ) != tick )
             {
                 record_locked(
                     STAT_TICK_SWITCH,

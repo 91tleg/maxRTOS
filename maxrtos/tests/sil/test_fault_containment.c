@@ -87,6 +87,7 @@ static void faulter_1( void * arg )
         {                                                                      \
             s_progress[ n_ ]++;                                                \
             sim_cpu_work( 100U );                                              \
+            maxrtos_yield();                                                   \
         }                                                                      \
     }
 

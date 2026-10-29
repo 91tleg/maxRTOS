@@ -141,7 +141,8 @@ add_hil_test(fault_status
 
 add_hil_test(context_integrity
     SOURCE tests/test_context_integrity.c
-    ASM tests/context_integrity.S)
+    ASM tests/context_integrity.S
+    CONFIG ${QEMU_TESTS}/module_priority.json)
 
 # The QEMU tests, unchanged, on the real chip.
 add_hil_test(yield              SOURCE ${QEMU_TESTS}/test_yield.c)
@@ -158,3 +159,5 @@ add_hil_test(mutex_release_on_restart
     SOURCE ${QEMU_TESTS}/test_mutex_release_on_restart.c)
 add_hil_test(semaphore          SOURCE ${QEMU_TESTS}/test_semaphore.c)
 add_hil_test(timed_wait         SOURCE ${QEMU_TESTS}/test_timed_wait.c)
+add_hil_test(priority           SOURCE ${QEMU_TESTS}/test_priority.c
+    CONFIG ${QEMU_TESTS}/module_priority.json)

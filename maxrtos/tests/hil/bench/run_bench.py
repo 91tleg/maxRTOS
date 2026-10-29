@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 SRC = Path(__file__).resolve().parent
 
-NAMES = ["YIELD", "TICK_ROTATE", "TICK_SWITCH", "QUEUE_HANDOFF", "MUTEX_HANDOFF"]
+NAMES = ["YIELD", "TICK_SWITCH", "QUEUE_HANDOFF", "MUTEX_HANDOFF"]
 MAGIC = 0xB3AC0001
 STAT_WORDS = 7
 WORDS = 4 + STAT_WORDS * len(NAMES)  # header words + words per statistic

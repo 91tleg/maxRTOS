@@ -28,7 +28,8 @@
  * interface.
  *
  * HardFault_Handler recovers escalated configurable faults (HFSR.FORCED)
- * through the same path and spins on any unattributable cause.
+ * through the same path. Any unattributable cause, and any failure of the
+ * recovery path itself, ends in maxrtos_arch_fatal().
  *
  * When a partition-halt action is selected, immediate selection of a
  * process in another partition is deferred to the system's scheduling
@@ -45,6 +46,23 @@
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/process.h"
+
+/**
+ * @brief The kernel cannot continue: a fault it cannot attribute to a process
+ *        or recover from, or a failure of the recovery path itself.
+ *
+ * Does not return. The default stops the CPU (MAXRTOS_PORT_HALT: interrupts
+ * off, break forever), so a debugger sees g_maxrtos_arch_last_fault. It is a
+ * weak symbol: an application that must come back by itself defines its own
+ * maxrtos_arch_fatal() to log, then reset the system (SCB->AIRCR
+ * SYSRESETREQ) or let a watchdog it configures expire. It runs in the
+ * exception that found the fault, so it may not block or wait for a process.
+ *
+ * The kernel does not own a watchdog. Which one to use, its period and
+ * where it is fed (for example from the application's SysTick_Handler) are
+ * the application's choice.
+ */
+void maxrtos_arch_fatal( void );
 
 /**
  * @brief Enable configurable fault exceptions and divide-by-zero
@@ -84,8 +102,7 @@ extern volatile maxrtos_arch_fault_info_t g_maxrtos_arch_last_fault;
  *     Health-monitor instance. The caller shall ensure that the
  *     referenced object remains valid while fault handling is enabled.
  */
-void maxrtos_arch_set_health_monitor(
-    maxrtos_health_monitor_t const * hm );
+void maxrtos_arch_set_health_monitor( maxrtos_health_monitor_t const * hm );
 
 /**
  * @brief Register the partition table used by fault recovery.
@@ -94,8 +111,7 @@ void maxrtos_arch_set_health_monitor(
  *     Partition table. The caller shall ensure that the referenced
  *     object remains valid while fault handling is enabled.
  */
-void maxrtos_arch_set_partition_table(
-    maxrtos_partition_table_t * table );
+void maxrtos_arch_set_partition_table( maxrtos_partition_table_t * table );
 
 /**
  * @brief Retrieve the registered partition table used by fault recovery.

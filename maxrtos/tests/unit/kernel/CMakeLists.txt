@@ -19,6 +19,10 @@ add_executable(maxrtos_kernel_test_dispatch test_dispatch.c)
 target_link_libraries(maxrtos_kernel_test_dispatch PRIVATE maxrtos_kernel)
 add_test(NAME kernel_dispatch_tests COMMAND maxrtos_kernel_test_dispatch)
 
+add_executable(maxrtos_kernel_test_priority test_priority.c)
+target_link_libraries(maxrtos_kernel_test_priority PRIVATE maxrtos_kernel)
+add_test(NAME kernel_priority_tests COMMAND maxrtos_kernel_test_priority)
+
 add_executable(maxrtos_kernel_test_partition test_partition.c)
 target_link_libraries(maxrtos_kernel_test_partition PRIVATE maxrtos_kernel)
 add_test(NAME kernel_partition_tests COMMAND maxrtos_kernel_test_partition)

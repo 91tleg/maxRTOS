@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#include "test_support.h"
 #include "maxrtos/kernel/semaphore.h"
 #include "maxrtos/kernel/ipc_block.h"
 #include "maxrtos/kernel/partition.h"
@@ -42,23 +43,17 @@ static maxrtos_process_id_t make_process(
 
     assert(
         maxrtos_process_create(
-            s_stacks[ s_next_stack ], STACK_SIZE, partition, priority,
-            dummy_entry, NULL, &id ) == MAXRTOS_OK );
+            s_stacks[ s_next_stack ],
+            STACK_SIZE,
+            partition,
+            priority,
+            dummy_entry,
+            NULL,
+            &id ) == MAXRTOS_OK );
     s_next_stack++;
     assert( maxrtos_partition_add_process( &s_table, id ) == MAXRTOS_OK );
 
     return id;
-}
-
-static maxrtos_process_id_t dispatch( maxrtos_partition_id_t partition )
-{
-    maxrtos_process_id_t running;
-
-    assert(
-        maxrtos_partition_dispatch( &s_table, partition, &running ) ==
-        MAXRTOS_OK );
-
-    return running;
 }
 
 static maxrtos_status_t wait_on(
@@ -83,15 +78,17 @@ static maxrtos_process_state_t state_of( maxrtos_process_id_t id )
 }
 
 /* Run a, then let the peer run and block on s; returns with a running. */
-static void block_on( maxrtos_semaphore_id_t s,
-                      maxrtos_process_id_t waiter,
-                      maxrtos_process_id_t runner )
+static void block_on(
+    maxrtos_semaphore_id_t s,
+    maxrtos_process_id_t waiter,
+    maxrtos_process_id_t runner )
 {
     maxrtos_process_id_t next;
 
-    assert( dispatch( 0U ) == waiter );
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, waiter, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, waiter );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, waiter, &next ) ==
+        MAXRTOS_PENDING );
     assert( next == runner );
 }
 
@@ -103,24 +100,28 @@ static void test_create_validates_arguments( void )
 
     setup();
 
-    assert( maxrtos_semaphore_create( 0U, 0U, 1U, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_semaphore_create( MAXRTOS_MAX_PARTITIONS, 0U, 1U, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_semaphore_create( 0U, 0U, 0U, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_semaphore_create( 0U, 3U, 2U, &id ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_semaphore_create( 0U, 0U, 1U, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_semaphore_create( MAXRTOS_MAX_PARTITIONS, 0U, 1U, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_semaphore_create( 0U, 0U, 0U, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_semaphore_create( 0U, 3U, 2U, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
 
     for( i = 0U; i < MAXRTOS_MAX_SEMAPHORES; i++ )
     {
-        assert( maxrtos_semaphore_create( 0U, 1U, 4U, &ids[ i ] ) ==
-                MAXRTOS_OK );
+        assert(
+            maxrtos_semaphore_create( 0U, 1U, 4U, &ids[ i ] ) == MAXRTOS_OK );
         assert( maxrtos_kernel_semaphore_count( ids[ i ] ) == 1U );
     }
 
-    assert( maxrtos_semaphore_create( 0U, 0U, 1U, &id ) ==
-            MAXRTOS_ERR_POOL_FULL );
+    assert(
+        maxrtos_semaphore_create( 0U, 0U, 1U, &id ) == MAXRTOS_ERR_POOL_FULL );
 
     printf( "test_create_validates_arguments: PASS\n" );
 }
@@ -134,7 +135,7 @@ static void test_wait_takes_units_and_polls_when_empty( void )
     setup();
     assert( maxrtos_semaphore_create( 0U, 2U, 5U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( wait_on( s, 0U, a, &next ) == MAXRTOS_OK );
     assert( maxrtos_kernel_semaphore_count( s ) == 1U );
@@ -156,7 +157,7 @@ static void test_signal_counts_up_to_the_maximum( void )
     setup();
     assert( maxrtos_semaphore_create( 0U, 0U, 2U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( signal_on( s, a ) == MAXRTOS_OK );
     assert( signal_on( s, a ) == MAXRTOS_OK );
@@ -178,7 +179,7 @@ static void test_binary_semaphore( void )
     setup();
     assert( maxrtos_semaphore_create( 0U, 1U, 1U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( signal_on( s, a ) == MAXRTOS_ERR_OVERFLOW );
     assert( wait_on( s, 0U, a, &next ) == MAXRTOS_OK );
@@ -235,25 +236,26 @@ static void test_waiters_served_by_priority_then_fifo( void )
     o = make_process( 0U, 0U );
     b = make_process( 0U, 5U );
     c = make_process( 0U, 2U );
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
 
     /* Park c elsewhere so b reaches the semaphore first. */
     assert( maxrtos_waitlist_init( &elsewhere ) == MAXRTOS_OK );
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-    assert( dispatch( 0U ) == c );
-    assert( maxrtos_ipc_block_current(
-                &s_table, c, &elsewhere, MAXRTOS_TICK_NONE, &op, &next ) ==
-            MAXRTOS_OK );
+    test_run_as( &s_table, c );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table, c, &elsewhere, MAXRTOS_TICK_NONE, &op, &next ) ==
+        MAXRTOS_OK );
 
-    assert( dispatch( 0U ) == b );
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, b );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, b, &next ) == MAXRTOS_PENDING );
 
     assert( maxrtos_ipc_wake_one( &elsewhere, &woken, &op ) == MAXRTOS_OK );
     assert( maxrtos_ipc_resolve( &s_table, c, MAXRTOS_OK ) == MAXRTOS_OK );
-    assert( dispatch( 0U ) == c );
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, c, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, c );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, c, &next ) == MAXRTOS_PENDING );
 
     /* b waited first, but c has the higher priority. */
     assert( signal_on( s, o ) == MAXRTOS_OK );
@@ -280,14 +282,14 @@ static void test_equal_priority_waiters_are_fifo( void )
     o = make_process( 0U, 0U );
     x = make_process( 0U, 5U );
     y = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == o );
+    test_run_as( &s_table, o );
 
-    assert( dispatch( 0U ) == x );
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, x, &next ) ==
-            MAXRTOS_PENDING );
-    assert( dispatch( 0U ) == y );
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, y, &next ) ==
-            MAXRTOS_PENDING );
+    test_run_as( &s_table, x );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, x, &next ) == MAXRTOS_PENDING );
+    test_run_as( &s_table, y );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, y, &next ) == MAXRTOS_PENDING );
 
     assert( signal_on( s, o ) == MAXRTOS_OK );
     assert( state_of( x ) == MAXRTOS_PROCESS_STATE_READY );
@@ -308,7 +310,7 @@ static void test_timed_wait_expires_and_leaves_wait_list( void )
     assert( maxrtos_semaphore_create( 0U, 0U, 2U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
     assert( wait_on( s, 3U, a, &next ) == MAXRTOS_PENDING );
     assert( next == b );
 
@@ -338,18 +340,20 @@ static void test_wait_fails_when_nothing_else_can_run( void )
     assert( maxrtos_semaphore_create( 0U, 0U, 1U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     b = make_process( 0U, 5U );
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     /* a blocks elsewhere, leaving b as the only runner. */
     op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
     assert( maxrtos_waitlist_init( &other ) == MAXRTOS_OK );
-    assert( maxrtos_ipc_block_current(
-                &s_table, a, &other, MAXRTOS_TICK_NONE, &op, &next ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_ipc_block_current(
+            &s_table, a, &other, MAXRTOS_TICK_NONE, &op, &next ) ==
+        MAXRTOS_OK );
     assert( next == b );
 
-    assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
-            MAXRTOS_ERR_TIMEOUT );
+    assert(
+        wait_on( s, MAXRTOS_TIMEOUT_INFINITE, b, &next ) ==
+        MAXRTOS_ERR_TIMEOUT );
     assert( state_of( b ) == MAXRTOS_PROCESS_STATE_RUNNING );
 
     printf( "test_wait_fails_when_nothing_else_can_run: PASS\n" );
@@ -366,32 +370,40 @@ static void test_other_partition_and_bad_handles_rejected( void )
     assert( maxrtos_semaphore_create( 0U, 1U, 1U, &s ) == MAXRTOS_OK );
     a = make_process( 0U, 5U );
     other = make_process( 1U, 5U );
-    assert( dispatch( 0U ) == a );
-    assert( dispatch( 1U ) == other );
+    test_run_as( &s_table, a );
+    test_run_as( &s_table, other );
 
     assert( wait_on( s, 0U, other, &next ) == MAXRTOS_ERR_INVALID_ID );
     assert( signal_on( s, other ) == MAXRTOS_ERR_INVALID_ID );
     assert( maxrtos_kernel_semaphore_count( s ) == 1U );
 
-    assert( wait_on( MAXRTOS_MAX_SEMAPHORES, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( wait_on( MAXRTOS_INVALID_SEMAPHORE_ID, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( wait_on( MAXRTOS_MAX_SEMAPHORES - 1U, 0U, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ID ); /* never created */
-    assert( wait_on( s, 0U, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( signal_on( MAXRTOS_INVALID_SEMAPHORE_ID, a ) ==
-            MAXRTOS_ERR_INVALID_ID );
+    assert(
+        wait_on( MAXRTOS_MAX_SEMAPHORES, 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        wait_on( MAXRTOS_INVALID_SEMAPHORE_ID, 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        wait_on( MAXRTOS_MAX_SEMAPHORES - 1U, 0U, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ID ); /* never created */
+    assert(
+        wait_on( s, 0U, MAXRTOS_INVALID_PROCESS_ID, &next ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        signal_on( MAXRTOS_INVALID_SEMAPHORE_ID, a ) ==
+        MAXRTOS_ERR_INVALID_ID );
 
-    assert( maxrtos_kernel_semaphore_wait( s, 0U, NULL, a, &next ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_semaphore_wait( s, 0U, &s_table, a, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_semaphore_signal( s, NULL, a ) ==
-            MAXRTOS_ERR_INVALID_ARG );
-    assert( maxrtos_kernel_semaphore_count( MAXRTOS_INVALID_SEMAPHORE_ID ) ==
-            0U );
+    assert(
+        maxrtos_kernel_semaphore_wait( s, 0U, NULL, a, &next ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_semaphore_wait( s, 0U, &s_table, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_semaphore_signal( s, NULL, a ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_semaphore_count( MAXRTOS_INVALID_SEMAPHORE_ID ) == 0U );
 
     printf( "test_other_partition_and_bad_handles_rejected: PASS\n" );
 }
@@ -410,7 +422,7 @@ static void test_get_status_reports_value_maximum_and_waiters( void )
     b = make_process( 0U, 5U );
     other = make_process( 1U, 5U );
 
-    assert( dispatch( 0U ) == a );
+    test_run_as( &s_table, a );
 
     assert( maxrtos_kernel_semaphore_get_status( s, a, &st ) == MAXRTOS_OK );
     assert( st.current_value == 1U );
@@ -418,12 +430,14 @@ static void test_get_status_reports_value_maximum_and_waiters( void )
     assert( st.waiting == 0U );
 
     /* Empty it, then block a waiter. */
-    assert( wait_on( s, 0U, a, &( maxrtos_process_id_t ){ 0U } ) == MAXRTOS_OK );
+    assert(
+        wait_on( s, 0U, a, &( maxrtos_process_id_t ) { 0U } ) == MAXRTOS_OK );
     {
         maxrtos_process_id_t next;
 
-        assert( wait_on( s, MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
-                MAXRTOS_PENDING );
+        assert(
+            wait_on( s, MAXRTOS_TIMEOUT_INFINITE, a, &next ) ==
+            MAXRTOS_PENDING );
         assert( next == b );
     }
 
@@ -439,13 +453,15 @@ static void test_get_status_reports_value_maximum_and_waiters( void )
 
     /* Errors leave the output alone. */
     st.current_value = 77U;
-    assert( maxrtos_kernel_semaphore_get_status( s, other, &st ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_kernel_semaphore_get_status(
-                MAXRTOS_INVALID_SEMAPHORE_ID, a, &st ) ==
-            MAXRTOS_ERR_INVALID_ID );
-    assert( maxrtos_kernel_semaphore_get_status( s, a, NULL ) ==
-            MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_semaphore_get_status( s, other, &st ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_semaphore_get_status(
+            MAXRTOS_INVALID_SEMAPHORE_ID, a, &st ) == MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_semaphore_get_status( s, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
     assert( st.current_value == 77U );
 
     printf( "test_get_status_reports_value_maximum_and_waiters: PASS\n" );

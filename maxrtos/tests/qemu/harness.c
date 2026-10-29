@@ -65,7 +65,7 @@ static void write_number( uint32_t value )
     semihost_write0( &digits[ i ] );
 }
 
-static void finish( int verdict )
+void emu_finish( int verdict )
 {
     if( verdict == EMU_PASS )
     {
@@ -92,12 +92,12 @@ void SysTick_Handler( void )
 
     if( verdict != EMU_RUNNING )
     {
-        finish( verdict );
+        emu_finish( verdict );
     }
     else if( s_ticks > EMU_TICK_LIMIT )
     {
         emu_fail_reason = "tick limit reached without a verdict";
-        finish( EMU_FAIL );
+        emu_finish( EMU_FAIL );
     }
 }
 

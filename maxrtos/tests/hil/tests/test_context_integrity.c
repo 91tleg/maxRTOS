@@ -3,19 +3,23 @@
  * @brief Registers survive preemption by the real exception hardware.
  *
  * Four processes, two per partition, each run an assembly routine that fills
- * r1-r12 with a pattern, spins for a couple of ticks and checks the pattern.
- * Every spin is cut by the tick (an equal-priority peer takes over) and by
- * the partition slot ending, so the registers go through the Cortex-M7's real
- * exception entry and return, tail-chaining, and the kernel's own save and
- * restore, together with the MPU being reprogrammed for the next partition.
- * Two of the processes also yield by SVC between spins, which takes a
- * different route into the scheduler.
+ * r1-r12 with a pattern, spins and checks the pattern. In each partition the
+ * low-priority process spins for a couple of ticks and the high-priority one
+ * spins briefly and then waits one tick. The wait ends on a tick, so the
+ * high-priority process preempts the low-priority one in the middle of its
+ * spin, every tick, and the partition slot ending cuts both. The registers go
+ * through the Cortex-M7's real exception entry and return, tail-chaining, and
+ * the kernel's own save and restore, together with the MPU being reprogrammed
+ * for the next partition. The high-priority processes also leave and enter
+ * the CPU by SVC (the wait), which takes a different route into the
+ * scheduler.
  *
  * The routine returns the number of registers that changed. Any non-zero
  * count fails the test.
  */
 
 #include "hil.h"
+#include "maxrtos/timing.h"
 
 extern uint32_t hil_register_soak(
     uint32_t seed,
@@ -29,13 +33,16 @@ enum
 
 #define MIN_RUNS ( 12U )
 
-/* About 1.5 to 3 ticks per spin at 64 MHz, so every spin is preempted. */
-#define SPIN_BASE   ( 15000U )
-#define SPIN_SPREAD ( 16384U )
+/* The low-priority processes spin about 1.5 to 3 ticks at 64 MHz, so every
+ * spin is preempted; the high-priority ones spin a tenth of that. */
+#define SPIN_BASE         ( 15000U )
+#define SPIN_SPREAD       ( 16384U )
+#define BRIEF_SPIN_BASE   ( 1500U )
+#define BRIEF_SPIN_SPREAD ( 1638U )
 
 static void soak(
     uint32_t slot,
-    bool yields )
+    bool waits )
 {
     uint32_t run = 0U;
 
@@ -47,37 +54,40 @@ static void soak(
 
         /* A varying length moves the preemption point across the routine. */
         uint32_t const spins =
-            SPIN_BASE + ( ( run * 2654435761UL ) % SPIN_SPREAD );
+            waits ? BRIEF_SPIN_BASE +
+                        ( ( run * 2654435761UL ) % BRIEF_SPIN_SPREAD )
+                  : SPIN_BASE + ( ( run * 2654435761UL ) % SPIN_SPREAD );
 
         EMU_RES[ R_BAD + slot ] += hil_register_soak( seed, spins );
         EMU_RES[ R_RUNS + slot ] = ++run;
 
-        if( yields )
+        if( waits )
         {
-            maxrtos_yield();
+            ( void ) maxrtos_timed_wait( 1U );
         }
     }
 }
 
+/* The module gives the *_main processes priority 2 and the *_aux ones 5. */
 static void control_main( void * arg )
 {
     ( void ) arg;
-    soak( 0U, false );
+    soak( 0U, true );
 }
 static void control_aux( void * arg )
 {
     ( void ) arg;
-    soak( 1U, true );
+    soak( 1U, false );
 }
 static void application_main( void * arg )
 {
     ( void ) arg;
-    soak( 2U, false );
+    soak( 2U, true );
 }
 static void application_aux( void * arg )
 {
     ( void ) arg;
-    soak( 3U, true );
+    soak( 3U, false );
 }
 
 void emu_test_setup( void )

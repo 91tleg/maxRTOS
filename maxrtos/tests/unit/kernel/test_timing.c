@@ -381,13 +381,13 @@ static void test_release_is_exact_and_period_does_not_drift( void )
     {
         advance( 1U + ( i % 5U ) );
 
-        /* Ticks rotate the partition's processes; bring p back to RUNNING
+        /* While p waits, its peer runs and keeps the CPU: giving way is the
+         * only way a READY peer gets it. Bring p back to RUNNING
          * before it completes its release. */
         while( pcb->state != MAXRTOS_PROCESS_STATE_RUNNING )
         {
             assert(
-                maxrtos_partition_dispatch( &s_table, 0U, &next ) ==
-                MAXRTOS_OK );
+                maxrtos_partition_yield( &s_table, 0U, &next ) == MAXRTOS_OK );
         }
 
         assert(
@@ -420,7 +420,7 @@ static void test_restart_of_a_ready_process_keeps_it_queued_once( void )
     ( void ) start_running( running );
     advance( 3U );
 
-    /* Ticks rotate the two; take whichever is READY now as the victim. */
+    /* Take the one that is READY now as the victim. */
     if( maxrtos_process_get( running )->state != MAXRTOS_PROCESS_STATE_RUNNING )
     {
         maxrtos_process_id_t swap = running;
@@ -480,7 +480,7 @@ static void test_timed_wait_blocks_for_the_delay_and_wakes_exactly( void )
     pcb = maxrtos_process_get( p );
 
     ( void ) start_running( p );
-    advance( 2U ); /* the two processes rotate, so p runs again */
+    advance( 2U ); /* no time slice: p keeps the CPU */
 
     next = MAXRTOS_INVALID_PROCESS_ID;
     assert(
