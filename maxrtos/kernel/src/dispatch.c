@@ -72,10 +72,6 @@ static maxrtos_status_t maxrtos_dispatch_select(
 
         if( status == MAXRTOS_OK )
         {
-            maxrtos_process_id_t next_id;
-
-            next_id = MAXRTOS_INVALID_PROCESS_ID;
-
             /* If no READY process is available, retain the current
              * RUNNING process. Initial dispatch requires a READY
              * process to be selected. */
@@ -94,6 +90,7 @@ static maxrtos_status_t maxrtos_dispatch_select(
             else
             {
                 maxrtos_process_control_block_t * next_pcb;
+                maxrtos_process_id_t next_id;
                 uint32_t next_priority;
                 bool take_over;
 
