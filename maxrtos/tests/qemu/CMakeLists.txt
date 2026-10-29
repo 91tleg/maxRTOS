@@ -117,3 +117,4 @@ add_emu_test(mutex_release_on_restart test_mutex_release_on_restart.c module.jso
 add_emu_test(semaphore           test_semaphore.c           module.json)
 add_emu_test(timed_wait          test_timed_wait.c          module.json)
 add_emu_test(priority            test_priority.c            module_priority.json)
+add_emu_test(fatal_hook          test_fatal_hook.c          module.json)

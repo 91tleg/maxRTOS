@@ -23,32 +23,32 @@
 
 /* CFSR.MMFSR.MMARVALID and CFSR.BFSR.BFARVALID: the fault address
  * registers hold the faulting data address. */
-#define MAXRTOS_CFSR_MMARVALID_BIT      ( 1UL << 7U )
-#define MAXRTOS_CFSR_BFARVALID_BIT      ( 1UL << 15U )
+#define MAXRTOS_CFSR_MMARVALID_BIT ( 1UL << 7U )
+#define MAXRTOS_CFSR_BFARVALID_BIT ( 1UL << 15U )
 
 /* CCR.DIV_0_TRP: enable UsageFault generation for integer
  * divide-by-zero operations. */
-#define MAXRTOS_CCR_DIVBYZERO_TRP_BIT   ( 1UL << 4U )
+#define MAXRTOS_CCR_DIVBYZERO_TRP_BIT ( 1UL << 4U )
 
 /* SHCSR fault-handler enable bits. */
-#define MAXRTOS_SHCSR_MEMFAULTENA_BIT   ( 1UL << 16U )
-#define MAXRTOS_SHCSR_BUSFAULTENA_BIT   ( 1UL << 17U )
-#define MAXRTOS_SHCSR_USGFAULTENA_BIT   ( 1UL << 18U )
+#define MAXRTOS_SHCSR_MEMFAULTENA_BIT ( 1UL << 16U )
+#define MAXRTOS_SHCSR_BUSFAULTENA_BIT ( 1UL << 17U )
+#define MAXRTOS_SHCSR_USGFAULTENA_BIT ( 1UL << 18U )
 
 /* HFSR.FORCED: a configurable fault escalated to HardFault (its handler
  * was disabled, or it occurred at equal or higher exception priority,
  * e.g. inside an SVC handler). CFSR then identifies the original cause.
  * HFSR.VECTTBL: vector table read failed; not attributable to a process. */
-#define MAXRTOS_HFSR_FORCED_BIT         ( 1UL << 30U )
+#define MAXRTOS_HFSR_FORCED_BIT ( 1UL << 30U )
 
 /* CFSR.UFSR.DIVBYZERO: indicates that an integer divide-by-zero
  * operation caused the UsageFault exception. */
 #define MAXRTOS_CFSR_UFSR_DIVBYZERO_BIT ( 1UL << 25U )
 
 /* CFSR sub-register masks. */
-#define MAXRTOS_CFSR_MMFSR_MASK         ( 0x000000FFUL )
-#define MAXRTOS_CFSR_BFSR_MASK          ( 0x0000FF00UL )
-#define MAXRTOS_CFSR_UFSR_MASK          ( 0xFFFF0000UL )
+#define MAXRTOS_CFSR_MMFSR_MASK ( 0x000000FFUL )
+#define MAXRTOS_CFSR_BFSR_MASK  ( 0x0000FF00UL )
+#define MAXRTOS_CFSR_UFSR_MASK  ( 0xFFFF0000UL )
 
 /* The most recent fault, kept where a debugger can read it. */
 volatile maxrtos_arch_fault_info_t g_maxrtos_arch_last_fault;
@@ -58,7 +58,8 @@ static void maxrtos_arch_record_fault( uint32_t cfsr )
     g_maxrtos_arch_last_fault.cfsr = cfsr;
     g_maxrtos_arch_last_fault.hfsr = MAXRTOS_SCB_HFSR;
     g_maxrtos_arch_last_fault.mmfar =
-        ( ( cfsr & MAXRTOS_CFSR_MMARVALID_BIT ) != 0U ) ? MAXRTOS_SCB_MMFAR : 0U;
+        ( ( cfsr & MAXRTOS_CFSR_MMARVALID_BIT ) != 0U ) ? MAXRTOS_SCB_MMFAR
+                                                        : 0U;
     g_maxrtos_arch_last_fault.bfar =
         ( ( cfsr & MAXRTOS_CFSR_BFARVALID_BIT ) != 0U ) ? MAXRTOS_SCB_BFAR : 0U;
     g_maxrtos_arch_last_fault.count++;
@@ -66,10 +67,9 @@ static void maxrtos_arch_record_fault( uint32_t cfsr )
 
 void maxrtos_arch_fault_handlers_init( void )
 {
-    MAXRTOS_SCB_SHCSR |=
-        MAXRTOS_SHCSR_MEMFAULTENA_BIT |
-        MAXRTOS_SHCSR_BUSFAULTENA_BIT |
-        MAXRTOS_SHCSR_USGFAULTENA_BIT;
+    MAXRTOS_SCB_SHCSR |= MAXRTOS_SHCSR_MEMFAULTENA_BIT |
+                         MAXRTOS_SHCSR_BUSFAULTENA_BIT |
+                         MAXRTOS_SHCSR_USGFAULTENA_BIT;
 
     MAXRTOS_SCB_CCR |= MAXRTOS_CCR_DIVBYZERO_TRP_BIT;
 }
@@ -83,8 +83,7 @@ void MemManage_Handler( void )
 
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_MMFSR_MASK;
 
-    maxrtos_arch_handle_fault(
-        MAXRTOS_FAULT_MEMORY_ACCESS );
+    maxrtos_arch_handle_fault( MAXRTOS_FAULT_MEMORY_ACCESS );
 }
 
 void BusFault_Handler( void )
@@ -96,8 +95,7 @@ void BusFault_Handler( void )
 
     MAXRTOS_SCB_CFSR = cfsr & MAXRTOS_CFSR_BFSR_MASK;
 
-    maxrtos_arch_handle_fault(
-        MAXRTOS_FAULT_BUS_ERROR );
+    maxrtos_arch_handle_fault( MAXRTOS_FAULT_BUS_ERROR );
 }
 
 static maxrtos_fault_type_t maxrtos_arch_classify_usage_fault( uint32_t cfsr )
@@ -199,8 +197,6 @@ void HardFault_Handler( void )
     }
     else
     {
-        for( ;; )
-        {
-        }
+        maxrtos_arch_fatal();
     }
 }

@@ -18,6 +18,11 @@ C and a linker script at build time.
 - **IPC:** queuing ports with blocking send/receive and timeouts.
 - **Health monitor:** per-partition recovery policy per fault class
   (restart process, halt partition, ignore), including deadline misses.
+  When the kernel cannot continue (a fault it cannot attribute to a process,
+  or a failure of the recovery path) it calls `maxrtos_arch_fatal()`, a weak
+  function that halts by default. Define your own to log and reset. The kernel
+  does not own a watchdog: choose one, configure it, and feed it from your
+  `SysTick_Handler` or another place you control.
 
 ## Layout
 

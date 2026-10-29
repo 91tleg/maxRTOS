@@ -206,7 +206,7 @@ void maxrtos_arch_svc_dispatch(
  * cannot identify what was requested. */
 static void maxrtos_arch_svc_invalid( void )
 {
-    MAXRTOS_PORT_HALT();
+    maxrtos_arch_fatal();
 }
 
 static void maxrtos_arch_svc_yield( uint32_t * stacked_args )

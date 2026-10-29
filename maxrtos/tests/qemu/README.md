@@ -13,6 +13,7 @@ semihosting, so the QEMU exit status is the result and no debugger is needed.
 | `emu_queue_port_ipc` | blocking receive (same and other partition), timed receive expiry, blocked sender admitted in FIFO order, hostile pointers rejected |
 | `emu_hm_restart_process` | a memory fault restarts only the faulting process; everything else keeps running |
 | `emu_timed_wait` | `maxrtos_timed_wait()` returns after its delay and not before (a short delay that ends inside the partition's slot, and a long one that spans frames), the partition's other process keeps running meanwhile, a delay of 0 returns and gives way to its equal-priority peers, an infinite delay is rejected, and `maxrtos_get_time()` never goes back |
+| `emu_fatal_hook` | A fault that cannot be attributed to a process (a `BKPT` with no debugger) ends in the application's own `maxrtos_arch_fatal()`, which replaces the kernel's weak halt |
 | `emu_deadline_supervision` | periodic release through the real `maxrtos_periodic_wait()` SVC and idle switch; a punctual process never misses, an overrunning one is detected and restarted; the other partition is undisturbed |
 | `emu_partition_privilege` | a system partition runs privileged and an application partition does not, through the real CONTROL.nPRIV switch; all tests run with PRIVDEFENA clear |
 | `emu_hm_halt_partition` | `halt_partition` stops that partition (including its healthy peer) but not the system |

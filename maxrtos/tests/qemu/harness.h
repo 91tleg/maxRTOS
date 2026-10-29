@@ -52,6 +52,10 @@ int emu_test_poll( uint32_t tick );
 
 extern char const * emu_fail_reason;
 
+/** End the test now with a verdict (EMU_PASS or EMU_FAIL). Does not return.
+ *  For code that runs where the per-tick poll cannot, such as a fatal hook. */
+void emu_finish( int verdict );
+
 /** Fail with a message: use as `return EMU_FAILED( "why" );`. */
 #define EMU_FAILED( why_ ) ( emu_fail_reason = ( why_ ), EMU_FAIL )
 

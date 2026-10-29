@@ -21,7 +21,7 @@
 static maxrtos_health_monitor_t const * s_hm = NULL;
 static maxrtos_partition_table_t * s_table = NULL;
 
-static void maxrtos_arch_halt( void )
+__attribute__( ( weak ) ) void maxrtos_arch_fatal( void )
 {
     MAXRTOS_PORT_HALT();
 }
@@ -54,7 +54,7 @@ void maxrtos_arch_handle_process_fault(
 
     if( ( s_hm == NULL ) || ( s_table == NULL ) || ( faulting_pcb == NULL ) )
     {
-        maxrtos_arch_halt();
+        maxrtos_arch_fatal();
     }
 
     current_pcb = maxrtos_arch_get_current_pcb();
@@ -64,7 +64,7 @@ void maxrtos_arch_handle_process_fault(
 
     if( status != MAXRTOS_OK )
     {
-        maxrtos_arch_halt();
+        maxrtos_arch_fatal();
     }
 
     switch( action )
@@ -83,7 +83,7 @@ void maxrtos_arch_handle_process_fault(
 
             if( status != MAXRTOS_OK )
             {
-                maxrtos_arch_halt();
+                maxrtos_arch_fatal();
             }
 
             if( faulting_pcb == current_pcb )
@@ -97,14 +97,14 @@ void maxrtos_arch_handle_process_fault(
                         s_table, faulting_pcb->partition_id, &next_id ) !=
                     MAXRTOS_OK )
                 {
-                    maxrtos_arch_halt();
+                    maxrtos_arch_fatal();
                 }
 
                 next_pcb = maxrtos_process_get( next_id );
 
                 if( next_pcb == NULL )
                 {
-                    maxrtos_arch_halt();
+                    maxrtos_arch_fatal();
                 }
 
                 /* The faulting context must not be saved. Its stack now
@@ -142,7 +142,7 @@ void maxrtos_arch_handle_process_fault(
 
         default:
         {
-            maxrtos_arch_halt();
+            maxrtos_arch_fatal();
             break;
         }
     }
