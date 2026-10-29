@@ -20,11 +20,10 @@ Cycles (min / mean / max) and worst case in µs:
 
 | Latency | Caches on | max µs | Caches off | max µs |
 |---|---|---|---|---|
-| Yield to peer | 282 / 339 / 529 | 1.10 | 920 / 1,115 / 1,212 | 2.53 |
-| Tick, same partition | 226 / 370 / 1,192 | 2.48 | 840 / 1,175 / 3,890 | 8.10 |
-| Tick, partition switch | 486 / 544 / 1,383 | 2.88 | 1,648 / 1,901 / 4,776 | 9.95 |
-| Queue send to receiver resumes | 748 / 849 / 1,741 | 3.63 | 2,610 / 2,936 / 4,217 | 8.79 |
-| Mutex unlock to waiter resumes | 737 / 819 / 1,034 | 2.15 | 2,510 / 2,727 / 2,764 | 5.76 |
+| Yield to peer | 303 / 348 / 552 | 1.15 | 931 / 1,050 / 1,215 | 2.53 |
+| Tick, partition switch | 464 / 622 / 1,513 | 3.15 | 1,586 / 2,043 / 5,042 | 10.50 |
+| Queue send to receiver resumes | 869 / 870 / 1,855 | 3.86 | 3,067 / 3,068 / 4,705 | 9.80 |
+| Mutex unlock to waiter resumes | 846 / 846 / 995 | 2.07 | 2,855 / 2,861 / 2,867 | 5.97 |
 
 Measurement overhead is 1 cycle. The handoff rows include the send or unlock
 plus the yield, not only the wake-up.
@@ -35,26 +34,25 @@ Cycles (min / mean / max):
 
 | Latency | -O0, caches on | -O2, caches on | -O0, caches off | -O2, caches off |
 |---|---|---|---|---|
-| Yield to peer | 1,515 / 1,531 / 1,719 | 282 / 340 / 448 | 3,036 / 3,113 / 3,121 | 697 / 879 / 995 |
-| Tick, same partition | 823 / 1,597 / 4,020 | 225 / 368 / 1,107 | 1,722 / 3,349 / 8,323 | 690 / 985 / 3,169 |
-| Tick, partition switch | 1,796 / 2,131 / 5,078 | 483 / 545 / 1,374 | 3,847 / 4,669 / 10,367 | 1,319 / 1,529 / 4,108 |
-| Queue send to receiver resumes | 2,432 / 3,142 / 3,813 | 748 / 849 / 1,522 | 4,966 / 6,323 / 7,450 | 2,130 / 2,376 / 3,415 |
-| Mutex unlock to waiter resumes | 3,699 / 3,742 / 3,910 | 744 / 819 / 944 | 6,312 / 7,353 / 7,418 | 2,022 / 2,183 / 2,204 |
+| Yield to peer | 1,651 / 1,658 / 1,860 | 290 / 341 / 511 | 3,436 / 3,443 / 3,465 | 709 / 862 / 1,032 |
+| Tick, partition switch | 1,868 / 2,328 / 5,478 | 462 / 623 / 1,446 | 3,914 / 5,169 / 11,370 | 1,319 / 1,786 / 4,215 |
+| Queue send to receiver resumes | 3,463 / 3,492 / 4,483 | 873 / 873 / 1,633 | 7,145 / 7,156 / 8,637 | 2,409 / 2,422 / 3,742 |
+| Mutex unlock to waiter resumes | 4,078 / 4,139 / 4,266 | 850 / 850 / 962 | 8,242 / 8,243 / 8,255 | 2,231 / 2,241 / 2,244 |
 
 Measurement overhead is 1 cycle at -O2 and 18 to 68 cycles at -O0.
 
 ## Observations
 
 - With caches on, cycle counts at 480 MHz match those at 64 MHz (yield mean
-  339 cycles at 480 MHz and 340 at 64 MHz, -O2), so the speedup is the clock
-  ratio: 5.3 µs to 0.71 µs.
+  348 cycles at 480 MHz and 341 at 64 MHz, -O2), so the speedup is the clock
+  ratio: 5.3 µs to 0.73 µs.
 - With caches off, flash wait states raise the cycle counts at 480 MHz
-  (yield mean 879 to 1,115 cycles).
-- A partition switch costs about 175 cycles more than a rotation
-  inside one partition at -O2 with caches on, for reprogramming the MPU
-  regions.
-- The tick maxima are above the means (1,192 against 370 cycles with caches
-  on).
+  (yield mean 862 to 1,050 cycles).
+- Processes are not time sliced, so a tick inside a partition's window
+  switches nothing; the only tick latency is the switch to another partition,
+  which includes reprogramming the MPU regions.
+- The partition-switch tick maximum is above the mean (1,513 against 622
+  cycles with caches on).
 
 ## Comparison with FreeRTOS V11.1.0
 
@@ -75,40 +73,40 @@ Cycles, mean / max:
 | Latency | MAXRTOS | FreeRTOS plain | FreeRTOS MPU |
 |---|---|---|---|
 | **Caches on** | | | |
-| Yield to peer | 339 / 529 | 173 / 205 | 338 / 394 |
-| Queue send to receiver resumes | 849 / 1,741 | 521 / 907 | 954 / 1,501 |
-| Mutex unlock to waiter resumes | 819 / 1,034 | 516 / 895 | 882 / 1,416 |
+| Yield to peer | 348 / 552 | 173 / 205 | 338 / 394 |
+| Queue send to receiver resumes | 870 / 1,855 | 521 / 907 | 954 / 1,501 |
+| Mutex unlock to waiter resumes | 846 / 995 | 516 / 895 | 882 / 1,416 |
 | **Caches off** | | | |
-| Yield to peer | 1,115 / 1,212 | 462 / 496 | 703 / 820 |
-| Queue send to receiver resumes | 2,936 / 4,217 | 1,779 / 3,201 | 3,009 / 3,337 |
-| Mutex unlock to waiter resumes | 2,727 / 2,764 | 1,651 / 3,054 | 2,755 / 4,966 |
+| Yield to peer | 1,050 / 1,215 | 462 / 496 | 703 / 820 |
+| Queue send to receiver resumes | 3,068 / 4,705 | 1,779 / 3,201 | 3,009 / 3,337 |
+| Mutex unlock to waiter resumes | 2,861 / 2,867 | 1,651 / 3,054 | 2,755 / 4,966 |
 
 MAXRTOS cycles divided by FreeRTOS MPU cycles:
 
 | Latency | Caches on, mean | Caches on, max | Caches off, mean | Caches off, max |
 |---|---|---|---|---|
-| Yield | 1.0x | 1.3x | 1.6x | 1.5x |
-| Queue handoff | 0.9x | 1.2x | 1.0x | 1.3x |
-| Mutex handoff | 0.9x | 0.7x | 1.0x | 0.6x |
+| Yield | 1.0x | 1.4x | 1.5x | 1.5x |
+| Queue handoff | 0.9x | 1.2x | 1.0x | 1.4x |
+| Mutex handoff | 1.0x | 0.7x | 1.0x | 0.6x |
 
 Image size (bytes, whole firmware):
 
 | | text | data | bss |
 |---|---|---|---|
-| MAXRTOS bench | 11,364 | 24 | 7,984 |
+| MAXRTOS bench | 12,032 | 24 | 7,960 |
 | FreeRTOS plain | 10,032 | 24 | 12,752 |
 | FreeRTOS MPU | 15,060 | 952 | 23,512 |
 
 Observations:
 
 - The yield mean equals FreeRTOS MPU's with caches on (1.0x; the maximum is
-  1.3x) and is 1.6x with caches off. The queue and mutex handoff means are
+  1.4x) and is 1.5x with caches off. The queue and mutex handoff means are
   within 10% of it. Against the plain port MAXRTOS is slower on the yield (2.0x
-  with caches on, 2.4x with caches off) and on the handoffs (1.6x to 1.7x).
+  with caches on, 2.3x with caches off) and on the handoffs (1.6x to 1.7x).
 - The MPU roughly doubles FreeRTOS's yield (173 to 338 cycles with caches
   on) and adds about 370 to 430 cycles to the queue and mutex handoffs.
-- The MAXRTOS bench image (with LTO) is about 13% larger in flash than
-  FreeRTOS plain and about 25% smaller than FreeRTOS MPU. The bss figures
+- The MAXRTOS bench image (with LTO) is about 20% larger in flash than
+  FreeRTOS plain and about 20% smaller than FreeRTOS MPU. The bss figures
   are not comparable: the task stacks (1 KB in the FreeRTOS builds, 512 B
   here) and the kernel tables are sized differently.
 
@@ -137,7 +135,7 @@ LTO drops them. Mean / max cycles, one 15 s run each:
 - It moves the caches-on handoff means by between -13% and +5%, and the
   caches-off yield by -5% (plain) and -7% (MPU).
 - With LTO on both sides, the MAXRTOS yield with caches on takes about the
-  same cycles as the FreeRTOS MPU yield (339 against 342).
+  same cycles as the FreeRTOS MPU yield (348 against 342).
 
 Limits:
 

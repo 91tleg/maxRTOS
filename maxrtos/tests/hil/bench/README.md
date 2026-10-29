@@ -8,7 +8,6 @@ do not model cycles).
 | Latency | From | To |
 |---|---|---|
 | `YIELD` | `maxrtos_yield()` in a process | first instruction of its partition peer |
-| `TICK_ROTATE` | SysTick entry | next process of the same partition |
 | `TICK_SWITCH` | SysTick entry | first process of a different partition (adds the MPU domain switch) |
 | `QUEUE_HANDOFF` | `t0; send; yield` | woken receiver returns from `receive` |
 | `MUTEX_HANDOFF` | `t0; unlock; yield` | woken waiter returns from `lock` |
@@ -18,8 +17,10 @@ The handoff figures include the send/unlock and the yield, so subtract
 SysTick exception entry (~12 cycles) is not included, and every figure
 contains one cycle-counter read (`overhead`, reported).
 
-Each `TICK_*` sample ends at the first `observe_tick()` call after the tick.
-Three things keep that sample about the kernel:
+Each `TICK_SWITCH` sample ends at the first `observe_tick()` call after the tick.
+There is no same-partition tick latency: processes are not time sliced, so a
+tick inside a partition's window switches nothing. Three things
+keep the sample about the kernel:
 
 - The processes loop with a fixed period, so a fixed tick period would
   always land on the same few phases of the loop and the mean would depend on
