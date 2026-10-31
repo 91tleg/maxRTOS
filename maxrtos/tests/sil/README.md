@@ -60,8 +60,9 @@ Each suite is one executable and writes a JUnit XML report to
 | Suite | Covers |
 |---|---|
 | `temporal_partitioning` | exact slot allocation vs an independent oracle, zero jitter, a hogging partition cannot steal time |
-| `spatial_partitioning` | own memory, foreign/kernel/port/flash memory denied through the MPU model, MPU follows the running partition |
-| `ipc_queue_port` | blocking and timed receive, cross-partition 500-message stream, capacity, hostile-pointer matrix |
+| `spatial_partitioning` | own memory, foreign/kernel/flash memory denied through the MPU model, MPU maps exactly the running partition and no port |
+| `ipc_queue_port` | blocking and timed receive, cross-partition 500-message stream, capacity, hostile-pointer matrix, unknown IDs and the wrong partition or direction refused |
+| `ipc_sampling_port` | read before the first write, the latest message across partitions (never torn or older), reads that leave the message, hostile pointers, unknown IDs and the wrong partition or direction refused |
 | `fault_containment` | restart vs halt, per-partition and per-class policy, fault storm, async fault attribution, no monitor, stranded peers |
 | `scheduler_startup` | start-up: registration, suspended processes, first frame, no runnable process |
 | `process_yield` | yield: alternation, no cross-partition time, lone process |

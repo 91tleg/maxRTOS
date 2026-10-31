@@ -13,8 +13,54 @@
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/tick.h"
 
+#define STORAGE_SIZE   ( 128U )
+#define BOTH           ( UINT32_C( 1 ) << 0U )
+#define PARTITIONS_0_1 ( ( UINT32_C( 1 ) << 0U ) | ( UINT32_C( 1 ) << 1U ) )
+
+static uint8_t s_storage[ MAXRTOS_MAX_QUEUE_PORTS ][ STORAGE_SIZE ];
+static uint8_t s_stack0[ 128 ];
+
+static void dummy_entry( void * arg )
+{
+    ( void ) arg;
+}
+
+/* A world with one process (ID 0, partition 0) and an empty port pool. */
+static void reset_simple_world( void )
+{
+    maxrtos_process_id_t id;
+
+    maxrtos_process_pool_init();
+    maxrtos_queue_port_pool_init();
+
+    assert(
+        maxrtos_process_create(
+            s_stack0, sizeof( s_stack0 ), 0U, 5U, dummy_entry, NULL, &id ) ==
+        MAXRTOS_OK );
+    assert( id == 0U );
+}
+
+static maxrtos_queue_port_id_t make_port(
+    size_t message_size,
+    size_t capacity )
+{
+    maxrtos_queue_port_id_t id;
+
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ],
+            sizeof( s_storage[ 0 ] ),
+            message_size,
+            capacity,
+            BOTH,
+            BOTH,
+            &id ) == MAXRTOS_OK );
+
+    return id;
+}
+
 static maxrtos_status_t test_queue_send(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t port,
     void const * message,
     size_t message_size,
     maxrtos_tick_t timeout )
@@ -25,17 +71,11 @@ static maxrtos_status_t test_queue_send(
     ( void ) maxrtos_partition_table_init( &table );
 
     return maxrtos_kernel_queue_port_send(
-        port,
-        message,
-        message_size,
-        timeout,
-        &table,
-        0U,
-        &next_id );
+        port, message, message_size, timeout, &table, 0U, &next_id );
 }
 
 static maxrtos_status_t test_queue_receive(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t port,
     void * out_message,
     size_t buffer_size,
     maxrtos_tick_t timeout )
@@ -46,145 +86,172 @@ static maxrtos_status_t test_queue_receive(
     ( void ) maxrtos_partition_table_init( &table );
 
     return maxrtos_kernel_queue_port_receive(
-        port,
-        out_message,
-        buffer_size,
-        timeout,
-        &table,
-        0U,
-        &next_id );
+        port, out_message, buffer_size, timeout, &table, 0U, &next_id );
 }
 
-static void test_init_rejects_bad_args( void )
+static size_t count_of( maxrtos_queue_port_id_t port )
 {
-    maxrtos_queue_port_t port;
-
-    assert(
-        maxrtos_queue_port_init(
-            NULL,
-            4U,
-            8U ) == MAXRTOS_ERR_INVALID_ARG );
-
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            0U,
-            8U ) == MAXRTOS_ERR_INVALID_ARG );
-
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            4U,
-            0U ) == MAXRTOS_ERR_INVALID_ARG );
-
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            MAXRTOS_MAX_QUEUE_MESSAGE_SIZE + 1U,
-            8U ) == MAXRTOS_ERR_INVALID_ARG );
-
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            4U,
-            MAXRTOS_MAX_QUEUE_CAPACITY + 1U )
-        == MAXRTOS_ERR_INVALID_ARG );
-
-    printf( "test_init_rejects_bad_args: PASS\n" );
+    return maxrtos_kernel_queue_port_count( port, 0U );
 }
 
-static void test_init_succeeds_and_starts_empty( void )
+static void test_create_rejects_bad_args( void )
 {
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t id;
+
+    reset_simple_world();
 
     assert(
-        maxrtos_queue_port_init(
-            &port,
+        maxrtos_queue_port_create(
+            NULL, STORAGE_SIZE, 4U, 8U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 8U, BOTH, BOTH, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 0U, 8U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 0U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+
+    /* The storage must hold message_size * capacity. */
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], 31U, 4U, 8U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+
+    /* Both ends need a partition, and only partitions that exist. */
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 8U, 0U, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 8U, BOTH, 0U, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ],
+            STORAGE_SIZE,
             4U,
-            8U ) == MAXRTOS_OK );
+            8U,
+            UINT32_C( 1 ) << MAXRTOS_MAX_PARTITIONS,
+            BOTH,
+            &id ) == MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ],
+            STORAGE_SIZE,
+            4U,
+            8U,
+            BOTH,
+            UINT32_C( 1 ) << 31U,
+            &id ) == MAXRTOS_ERR_INVALID_ARG );
 
-    assert( maxrtos_kernel_queue_port_count( &port ) == 0U );
-    assert( port.fifo.buffer == port.buffer );
-    assert( port.fifo.count == 0U );
+    printf( "test_create_rejects_bad_args: PASS\n" );
+}
 
-    printf( "test_init_succeeds_and_starts_empty: PASS\n" );
+static void test_create_fills_the_pool_and_numbers_ports_in_order( void )
+{
+    maxrtos_queue_port_id_t id;
+    size_t i;
+
+    reset_simple_world();
+
+    for( i = 0U; i < MAXRTOS_MAX_QUEUE_PORTS; i++ )
+    {
+        assert(
+            maxrtos_queue_port_create(
+                s_storage[ i ], STORAGE_SIZE, 4U, 4U, BOTH, BOTH, &id ) ==
+            MAXRTOS_OK );
+        assert( id == ( maxrtos_queue_port_id_t ) i );
+    }
+
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 4U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_POOL_FULL );
+
+    /* Initializing the pool releases every port. */
+    maxrtos_queue_port_pool_init();
+    assert( count_of( 0U ) == 0U );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 4U, BOTH, BOTH, &id ) ==
+        MAXRTOS_OK );
+    assert( id == 0U );
+
+    printf( "test_create_fills_the_pool_and_numbers_ports_in_order: PASS\n" );
+}
+
+static void test_create_succeeds_and_starts_empty( void )
+{
+    maxrtos_queue_port_id_t id;
+    maxrtos_queue_port_status_t st;
+
+    reset_simple_world();
+    id = make_port( 4U, 8U );
+
+    assert( count_of( id ) == 0U );
+    assert( maxrtos_kernel_queue_port_get_status( id, 0U, &st ) == MAXRTOS_OK );
+    assert( st.message_size == 4U );
+    assert( st.capacity == 8U );
+    assert( st.nb_message == 0U );
+    assert( st.waiting_receivers == 0U );
+    assert( st.waiting_senders == 0U );
+
+    printf( "test_create_succeeds_and_starts_empty: PASS\n" );
 }
 
 static void test_receive_on_empty_port_fails_cleanly( void )
 {
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint8_t buf[ 4 ];
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            4U,
-            8U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( 4U, 8U );
 
     assert(
-        test_queue_receive(
-            &port,
-            buf,
-            sizeof( buf ),
-            0U ) == MAXRTOS_ERR_QUEUE_EMPTY );
+        test_queue_receive( port, buf, sizeof( buf ), 0U ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
 
     printf( "test_receive_on_empty_port_fails_cleanly: PASS\n" );
 }
 
 static void test_send_rejects_wrong_message_size( void )
 {
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t message = 42U;
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            4U,
-            8U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( 4U, 8U );
 
     assert(
-        test_queue_send(
-            &port,
-            &message,
-            3U,
-            0U ) == MAXRTOS_ERR_INVALID_ARG );
+        test_queue_send( port, &message, 3U, 0U ) == MAXRTOS_ERR_INVALID_ARG );
 
     assert(
-        test_queue_send(
-            &port,
-            &message,
-            8U,
-            0U ) == MAXRTOS_ERR_INVALID_ARG );
+        test_queue_send( port, &message, 8U, 0U ) == MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_send_rejects_wrong_message_size: PASS\n" );
 }
 
 static void test_receive_rejects_undersized_buffer( void )
 {
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t message = 42U;
     uint8_t small_buf[ 2 ];
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            4U,
-            8U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( 4U, 8U );
+
+    assert( test_queue_send( port, &message, 4U, 0U ) == MAXRTOS_OK );
 
     assert(
-        test_queue_send(
-            &port,
-            &message,
-            4U,
-            0U ) == MAXRTOS_OK );
-
-    assert(
-        test_queue_receive(
-            &port,
-            small_buf,
-            sizeof( small_buf ),
-            0U )
-        == MAXRTOS_ERR_INVALID_ARG );
+        test_queue_receive( port, small_buf, sizeof( small_buf ), 0U ) ==
+        MAXRTOS_ERR_INVALID_ARG );
 
     printf( "test_receive_rejects_undersized_buffer: PASS\n" );
 }
@@ -193,75 +260,53 @@ static void test_single_send_receive_roundtrip_preserves_data( void )
 {
     /* This test catches a reversed memcpy direction:
      * the received value must exactly match the sent value. */
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t sent_value = 0xDEADBEEFU;
     uint32_t received_value = 0U;
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            sizeof( sent_value ),
-            8U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( sizeof( sent_value ), 8U );
 
     assert(
-        test_queue_send(
-            &port,
-            &sent_value,
-            sizeof( sent_value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &sent_value, sizeof( sent_value ), 0U ) ==
+        MAXRTOS_OK );
 
-    assert( maxrtos_kernel_queue_port_count( &port ) == 1U );
+    assert( count_of( port ) == 1U );
 
     assert(
         test_queue_receive(
-            &port,
-            &received_value,
-            sizeof( received_value ),
-            0U ) == MAXRTOS_OK );
+            port, &received_value, sizeof( received_value ), 0U ) ==
+        MAXRTOS_OK );
 
     assert( received_value == sent_value );
-    assert( maxrtos_kernel_queue_port_count( &port ) == 0U );
+    assert( count_of( port ) == 0U );
 
-    printf(
-        "test_single_send_receive_roundtrip_preserves_data: PASS\n" );
+    printf( "test_single_send_receive_roundtrip_preserves_data: PASS\n" );
 }
 
 static void test_fifo_order_preserved_across_multiple_messages( void )
 {
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t i;
     uint32_t out;
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            sizeof( uint32_t ),
-            8U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( sizeof( uint32_t ), 8U );
 
     for( i = 0U; i < 5U; i++ )
     {
-        assert(
-            test_queue_send(
-                &port,
-                &i,
-                sizeof( i ),
-                0U ) == MAXRTOS_OK );
+        assert( test_queue_send( port, &i, sizeof( i ), 0U ) == MAXRTOS_OK );
     }
 
     for( i = 0U; i < 5U; i++ )
     {
         assert(
-            test_queue_receive(
-                &port,
-                &out,
-                sizeof( out ),
-                0U ) == MAXRTOS_OK );
+            test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
         assert( out == i );
     }
 
-    printf(
-        "test_fifo_order_preserved_across_multiple_messages: PASS\n" );
+    printf( "test_fifo_order_preserved_across_multiple_messages: PASS\n" );
 }
 
 static void test_send_fails_when_genuinely_full( void )
@@ -269,98 +314,63 @@ static void test_send_fails_when_genuinely_full( void )
     /* This test catches inverted full/not-full branches.
      * A queue with available space must accept messages, while
      * a queue at capacity must reject the next send. */
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t value;
     size_t i;
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            sizeof( uint32_t ),
-            4U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( sizeof( uint32_t ), 4U );
 
     for( i = 0U; i < 4U; i++ )
     {
         value = ( uint32_t ) i;
 
         assert(
-            test_queue_send(
-                &port,
-                &value,
-                sizeof( value ),
-                0U ) == MAXRTOS_OK );
+            test_queue_send( port, &value, sizeof( value ), 0U ) ==
+            MAXRTOS_OK );
     }
 
-    assert( maxrtos_kernel_queue_port_count( &port ) == 4U );
+    assert( count_of( port ) == 4U );
 
     value = 999U;
 
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_ERR_QUEUE_FULL );
+        test_queue_send( port, &value, sizeof( value ), 0U ) ==
+        MAXRTOS_ERR_QUEUE_FULL );
 
-    assert( maxrtos_kernel_queue_port_count( &port ) == 4U );
+    assert( count_of( port ) == 4U );
 
-    printf(
-        "test_send_fails_when_genuinely_full: PASS\n" );
+    printf( "test_send_fails_when_genuinely_full: PASS\n" );
 }
 
 static void test_wraparound_preserves_fifo_order( void )
 {
     /* Fill to capacity, drain entries, then refill.
      * This forces the ring-buffer indices to wrap around. */
-    maxrtos_queue_port_t port;
+    maxrtos_queue_port_id_t port;
     uint32_t value;
     uint32_t out;
 
-    assert(
-        maxrtos_queue_port_init(
-            &port,
-            sizeof( uint32_t ),
-            4U ) == MAXRTOS_OK );
+    reset_simple_world();
+    port = make_port( sizeof( uint32_t ), 4U );
 
     value = 1U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
     value = 2U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
     value = 3U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 1U );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 2U );
 
@@ -368,75 +378,39 @@ static void test_wraparound_preserves_fifo_order( void )
      * Send three additional messages so the tail wraps around. */
     value = 4U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
     value = 5U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
     value = 6U;
     assert(
-        test_queue_send(
-            &port,
-            &value,
-            sizeof( value ),
-            0U ) == MAXRTOS_OK );
+        test_queue_send( port, &value, sizeof( value ), 0U ) == MAXRTOS_OK );
 
-    assert( maxrtos_kernel_queue_port_count( &port ) == 4U );
+    assert( count_of( port ) == 4U );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 3U );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 4U );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 5U );
 
-    assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_OK );
+    assert( test_queue_receive( port, &out, sizeof( out ), 0U ) == MAXRTOS_OK );
 
     assert( out == 6U );
 
     assert(
-        test_queue_receive(
-            &port,
-            &out,
-            sizeof( out ),
-            0U ) == MAXRTOS_ERR_QUEUE_EMPTY );
+        test_queue_receive( port, &out, sizeof( out ), 0U ) ==
+        MAXRTOS_ERR_QUEUE_EMPTY );
 
-    printf(
-        "test_wraparound_preserves_fifo_order: PASS\n" );
+    printf( "test_wraparound_preserves_fifo_order: PASS\n" );
 }
 
 /* ---- Blocking behaviour --------------------------------------------- */
@@ -445,12 +419,7 @@ static void test_wraparound_preserves_fifo_order( void )
 
 static uint8_t s_stacks[ 6 ][ TEST_STACK_SIZE ];
 static maxrtos_partition_table_t s_table;
-static maxrtos_queue_port_t s_port;
-
-static void dummy_entry( void * arg )
-{
-    ( void ) arg;
-}
+static maxrtos_queue_port_id_t s_port;
 
 static maxrtos_process_id_t add_process(
     unsigned slot,
@@ -477,15 +446,25 @@ static void reset_world( void )
 {
     maxrtos_process_pool_init();
     assert( maxrtos_partition_table_init( &s_table ) == MAXRTOS_OK );
-    assert( maxrtos_queue_port_init( &s_port, 4U, 2U ) == MAXRTOS_OK );
+    maxrtos_queue_port_pool_init();
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ],
+            sizeof( s_storage[ 0 ] ),
+            4U,
+            2U,
+            PARTITIONS_0_1,
+            PARTITIONS_0_1,
+            &s_port ) == MAXRTOS_OK );
 }
 
 static maxrtos_process_id_t start_partition( maxrtos_partition_id_t partition )
 {
     maxrtos_process_id_t running;
 
-    assert( maxrtos_partition_dispatch( &s_table, partition, &running ) ==
-            MAXRTOS_OK );
+    assert(
+        maxrtos_partition_dispatch( &s_table, partition, &running ) ==
+        MAXRTOS_OK );
 
     return running;
 }
@@ -494,6 +473,28 @@ static size_t ready_count( maxrtos_partition_id_t partition )
 {
     return maxrtos_scheduler_process_count(
         &s_table.scheduler_ctx[ partition ] );
+}
+
+static size_t waiting_receivers( maxrtos_process_id_t asker )
+{
+    maxrtos_queue_port_status_t st;
+
+    assert(
+        maxrtos_kernel_queue_port_get_status( s_port, asker, &st ) ==
+        MAXRTOS_OK );
+
+    return st.waiting_receivers;
+}
+
+static size_t waiting_senders( maxrtos_process_id_t asker )
+{
+    maxrtos_queue_port_status_t st;
+
+    assert(
+        maxrtos_kernel_queue_port_get_status( s_port, asker, &st ) ==
+        MAXRTOS_OK );
+
+    return st.waiting_senders;
 }
 
 /* A blocked receiver gets the message copied into its own buffer and
@@ -515,25 +516,30 @@ static void test_blocked_receiver_gets_message_from_sender( void )
     rx = 0U;
     assert(
         maxrtos_kernel_queue_port_receive(
-            &s_port, &rx, sizeof( rx ), MAXRTOS_TIMEOUT_INFINITE,
-            &s_table, a, &next_id ) == MAXRTOS_PENDING );
+            s_port,
+            &rx,
+            sizeof( rx ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_PENDING );
 
     /* a is BLOCKED; b runs and is the partition's current process. */
     assert( next_id == b );
     assert( s_table.current_id[ 0 ] == b );
     pcb_a = maxrtos_process_get( a );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_BLOCKED );
-    assert( maxrtos_waitlist_count( &s_port.waiting_receivers ) == 1U );
+    assert( waiting_receivers( 0U ) == 1U );
 
     tx = 0xA5A5F00DU;
     assert(
         maxrtos_kernel_queue_port_send(
-            &s_port, &tx, sizeof( tx ), 0U,
-            &s_table, b, &next_id ) == MAXRTOS_OK );
+            s_port, &tx, sizeof( tx ), 0U, &s_table, b, &next_id ) ==
+        MAXRTOS_OK );
 
     assert( rx == tx );
-    assert( maxrtos_kernel_queue_port_count( &s_port ) == 0U );
-    assert( maxrtos_waitlist_count( &s_port.waiting_receivers ) == 0U );
+    assert( maxrtos_kernel_queue_port_count( s_port, 0U ) == 0U );
+    assert( waiting_receivers( 0U ) == 0U );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_READY );
     assert( pcb_a->ipc_result_pending == true );
     assert( pcb_a->ipc_result == MAXRTOS_OK );
@@ -566,23 +572,27 @@ static void test_wake_targets_the_receivers_own_partition( void )
     rx = 0U;
     assert(
         maxrtos_kernel_queue_port_receive(
-            &s_port, &rx, sizeof( rx ), MAXRTOS_TIMEOUT_INFINITE,
-            &s_table, recv, &next_id ) == MAXRTOS_PENDING );
+            s_port,
+            &rx,
+            sizeof( rx ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            recv,
+            &next_id ) == MAXRTOS_PENDING );
 
     assert( ready_count( 0U ) == 0U );
-    assert( ready_count( 1U ) == 0U );   /* recv_helper is RUNNING */
+    assert( ready_count( 1U ) == 0U ); /* recv_helper is RUNNING */
 
     tx = 7U;
     assert(
         maxrtos_kernel_queue_port_send(
-            &s_port, &tx, sizeof( tx ), 0U,
-            &s_table, sender, &next_id ) == MAXRTOS_OK );
+            s_port, &tx, sizeof( tx ), 0U, &s_table, sender, &next_id ) ==
+        MAXRTOS_OK );
 
     assert( rx == 7U );
-    assert( ready_count( 0U ) == 0U );   /* NOT the sender's queue */
-    assert( ready_count( 1U ) == 1U );   /* the receiver's own */
-    assert( maxrtos_process_get( recv )->state ==
-            MAXRTOS_PROCESS_STATE_READY );
+    assert( ready_count( 0U ) == 0U ); /* NOT the sender's queue */
+    assert( ready_count( 1U ) == 1U ); /* the receiver's own */
+    assert( maxrtos_process_get( recv )->state == MAXRTOS_PROCESS_STATE_READY );
 
     printf( "test_wake_targets_the_receivers_own_partition: PASS\n" );
 }
@@ -605,36 +615,42 @@ static void test_blocked_sender_admitted_when_receiver_frees_slot( void )
 
     /* Capacity is 2: fill it, then a third send blocks. */
     m = 1U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &m, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &m, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
     m = 2U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &m, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &m, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
 
     m = 3U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &m, 4U, MAXRTOS_TIMEOUT_INFINITE,
-                &s_table, a, &next_id ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &m, 4U, MAXRTOS_TIMEOUT_INFINITE, &s_table, a, &next_id ) ==
+        MAXRTOS_PENDING );
     assert( next_id == b );
     pcb_a = maxrtos_process_get( a );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_BLOCKED );
 
-    assert( maxrtos_kernel_queue_port_receive(
-                &s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
     assert( out == 1U );
 
     /* Slot freed: the blocked sender's message (3) is now queued and the
      * sender is READY with OK. */
-    assert( maxrtos_kernel_queue_port_count( &s_port ) == 2U );
+    assert( maxrtos_kernel_queue_port_count( s_port, 0U ) == 2U );
     assert( pcb_a->state == MAXRTOS_PROCESS_STATE_READY );
     assert( pcb_a->ipc_result_pending == true );
     assert( pcb_a->ipc_result == MAXRTOS_OK );
 
-    assert( maxrtos_kernel_queue_port_receive(
-                &s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
     assert( out == 2U );
-    assert( maxrtos_kernel_queue_port_receive(
-                &s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &out, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
     assert( out == 3U );
 
     printf( "test_blocked_sender_admitted_when_receiver_frees_slot: PASS\n" );
@@ -658,7 +674,7 @@ static void test_timed_wait_expires_with_timeout( void )
     now = maxrtos_kernel_tick_now();
     assert(
         maxrtos_kernel_queue_port_receive(
-            &s_port, &rx, sizeof( rx ), 3U, &s_table, a, &next_id ) ==
+            s_port, &rx, sizeof( rx ), 3U, &s_table, a, &next_id ) ==
         MAXRTOS_PENDING );
 
     pcb_a = maxrtos_process_get( a );
@@ -673,7 +689,7 @@ static void test_timed_wait_expires_with_timeout( void )
     assert( pcb_a->ipc_result == MAXRTOS_ERR_TIMEOUT );
     assert( pcb_a->waitlist == NULL );
     assert( pcb_a->wake_tick == MAXRTOS_TICK_NONE );
-    assert( maxrtos_waitlist_count( &s_port.waiting_receivers ) == 0U );
+    assert( waiting_receivers( 0U ) == 0U );
 
     /* Expiring again is a no-op. */
     assert( maxrtos_ipc_expire_timeouts( &s_table, now + 10U ) == 0U );
@@ -695,8 +711,13 @@ static void test_infinite_wait_never_expires( void )
 
     assert(
         maxrtos_kernel_queue_port_receive(
-            &s_port, &rx, sizeof( rx ), MAXRTOS_TIMEOUT_INFINITE,
-            &s_table, a, &next_id ) == MAXRTOS_PENDING );
+            s_port,
+            &rx,
+            sizeof( rx ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_PENDING );
 
     assert( maxrtos_ipc_expire_timeouts( &s_table, 0xFFFFFFF0U ) == 0U );
     assert( maxrtos_process_get( a )->state == MAXRTOS_PROCESS_STATE_BLOCKED );
@@ -719,23 +740,30 @@ static void test_cannot_block_without_another_ready_process( void )
 
     assert(
         maxrtos_kernel_queue_port_receive(
-            &s_port, &v, sizeof( v ), MAXRTOS_TIMEOUT_INFINITE,
-            &s_table, a, &next_id ) == MAXRTOS_ERR_QUEUE_EMPTY );
+            s_port,
+            &v,
+            sizeof( v ),
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_ERR_QUEUE_EMPTY );
 
     v = 1U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
 
     assert(
         maxrtos_kernel_queue_port_send(
-            &s_port, &v, 4U, MAXRTOS_TIMEOUT_INFINITE,
-            &s_table, a, &next_id ) == MAXRTOS_ERR_QUEUE_FULL );
+            s_port, &v, 4U, MAXRTOS_TIMEOUT_INFINITE, &s_table, a, &next_id ) ==
+        MAXRTOS_ERR_QUEUE_FULL );
 
     assert( maxrtos_process_get( a )->state == MAXRTOS_PROCESS_STATE_RUNNING );
-    assert( maxrtos_waitlist_count( &s_port.waiting_senders ) == 0U );
-    assert( maxrtos_waitlist_count( &s_port.waiting_receivers ) == 0U );
+    assert( waiting_senders( 0U ) == 0U );
+    assert( waiting_receivers( 0U ) == 0U );
 
     printf( "test_cannot_block_without_another_ready_process: PASS\n" );
 }
@@ -758,23 +786,37 @@ static void test_waiting_receivers_served_in_fifo_order( void )
     assert( start_partition( 0U ) == a );
 
     rx_a = 0U;
-    assert( maxrtos_kernel_queue_port_receive(
-                &s_port, &rx_a, 4U, MAXRTOS_TIMEOUT_INFINITE,
-                &s_table, a, &next_id ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port,
+            &rx_a,
+            4U,
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_PENDING );
     assert( next_id == b );
 
     rx_b = 0U;
-    assert( maxrtos_kernel_queue_port_receive(
-                &s_port, &rx_b, 4U, MAXRTOS_TIMEOUT_INFINITE,
-                &s_table, b, &next_id ) == MAXRTOS_PENDING );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port,
+            &rx_b,
+            4U,
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            b,
+            &next_id ) == MAXRTOS_PENDING );
     assert( next_id == c );
 
     tx = 100U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &tx, 4U, 0U, &s_table, c, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &tx, 4U, 0U, &s_table, c, &next_id ) == MAXRTOS_OK );
     tx = 200U;
-    assert( maxrtos_kernel_queue_port_send(
-                &s_port, &tx, 4U, 0U, &s_table, c, &next_id ) == MAXRTOS_OK );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &tx, 4U, 0U, &s_table, c, &next_id ) == MAXRTOS_OK );
 
     assert( rx_a == 100U );
     assert( rx_b == 200U );
@@ -782,10 +824,267 @@ static void test_waiting_receivers_served_in_fifo_order( void )
     printf( "test_waiting_receivers_served_in_fifo_order: PASS\n" );
 }
 
+/* ---- Who may use a port ---------------------------------------------- */
+
+/* Partitions 0 and 1 use the port, 2 does not: a, b and c are their processes.
+ * The port is created by each test with the sets it needs. */
+static void make_membership_world(
+    uint32_t sender_mask,
+    uint32_t receiver_mask,
+    maxrtos_process_id_t * a,
+    maxrtos_process_id_t * b,
+    maxrtos_process_id_t * c )
+{
+    maxrtos_process_pool_init();
+    assert( maxrtos_partition_table_init( &s_table ) == MAXRTOS_OK );
+    maxrtos_queue_port_pool_init();
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ],
+            sizeof( s_storage[ 0 ] ),
+            4U,
+            2U,
+            sender_mask,
+            receiver_mask,
+            &s_port ) == MAXRTOS_OK );
+
+    *a = add_process( 0U, 0U );
+    *b = add_process( 1U, 1U );
+    *c = add_process( 2U, 2U );
+}
+
+/* A partition can send only if it is a sender and receive only if it is a
+ * receiver; a partition that is neither can do nothing, and a refused call
+ * changes nothing. */
+static void test_only_senders_send_and_only_receivers_receive( void )
+{
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t b;
+    maxrtos_process_id_t c;
+    maxrtos_process_id_t next_id = 0U;
+    maxrtos_queue_port_status_t st;
+    uint32_t v;
+
+    /* 0 sends, 1 receives, 2 is not on the port. */
+    make_membership_world(
+        UINT32_C( 1 ) << 0U, UINT32_C( 1 ) << 1U, &a, &b, &c );
+
+    v = 11U;
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+
+    /* The sender may not receive. */
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &v, 4U, 0U, &s_table, a, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_kernel_queue_port_count( s_port, a ) == 1U );
+
+    /* The receiver may not send. */
+    v = 22U;
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, b, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_kernel_queue_port_count( s_port, b ) == 1U );
+
+    /* A partition that is neither can use none of it, and sees nothing. */
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, c, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &v, 4U, 0U, &s_table, c, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_kernel_queue_port_count( s_port, c ) == 0U );
+    assert(
+        maxrtos_kernel_queue_port_get_status( s_port, c, &st ) ==
+        MAXRTOS_ERR_INVALID_ID );
+
+    /* None of the refused calls touched the queue: the one message is still
+     * there, intact, for the receiver. */
+    v = 0U;
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port, &v, 4U, 0U, &s_table, b, &next_id ) == MAXRTOS_OK );
+    assert( v == 11U );
+    assert( maxrtos_kernel_queue_port_count( s_port, b ) == 0U );
+
+    printf( "test_only_senders_send_and_only_receivers_receive: PASS\n" );
+}
+
+/* A call the port refuses must not block the caller or wake a waiter. */
+static void test_a_refused_call_neither_blocks_nor_wakes( void )
+{
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t b;
+    maxrtos_process_id_t c;
+    maxrtos_process_id_t helper;
+    maxrtos_process_id_t next_id = 0U;
+    uint32_t rx;
+    uint32_t tx;
+
+    /* 0 sends, 1 receives, 2 is not on the port. */
+    make_membership_world(
+        UINT32_C( 1 ) << 0U, UINT32_C( 1 ) << 1U, &a, &b, &c );
+    helper = add_process( 3U, 1U );
+    ( void ) helper;
+    assert( start_partition( 0U ) == a );
+    assert( start_partition( 1U ) == b );
+    assert( start_partition( 2U ) == c );
+
+    /* b waits for a message. */
+    rx = 0xFFFFFFFFU;
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port,
+            &rx,
+            4U,
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            b,
+            &next_id ) == MAXRTOS_PENDING );
+
+    /* c, not a sender, tries to send: refused, b stays blocked and gets
+     * nothing. */
+    tx = 5U;
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port,
+            &tx,
+            4U,
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            c,
+            &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert( rx == 0xFFFFFFFFU );
+    assert( maxrtos_process_get( b )->state == MAXRTOS_PROCESS_STATE_BLOCKED );
+    assert( waiting_receivers( a ) == 1U );
+
+    /* c is not blocked by a refused wait either. */
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            s_port,
+            &rx,
+            4U,
+            MAXRTOS_TIMEOUT_INFINITE,
+            &s_table,
+            c,
+            &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_process_get( c )->state == MAXRTOS_PROCESS_STATE_RUNNING );
+    assert( waiting_receivers( a ) == 1U );
+    assert( waiting_senders( a ) == 0U );
+
+    /* The real sender still wakes it. */
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &tx, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_OK );
+    assert( rx == 5U );
+
+    printf( "test_a_refused_call_neither_blocks_nor_wakes: PASS\n" );
+}
+
+/* An ID that names no port, or a process that does not exist, is refused. */
+static void test_unknown_ids_and_processes_are_refused( void )
+{
+    maxrtos_process_id_t a;
+    maxrtos_process_id_t b;
+    maxrtos_process_id_t c;
+    maxrtos_process_id_t next_id = 0U;
+    maxrtos_queue_port_status_t st;
+    uint32_t v;
+
+    make_membership_world( PARTITIONS_0_1, PARTITIONS_0_1, &a, &b, &c );
+    v = 1U;
+
+    /* Only port 0 exists. */
+    assert(
+        maxrtos_kernel_queue_port_send(
+            1U, &v, 4U, 0U, &s_table, a, &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            ( maxrtos_queue_port_id_t ) MAXRTOS_MAX_QUEUE_PORTS,
+            &v,
+            4U,
+            0U,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_queue_port_receive(
+            MAXRTOS_INVALID_QUEUE_PORT_ID,
+            &v,
+            4U,
+            0U,
+            &s_table,
+            a,
+            &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_kernel_queue_port_count( 1U, a ) == 0U );
+    assert(
+        maxrtos_kernel_queue_port_get_status( 1U, a, &st ) ==
+        MAXRTOS_ERR_INVALID_ID );
+
+    /* No such process. */
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, &v, 4U, 0U, &s_table, 7U, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ID );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port,
+            &v,
+            4U,
+            0U,
+            &s_table,
+            MAXRTOS_INVALID_PROCESS_ID,
+            &next_id ) == MAXRTOS_ERR_INVALID_ID );
+    assert( maxrtos_kernel_queue_port_count( s_port, 7U ) == 0U );
+
+    /* Bad arguments are a different error from a refused port. */
+    assert(
+        maxrtos_kernel_queue_port_get_status( s_port, a, NULL ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_kernel_queue_port_send(
+            s_port, NULL, 4U, 0U, &s_table, a, &next_id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+
+    printf( "test_unknown_ids_and_processes_are_refused: PASS\n" );
+}
+
+/* A create that fails does not use up a slot. */
+static void test_a_failed_create_leaves_the_pool_unchanged( void )
+{
+    maxrtos_queue_port_id_t id;
+
+    reset_simple_world();
+
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], 3U, 4U, 8U, BOTH, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 8U, 0U, BOTH, &id ) ==
+        MAXRTOS_ERR_INVALID_ARG );
+
+    assert(
+        maxrtos_queue_port_create(
+            s_storage[ 0 ], STORAGE_SIZE, 4U, 8U, BOTH, BOTH, &id ) ==
+        MAXRTOS_OK );
+    assert( id == 0U );
+
+    printf( "test_a_failed_create_leaves_the_pool_unchanged: PASS\n" );
+}
+
 int main( void )
 {
-    test_init_rejects_bad_args();
-    test_init_succeeds_and_starts_empty();
+    test_create_rejects_bad_args();
+    test_create_fills_the_pool_and_numbers_ports_in_order();
+    test_create_succeeds_and_starts_empty();
+    test_a_failed_create_leaves_the_pool_unchanged();
     test_receive_on_empty_port_fails_cleanly();
     test_send_rejects_wrong_message_size();
     test_receive_rejects_undersized_buffer();
@@ -800,6 +1099,9 @@ int main( void )
     test_infinite_wait_never_expires();
     test_cannot_block_without_another_ready_process();
     test_waiting_receivers_served_in_fifo_order();
+    test_only_senders_send_and_only_receivers_receive();
+    test_a_refused_call_neither_blocks_nor_wakes();
+    test_unknown_ids_and_processes_are_refused();
 
     printf( "all queue port tests passed\n" );
 

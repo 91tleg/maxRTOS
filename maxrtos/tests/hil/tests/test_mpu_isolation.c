@@ -4,12 +4,15 @@
  *
  * Unprivileged processes attempt one forbidden access each, one per stage:
  * another partition's memory (read and write), flash, privileged kernel
- * memory, a peripheral, code execution from a non-executable region, and a
- * port the partition is not a member of. For each, the hardware must raise a
- * MemManage fault with exactly the right CFSR bits and the right fault
- * address, nothing may reach the HardFault path, the victim memory must be
- * unchanged, the health monitor must restart the offender, and the other
- * processes must keep running.
+ * memory, a peripheral, and code execution from a non-executable region. For
+ * each, the hardware must raise a MemManage fault with exactly the right CFSR
+ * bits and the right fault address, nothing may reach the HardFault path, the
+ * victim memory must be unchanged, the health monitor must restart the
+ * offender, and the other processes must keep running.
+ *
+ * IPC ports are among the kernel memory: their state, wait lists and message
+ * storage are in the kernel's .bss, the same region as the kernel victim
+ * below, and no MPU region gives a partition access to them.
  *
  * QEMU checks that a fault is contained. Only the real MPU says which fault
  * status and address it reports.
@@ -68,8 +71,6 @@ static stage_t const k_stages[] = {
     { OWNER_CONTROL, ACT_WRITE, HIL_RCC_AHB4ENR, "write peripheral" },
     { OWNER_CONTROL, ACT_EXECUTE, 0, "execute from data" },
     { OWNER_APPLICATION, ACT_WRITE, 0, "write other partition" },
-    { OWNER_APPLICATION, ACT_WRITE, 0, "write foreign port" },
-    { OWNER_APPLICATION, ACT_READ, 0, "read foreign port" },
 };
 
 #define STAGES ( sizeof( k_stages ) / sizeof( k_stages[ 0 ] ) )
@@ -91,10 +92,6 @@ static volatile uint32_t * target_of( uint32_t stage )
             break;
         case 6U:
             target = CONTROL_DOMAIN;
-            break;
-        case 7U:
-        case 8U:
-            target = ( volatile uint32_t * ) maxrtos_port_qa;
             break;
         default:
             break;
@@ -146,8 +143,7 @@ static void inject( uint32_t stage )
 static void injector( uint32_t owner )
 {
     EMU_RES
-        [ owner == OWNER_CONTROL ? HS_ENTRIES_CONTROL
-                                 : HS_ENTRIES_APPLICATION ]++;
+    [owner == OWNER_CONTROL ? HS_ENTRIES_CONTROL : HS_ENTRIES_APPLICATION]++;
 
     for( ;; )
     {
@@ -167,14 +163,11 @@ static void injector( uint32_t owner )
 static void control_aux( void * arg )
 {
     volatile uint32_t * const own = CONTROL_DOMAIN + 16U;
-    volatile uint32_t * const port = ( volatile uint32_t * ) maxrtos_port_qa;
 
     ( void ) arg;
 
-    /* Allowed accesses must not fault: the partition's own domain, and a
-     * port it is a member of. */
+    /* An allowed access must not fault: the partition's own domain. */
     *own = 0x11111111UL;
-    ( void ) *port;
 
     injector( OWNER_CONTROL );
 }
@@ -186,7 +179,6 @@ static void application_aux( void * arg )
     ( void ) arg;
 
     *own = 0x22222222UL;
-    ( void ) *( volatile uint32_t * ) maxrtos_port_qb;
 
     injector( OWNER_APPLICATION );
 }

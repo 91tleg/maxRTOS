@@ -12,9 +12,9 @@
  * - A process can use its own partition's memory.
  * - A process cannot read or write another partition's memory.
  * - A process cannot read or write kernel memory.
- * - An IPC port's memory is accessible only to member partitions.
- * - The MPU maps exactly the running partition's memory and the
- *   ports it is a member of, and follows every partition switch.
+ * - IPC ports are not memory a partition can map: the MPU maps exactly
+ *   the running partition's memory and nothing else, and follows every
+ *   partition switch.
  * - Processes of one partition share that partition's memory
  *   (partition-level isolation, by design).
  * - Flash (code and constants) is read-only for every partition.
@@ -60,10 +60,12 @@ static void build_two( void ( *p0_main )( void * ) )
     spec.port_count = 2U;
     spec.port[ 0 ].message_size = 4U;
     spec.port[ 0 ].capacity = 4U;
-    spec.port[ 0 ].member_mask = 0x1U; /* partition 0 only */
+    spec.port[ 0 ].sender_mask = 0x1U; /* partition 0 only */
+    spec.port[ 0 ].receiver_mask = 0x1U;
     spec.port[ 1 ].message_size = 4U;
     spec.port[ 1 ].capacity = 4U;
-    spec.port[ 1 ].member_mask = 0x2U; /* partition 1 only */
+    spec.port[ 1 ].sender_mask = 0x2U; /* partition 1 only */
+    spec.port[ 1 ].receiver_mask = 0x2U;
 
     sil_build( &spec );
 }
@@ -259,61 +261,6 @@ static void test_flash_is_read_only_for_partitions( void )
     sim_shutdown();
 }
 
-/* ---- ports ---- */
-
-static void test_port_memory_is_reserved_for_member_partitions( void )
-{
-    sil_system_t * sys;
-    uint32_t * word;
-
-    /* Port 1 (members: partition 1 only). Partition 0 must be refused. */
-    reset();
-    build_two( trespasser );
-    sys = sil_system();
-    s_target_address = sys->port_address[ 1 ] + 1024U;
-    s_do_write = 1U;
-    word = sim_mem_ptr( s_target_address, 4U );
-    *word = ( uint32_t ) CANARY;
-    SIL_REQUIRE( sim_start( 120U ) );
-    expect_denied( word );
-    sim_shutdown();
-}
-
-static void member_port_user( void * arg )
-{
-    sil_system_t const * sys = sil_system();
-    uint32_t value = 0U;
-
-    ( void ) arg;
-
-    /* Port 0's members: partition 0 (this one). */
-    s_ok_write =
-        sim_write32( sys->port_address[ 0 ] + 1024U, 0xAAAA5555UL ) ? 1U : 0U;
-    s_ok_readback = ( sim_read32( sys->port_address[ 0 ] + 1024U, &value ) &&
-                      ( value == 0xAAAA5555UL ) )
-                        ? 1U
-                        : 0U;
-    s_done = 1U;
-
-    for( ;; )
-    {
-        maxrtos_yield();
-    }
-}
-
-static void test_members_can_use_their_port_memory( void )
-{
-    reset();
-    build_two( member_port_user );
-    SIL_REQUIRE( sim_start( 30U ) );
-
-    SIL_REQUIRE_EQ( s_done, 1U );
-    SIL_EXPECT_EQ( s_ok_write, 1U );
-    SIL_EXPECT_EQ( s_ok_readback, 1U );
-    SIL_EXPECT( !sim_halted() );
-    sim_shutdown();
-}
-
 /* ---- the MPU follows the running partition ---- */
 
 static void idle_process( void * arg )
@@ -332,17 +279,21 @@ static void test_mpu_maps_exactly_the_running_partition( void )
     sil_system_t * sys;
     uint32_t i;
 
+    /* The module has ports, and they must not show up in the MPU. */
     sil_spec_two_partitions( &spec, idle_process, idle_process );
     spec.port_count = 3U;
     spec.port[ 0 ].message_size = 4U;
     spec.port[ 0 ].capacity = 2U;
-    spec.port[ 0 ].member_mask = 0x1U;
+    spec.port[ 0 ].sender_mask = 0x1U;
+    spec.port[ 0 ].receiver_mask = 0x2U;
     spec.port[ 1 ].message_size = 4U;
     spec.port[ 1 ].capacity = 2U;
-    spec.port[ 1 ].member_mask = 0x2U;
+    spec.port[ 1 ].sender_mask = 0x2U;
+    spec.port[ 1 ].receiver_mask = 0x1U;
     spec.port[ 2 ].message_size = 4U;
     spec.port[ 2 ].capacity = 2U;
-    spec.port[ 2 ].member_mask = 0x3U;
+    spec.port[ 2 ].sender_mask = 0x3U;
+    spec.port[ 2 ].receiver_mask = 0x3U;
     sil_build( &spec );
     sys = sil_system();
 
@@ -355,7 +306,7 @@ static void test_mpu_maps_exactly_the_running_partition( void )
         uint32_t access;
         int32_t running = sim_partition_at_tick( sim_tick() );
         uint32_t p;
-        uint32_t port;
+        uint32_t region;
 
         SIL_REQUIRE( ( running == 0 ) || ( running == 1 ) );
         p = ( uint32_t ) running;
@@ -366,22 +317,12 @@ static void test_mpu_maps_exactly_the_running_partition( void )
         SIL_REQUIRE_EQ( size, sys->domain_size[ p ] );
         SIL_REQUIRE_EQ( access, 3U ); /* read/write for user and privileged */
 
-        /* Port regions 9.. are enabled exactly for member partitions. */
-        for( port = 0U; port < 3U; port++ )
+        /* Nothing else is mapped above it: a port is kernel memory, so no
+         * region gives any partition a way to its state. */
+        for( region = 9U; region < 16U; region++ )
         {
-            uint32_t port_base;
-            bool mapped =
-                sim_mpu_region_info( 9U + port, &port_base, &size, &access );
-            bool member =
-                ( ( ( uint32_t ) spec.port[ port ].member_mask >> p ) & 1U ) !=
-                0U;
-
-            SIL_REQUIRE( mapped == member );
-
-            if( mapped )
-            {
-                SIL_REQUIRE_EQ( port_base, sys->port_address[ port ] );
-            }
+            SIL_REQUIRE(
+                !sim_mpu_region_info( region, &base, &size, &access ) );
         }
 
         SIL_REQUIRE( sim_run( 1U ) );
@@ -403,15 +344,9 @@ static sil_case_t const s_cases[] = {
         test_kernel_memory_is_inaccessible,
         "Read and write of kernel memory fault; memory unchanged" ),
     SIL_CASE(
-        test_port_memory_is_reserved_for_member_partitions,
-        "A non-member cannot touch a port's memory" ),
-    SIL_CASE(
-        test_members_can_use_their_port_memory,
-        "A member can use its port's memory" ),
-    SIL_CASE(
         test_mpu_maps_exactly_the_running_partition,
-        "The MPU maps exactly the running partition and its ports on every "
-        "switch" ),
+        "The MPU maps exactly the running partition on every switch, and no "
+        "port" ),
     SIL_CASE(
         test_peer_processes_share_their_partitions_memory,
         "Peer processes share their partition's memory domain" ),

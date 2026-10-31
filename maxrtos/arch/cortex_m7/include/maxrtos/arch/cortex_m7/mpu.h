@@ -2,16 +2,15 @@
  * @file mpu.h
  * @brief Cortex-M7 MPU configuration and validation interface.
  *
- * Defines MPU region configuration for partition memory and static
- * inter-partition communication ports.
+ * Defines MPU region configuration for partition memory.
  *
  * One hardware region is reserved for the active partition and is
- * reconfigured on each context switch. Port regions are statically
- * allocated and enabled only for their declared member partitions.
+ * reconfigured on each context switch.
  *
  * The Cortex-M7 MPU provides 16 regions. Regions 0-7 are reserved for
- * system mappings, region 8 is the reusable partition region, and
- * regions 9-15 are available for static port regions.
+ * system mappings and region 8 is the reusable partition region. Regions
+ * 9-15 are not used: inter-partition ports are not memory-mapped (see
+ * kernel/queue_port.h), so a context switch reprograms one region.
  */
 
 #ifndef MAXRTOS_ARCH_CORTEX_M7_MPU_H
@@ -47,14 +46,7 @@
  *
  * This region is reconfigured on each context switch.
  */
-#define MAXRTOS_MPU_PARTITION_REGION \
-    ( MAXRTOS_MPU_SYSTEM_REGION_COUNT )
-
-/**
- * @brief Number of MPU regions available for static port mappings.
- */
-#define MAXRTOS_MAX_PORT_REGIONS \
-    ( MAXRTOS_MPU_HW_REGION_COUNT - MAXRTOS_MPU_PARTITION_REGION - 1U )
+#define MAXRTOS_MPU_PARTITION_REGION ( MAXRTOS_MPU_SYSTEM_REGION_COUNT )
 
 /**
  * @brief MPU access permissions.
@@ -84,30 +76,12 @@ typedef struct
 } maxrtos_mpu_region_config_t;
 
 /**
- * @brief Static MPU region configuration for a communication port.
- *
- * The region is read-write for member partitions and disabled for
- * all other partitions. The region is never executable.
- *
- * member_partition_mask uses bit N to represent partition N.
- */
-typedef struct
-{
-    uint32_t base_address;
-    uint32_t size_bytes;
-    uint32_t member_partition_mask;
-} maxrtos_mpu_port_region_config_t;
-
-/**
- * @brief MPU configuration for partitions and static port regions.
+ * @brief MPU configuration for partitions.
  */
 typedef struct
 {
     maxrtos_mpu_region_config_t regions[ MAXRTOS_MAX_PARTITIONS ];
     bool configured[ MAXRTOS_MAX_PARTITIONS ];
-
-    maxrtos_mpu_port_region_config_t port_regions[ MAXRTOS_MAX_PORT_REGIONS ];
-    size_t port_region_count;
 } maxrtos_mpu_config_t;
 
 /**
@@ -120,8 +94,7 @@ typedef struct
  *     MAXRTOS_OK on success.
  *     MAXRTOS_ERR_INVALID_ARG if config is NULL.
  */
-maxrtos_status_t maxrtos_mpu_config_init(
-    maxrtos_mpu_config_t * config );
+maxrtos_status_t maxrtos_mpu_config_init( maxrtos_mpu_config_t * config );
 
 /**
  * @brief Configure the MPU region assigned to a partition.
@@ -165,54 +138,5 @@ maxrtos_status_t maxrtos_mpu_get_partition_region(
     maxrtos_mpu_config_t const * config,
     maxrtos_partition_id_t partition_id,
     maxrtos_mpu_region_config_t * out_region );
-
-/**
- * @brief Declare a static MPU region for a communication port.
- *
- * Port regions are allocated in declaration order after the reusable
- * partition region and are enabled only for declared member partitions.
- *
- * @param[in,out] config Configuration object to modify.
- * @param[in] base_address Port shared-memory base address.
- * @param[in] size_bytes Port shared-memory size in bytes.
- * @param[in] member_partition_mask Bitmask of partitions granted access.
- *
- * @return
- *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
- *     MAXRTOS_ERR_POOL_FULL if all static port regions are allocated.
- */
-maxrtos_status_t maxrtos_mpu_add_port_region(
-    maxrtos_mpu_config_t * config,
-    uint32_t base_address,
-    uint32_t size_bytes,
-    uint32_t member_partition_mask );
-
-/**
- * @brief Return the number of declared static port regions.
- *
- * @param[in] config Configuration object to query.
- *
- * @return Number of declared port regions, or zero if config is NULL.
- */
-size_t maxrtos_mpu_get_port_region_count(
-    maxrtos_mpu_config_t const * config );
-
-/**
- * @brief Retrieve a static port region by declaration index.
- *
- * @param[in] config Configuration object to query.
- * @param[in] index Port region declaration index.
- * @param[out] out_region Receives the configured port region.
- *
- * @return
- *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid or index is
- *     out of range.
- */
-maxrtos_status_t maxrtos_mpu_get_port_region(
-    maxrtos_mpu_config_t const * config,
-    size_t index,
-    maxrtos_mpu_port_region_config_t * out_region );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_MPU_H */

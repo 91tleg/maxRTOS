@@ -106,12 +106,24 @@
   "ports": [
     {
       "name": "cmd_channel",
-      "size": "1024B",
       "message_size": "4B",
       "capacity": 4,
-      "region": "sram",
-      "members": [
-        "control",
+      "senders": [
+        "control"
+      ],
+      "receivers": [
+        "application"
+      ]
+    }
+  ],
+  "sampling_ports": [
+    {
+      "name": "status",
+      "message_size": "8B",
+      "writers": [
+        "control"
+      ],
+      "readers": [
         "application"
       ]
     }

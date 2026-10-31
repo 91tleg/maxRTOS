@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "maxrtos/types.h"
+
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/frame.h"
@@ -34,6 +36,10 @@ _Static_assert( MAXRTOS_MAX_READY_PER_PRIORITY >= 2U,
                 "MAXRTOS_MAX_READY_PER_PRIORITY is too small for this configuration" );
 _Static_assert( MAXRTOS_MAX_FRAME_SLOTS >= 2U,
                 "MAXRTOS_MAX_FRAME_SLOTS is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_QUEUE_PORTS >= 1U,
+                "MAXRTOS_MAX_QUEUE_PORTS is too small for this configuration" );
+_Static_assert( MAXRTOS_MAX_SAMPLING_PORTS >= 1U,
+                "MAXRTOS_MAX_SAMPLING_PORTS is too small for this configuration" );
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,17 +71,26 @@ extern uint8_t maxrtos_stack_application_main[ 512 ];
 #define PROCESS_PERIOD_TICKS_application_main ( 0U )
 #define PROCESS_TIME_CAPACITY_TICKS_application_main ( 0U )
 /**
- * Static IPC port buffers (defined and placed by maxrtos_config.c / linker).
+ * IPC queuing ports.
  *
- * The generated configuration initializes each queue/sampling port once in
- * maxrtos_config_init(), before any process is allowed to send or receive.
- * Application code only needs the raw shared-memory storage and the queue
- * sizing constants used by that generated initialization.
+ * A port is named by its ID. The ports live in the kernel and are created by
+ * maxrtos_config_init(), before any process runs: no partition can map their
+ * memory, and the kernel lets only the partitions the module lists as
+ * senders send on a port and only its receivers receive (see
+ * maxrtos/queue_port.h).
  */
-extern uint8_t maxrtos_port_cmd_channel[ 1024 ];
-#define PORT_SIZE_cmd_channel ( 1024U )
+#define PORT_ID_cmd_channel ( ( maxrtos_queue_port_id_t ) 0U )
 #define PORT_MESSAGE_SIZE_cmd_channel ( 4U )
 #define PORT_CAPACITY_cmd_channel ( 4U )
+/**
+ * IPC sampling ports.
+ *
+ * Named by ID like the queuing ports above, and held by the kernel the same
+ * way: only the partitions the module lists as writers may write a port and
+ * only its readers may read it (see maxrtos/sampling_port.h).
+ */
+#define SAMPLING_PORT_ID_status ( ( maxrtos_sampling_port_id_t ) 0U )
+#define SAMPLING_PORT_MESSAGE_SIZE_status ( 8U )
 
 /**
  * Runs all one-time RTOS initialization: partition table, MPU configuration,

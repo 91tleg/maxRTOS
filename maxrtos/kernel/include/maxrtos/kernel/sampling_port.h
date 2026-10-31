@@ -1,22 +1,20 @@
 /**
  * @file sampling_port.h
- * @brief Fixed-size sampling port interface.
+ * @brief Kernel interface for fixed-size sampling ports.
  *
- * Provides a communication port for sampling messages.
+ * A sampling port holds exactly one message. A write replaces the message
+ * held, and a read returns the latest one without removing it. Neither
+ * blocks. Reading before the first write returns an error.
  *
- * Each port is configured with a fixed message size and stores
- * exactly one message. Writing a new message replaces the
- * previously sampled message.
+ * Like queuing ports, sampling ports live in a kernel pool and are named by
+ * ID. The pool, the port state and the message storage are kernel memory
+ * that no partition maps; a partition reaches a port only through a system
+ * call, and every call checks the caller's partition against the writer or
+ * reader set the port was created with.
  *
- * Reading a sampling port returns the most recently written
- * message. Reading before the first successful write returns
- * an error status.
- *
- * Sampling port operations are non-blocking.
- *
- * A sampling port is caller-owned storage and does not contain
- * partition-level access-control information. Any caller with a
- * valid pointer to a port may invoke the read or write interface.
+ * This interface is kernel-internal. Partition code must use the public
+ * maxrtos/sampling_port.h interface, which enters the kernel through the
+ * architecture-specific syscall mechanism.
  */
 
 #ifndef MAXRTOS_KERNEL_SAMPLING_PORT_H
@@ -27,102 +25,145 @@
 #include <stdint.h>
 
 #include "maxrtos/config.h"
+#include "maxrtos/sampling_port.h"
 #include "maxrtos/status.h"
+#include "maxrtos/types.h"
 
+/**
+ * @brief State of a sampling port, for the caller's own information.
+ */
 typedef struct
 {
-    uint8_t buffer[ MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ];
     size_t message_size;
+
+    /* True once a message has been written. */
     bool has_message;
-} maxrtos_sampling_port_t;
+} maxrtos_sampling_port_status_t;
 
 /**
- * @brief Initialize a sampling port.
+ * @brief Empty the sampling port pool.
  *
- * The message size is fixed for the lifetime of the port.
+ * Every port is released. The generated configuration calls this before it
+ * creates its ports.
+ */
+void maxrtos_sampling_port_pool_init( void );
+
+/**
+ * @brief Create a sampling port.
  *
- * @param[out] port
- *     Port to initialize. Must not be NULL.
+ * @param[in] storage
+ *     Memory for the message. It must stay valid for as long as the port
+ *     exists, and must be kernel memory: the kernel copies messages in and
+ *     out of it with privilege, and no partition may be able to map it.
+ *
+ * @param[in] storage_size
+ *     Size of storage in bytes; at least message_size.
  *
  * @param[in] message_size
- *     Size, in bytes, of the sampled message.
- *     Must be greater than zero and no greater than
- *     MAXRTOS_MAX_SAMPLING_MESSAGE_SIZE.
+ *     Size of the message in bytes. Fixed for the life of the port.
+ *
+ * @param[in] writer_mask
+ *     Partitions that may write: bit n set for partition n. Not empty.
+ *
+ * @param[in] reader_mask
+ *     Partitions that may read: bit n set for partition n. Not empty.
+ *
+ * @param[out] out_id
+ *     Receives the ID of the new port.
  *
  * @return
  *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
+ *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid, a mask is empty or
+ *     names a partition that does not exist, or storage is too small.
+ *     MAXRTOS_ERR_POOL_FULL if MAXRTOS_MAX_SAMPLING_PORTS ports exist.
  */
-maxrtos_status_t maxrtos_sampling_port_init(
-    maxrtos_sampling_port_t * port,
-    size_t message_size );
+maxrtos_status_t maxrtos_sampling_port_create(
+    void * storage,
+    size_t storage_size,
+    size_t message_size,
+    uint32_t writer_mask,
+    uint32_t reader_mask,
+    maxrtos_sampling_port_id_t * out_id );
 
 /**
- * @brief Write a message to the sampling port.
+ * @brief Write a message to a sampling port, replacing the one held.
  *
- * The operation is non-blocking. If the port already contains
- * a message, the existing message is replaced.
- *
- * The message is copied into the port's internal storage. The
- * caller's buffer is not retained after this function returns.
- *
- * @param[in,out] port
- *     Initialized sampling port to which the message is written.
+ * @param[in] id
+ *     Port to write. The process's partition must be one of its writers.
  *
  * @param[in] message
- *     Caller-owned message buffer. Must not be NULL and must
- *     provide at least the configured message_size bytes.
+ *     The message.
+ *
+ * @param[in] message_size
+ *     Must equal the port's message size.
+ *
+ * @param[in] current_id
+ *     ID of the process performing the operation.
  *
  * @return
  *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the process's partition
+ *     is not a writer of it.
+ *     MAXRTOS_ERR_INVALID_ARG if message is NULL or message_size differs
+ *     from the port's message size.
  */
-maxrtos_status_t maxrtos_sampling_port_write(
-    maxrtos_sampling_port_t * port,
-    void const * message );
+maxrtos_status_t maxrtos_kernel_sampling_port_write(
+    maxrtos_sampling_port_id_t id,
+    void const * message,
+    size_t message_size,
+    maxrtos_process_id_t current_id );
 
 /**
- * @brief Read the most recently sampled message.
+ * @brief Read the message a sampling port holds.
  *
- * The operation is non-blocking. If no message has been
- * successfully written since initialization,
- * MAXRTOS_ERR_QUEUE_EMPTY is returned.
- *
- * The sampled message is copied into the caller-provided
- * buffer. Only the configured message_size bytes are written.
- *
- * @param[in] port
- *     Initialized sampling port from which the message is read.
+ * @param[in] id
+ *     Port to read. The process's partition must be one of its readers.
  *
  * @param[out] out_message
- *     Caller-owned output buffer. Must not be NULL and must
- *     provide at least message_size bytes of storage.
+ *     Receives the message.
  *
  * @param[in] buffer_size
- *     Size of the output buffer in bytes. Must be at least the
- *     port's configured message size.
+ *     Size of out_message; at least the port's message size.
+ *
+ * @param[in] current_id
+ *     ID of the process performing the operation.
  *
  * @return
  *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
- *     MAXRTOS_ERR_QUEUE_EMPTY if no message has been written.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the process's partition
+ *     is not a reader of it.
+ *     MAXRTOS_ERR_INVALID_ARG if out_message is NULL or buffer_size is
+ *     smaller than the port's message size.
+ *     MAXRTOS_ERR_QUEUE_EMPTY if nothing has been written yet.
  */
-maxrtos_status_t maxrtos_sampling_port_read(
-    maxrtos_sampling_port_t const * port,
+maxrtos_status_t maxrtos_kernel_sampling_port_read(
+    maxrtos_sampling_port_id_t id,
     void * out_message,
-    size_t buffer_size );
+    size_t buffer_size,
+    maxrtos_process_id_t current_id );
 
 /**
- * @brief Return whether the sampling port contains a message.
+ * @brief Read the state of a sampling port.
  *
- * @param[in] port
- *     Port to query. If NULL, false is returned.
+ * @param[in] id
+ *     Port to query.
+ *
+ * @param[in] current_id
+ *     ID of the process asking. Its partition must be a writer or a reader
+ *     of the port.
+ *
+ * @param[out] out_status
+ *     Receives the state.
  *
  * @return
- *     true if a message has been successfully written.
- *     false if no message has been written or port is NULL.
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the partition may not
+ *     use it.
+ *     MAXRTOS_ERR_INVALID_ARG if out_status is NULL.
  */
-bool maxrtos_sampling_port_is_valid(
-    maxrtos_sampling_port_t const * port );
+maxrtos_status_t maxrtos_kernel_sampling_port_get_status(
+    maxrtos_sampling_port_id_t id,
+    maxrtos_process_id_t current_id,
+    maxrtos_sampling_port_status_t * out_status );
 
 #endif /* MAXRTOS_KERNEL_SAMPLING_PORT_H */

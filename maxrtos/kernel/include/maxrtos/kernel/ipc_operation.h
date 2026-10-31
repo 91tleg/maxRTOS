@@ -40,14 +40,12 @@ typedef struct
     {
         struct
         {
-            struct maxrtos_queue_port_s * port;
             void const * message;
             size_t message_size;
         } queue_send;
 
         struct
         {
-            struct maxrtos_queue_port_s * port;
             void * out_message;
             size_t buffer_size;
         } queue_receive;

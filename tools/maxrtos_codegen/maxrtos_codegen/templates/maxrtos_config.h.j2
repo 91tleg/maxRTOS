@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "maxrtos/types.h"
+
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/frame.h"
@@ -54,20 +56,33 @@ extern uint8_t maxrtos_stack_{{ pr.name }}[ {{ pr.stack_size }} ];
 #define PROCESS_TIME_CAPACITY_TICKS_{{ pr.name }} ( {{ pr.time_capacity_ticks }}U )
 {% endfor %}
 {% endfor %}
-{% if port_regions %}
+{% if ports %}
 /**
- * Static IPC port buffers (defined and placed by maxrtos_config.c / linker).
+ * IPC queuing ports.
  *
- * The generated configuration initializes each queue/sampling port once in
- * maxrtos_config_init(), before any process is allowed to send or receive.
- * Application code only needs the raw shared-memory storage and the queue
- * sizing constants used by that generated initialization.
+ * A port is named by its ID. The ports live in the kernel and are created by
+ * maxrtos_config_init(), before any process runs: no partition can map their
+ * memory, and the kernel lets only the partitions the module lists as
+ * senders send on a port and only its receivers receive (see
+ * maxrtos/queue_port.h).
  */
-{% for prt in port_regions %}
-extern uint8_t maxrtos_port_{{ prt.name }}[ {{ prt.size }} ];
-#define PORT_SIZE_{{ prt.name }} ( {{ prt.size }}U )
+{% for prt in ports %}
+#define PORT_ID_{{ prt.name }} ( ( maxrtos_queue_port_id_t ) {{ prt.index }}U )
 #define PORT_MESSAGE_SIZE_{{ prt.name }} ( {{ prt.message_size }}U )
 #define PORT_CAPACITY_{{ prt.name }} ( {{ prt.capacity }}U )
+{% endfor %}
+{% endif %}
+{% if sampling_ports %}
+/**
+ * IPC sampling ports.
+ *
+ * Named by ID like the queuing ports above, and held by the kernel the same
+ * way: only the partitions the module lists as writers may write a port and
+ * only its readers may read it (see maxrtos/sampling_port.h).
+ */
+{% for prt in sampling_ports %}
+#define SAMPLING_PORT_ID_{{ prt.name }} ( ( maxrtos_sampling_port_id_t ) {{ prt.index }}U )
+#define SAMPLING_PORT_MESSAGE_SIZE_{{ prt.name }} ( {{ prt.message_size }}U )
 {% endfor %}
 {% endif %}
 

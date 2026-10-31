@@ -106,9 +106,6 @@ static void led_ld2_toggle( void )
 #define IPC_SEND_TIMEOUT    ( 0U )
 #define IPC_RECEIVE_TIMEOUT ( MAXRTOS_TIMEOUT_INFINITE )
 
-static maxrtos_queue_port_t * const s_cmd_channel =
-    ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_cmd_channel;
-
 static void process_control_entry( void * arg )
 {
     uint32_t counter;
@@ -122,7 +119,7 @@ static void process_control_entry( void * arg )
         led_ld1_toggle();
 
         ( void ) maxrtos_queue_port_send(
-            ( maxrtos_queue_port_t * ) ( void * ) s_cmd_channel,
+            PORT_ID_cmd_channel,
             &counter,
             sizeof( counter ),
             IPC_SEND_TIMEOUT );
@@ -143,7 +140,7 @@ static void process_application_entry( void * arg )
         led_ld3_toggle();
 
         if( maxrtos_queue_port_receive(
-                ( maxrtos_queue_port_t * ) ( void * ) s_cmd_channel,
+                PORT_ID_cmd_channel,
                 &received,
                 sizeof( received ),
                 IPC_RECEIVE_TIMEOUT ) == MAXRTOS_OK )
@@ -159,7 +156,7 @@ static void process_application_entry( void * arg )
  * in the caller's own partition.
  *
  * These processes are unprivileged, so they may only touch what the MPU maps
- * for them: their partition's domain, their ports, and the peripheral region.
+ * for them: their partition's domain and the peripheral region.
  * Kernel globals (DTCM) are privileged-only, so progress is shown on LD2
  * (shared by both aux processes) and not through a counter variable. */
 static void process_control_aux_entry( void * arg )

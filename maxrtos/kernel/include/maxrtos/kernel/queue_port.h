@@ -3,7 +3,14 @@
  * @brief Kernel interface for fixed-size queuing ports.
  *
  * Provides the kernel-side implementation of FIFO communication
- * between processes.
+ * between processes, possibly of different partitions.
+ *
+ * The ports live in a kernel pool and are named by ID, like buffers. The
+ * pool, the queue state and the wait lists are in kernel memory that no
+ * partition maps, so a partition cannot corrupt them; it reaches a port only
+ * through a system call, and every call checks the caller's partition against
+ * the sender or receiver set the port was created with. Only the message
+ * storage is supplied by the creator.
  *
  * This interface is kernel-internal. Partition code must use the
  * public maxrtos/queue_port.h interface, which enters the kernel
@@ -26,36 +33,35 @@
 #include "maxrtos/kernel/partition.h"
 
 /**
- * @brief A single queuing port instance.
- *
- * @field buffer
- *     Statically allocated queue storage.
- *
- * @field fifo
- *     FIFO engine operating on buffer.
- *
- * @field waiting_receivers
- *     Processes blocked waiting for a message.
- *
- * @field waiting_senders
- *     Processes blocked waiting for space.
+ * @brief State of a queuing port, for the caller's own information.
  */
-struct maxrtos_queue_port_s
+typedef struct
 {
-    uint8_t
-        buffer[ MAXRTOS_MAX_QUEUE_CAPACITY * MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ];
-
-    maxrtos_kernel_fifo_t fifo;
-
-    maxrtos_waitlist_t waiting_receivers;
-    maxrtos_waitlist_t waiting_senders;
-};
+    size_t message_size;
+    size_t capacity;
+    size_t nb_message;
+    size_t waiting_receivers;
+    size_t waiting_senders;
+} maxrtos_queue_port_status_t;
 
 /**
- * @brief Initialize a queuing port.
+ * @brief Empty the port pool.
  *
- * @param[out] port
- *     Port to initialize. Must not be NULL.
+ * Every port is released. The generated configuration calls this before it
+ * creates its ports.
+ */
+void maxrtos_queue_port_pool_init( void );
+
+/**
+ * @brief Create a queuing port.
+ *
+ * @param[in] storage
+ *     Memory for the queued messages. It must stay valid for as long as the
+ *     port exists, and must be kernel memory: the kernel copies messages in
+ *     and out of it with privilege, and no partition may be able to map it.
+ *
+ * @param[in] storage_size
+ *     Size of storage in bytes; at least message_size * capacity.
  *
  * @param[in] message_size
  *     Size of every message in bytes.
@@ -63,14 +69,29 @@ struct maxrtos_queue_port_s
  * @param[in] capacity
  *     Maximum number of messages.
  *
+ * @param[in] sender_mask
+ *     Partitions that may send: bit n set for partition n. Not empty.
+ *
+ * @param[in] receiver_mask
+ *     Partitions that may receive: bit n set for partition n. Not empty.
+ *
+ * @param[out] out_id
+ *     Receives the ID of the new port.
+ *
  * @return
  *     MAXRTOS_OK on success.
- *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
+ *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid, a mask is empty or
+ *     names a partition that does not exist, or storage is too small.
+ *     MAXRTOS_ERR_POOL_FULL if MAXRTOS_MAX_QUEUE_PORTS ports exist.
  */
-maxrtos_status_t maxrtos_queue_port_init(
-    maxrtos_queue_port_t * port,
+maxrtos_status_t maxrtos_queue_port_create(
+    void * storage,
+    size_t storage_size,
     size_t message_size,
-    size_t capacity );
+    size_t capacity,
+    uint32_t sender_mask,
+    uint32_t receiver_mask,
+    maxrtos_queue_port_id_t * out_id );
 
 /**
  * @brief Execute a kernel-side queue send operation.
@@ -79,8 +100,8 @@ maxrtos_status_t maxrtos_queue_port_init(
  * and timeout permits blocking, the current process is placed on the
  * sender wait list.
  *
- * @param[in,out] port
- *     Initialized queue port.
+ * @param[in] id
+ *     Port to send to. The process's partition must be one of its senders.
  *
  * @param[in] message
  *     Message to enqueue.
@@ -113,6 +134,8 @@ maxrtos_status_t maxrtos_queue_port_init(
  *     MAXRTOS_PENDING if the current process was blocked. Its final
  *     result (MAXRTOS_OK, or MAXRTOS_ERR_TIMEOUT) is delivered when it
  *     resumes, through ipc_result.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the process's partition
+ *     is not a sender of it.
  *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid or
  *     message_size differs from the port's message size.
  *     MAXRTOS_ERR_QUEUE_FULL if the queue is full and the operation
@@ -122,7 +145,7 @@ maxrtos_status_t maxrtos_queue_port_init(
  *     an absolute wake tick.
  */
 maxrtos_status_t maxrtos_kernel_queue_port_send(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t id,
     void const * message,
     size_t message_size,
     maxrtos_tick_t timeout,
@@ -137,8 +160,9 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
  * and timeout permits blocking, the current process is placed on
  * the receiver wait list.
  *
- * @param[in,out] port
- *     Initialized queue port.
+ * @param[in] id
+ *     Port to receive from. The process's partition must be one of its
+ *     receivers.
  *
  * @param[out] out_message
  *     Output buffer for the received message.
@@ -163,6 +187,8 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
  *     MAXRTOS_PENDING if the current process was blocked. Its final
  *     result (MAXRTOS_OK with the message in out_message, or
  *     MAXRTOS_ERR_TIMEOUT) is delivered when it resumes.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the process's partition
+ *     is not a receiver of it.
  *     MAXRTOS_ERR_INVALID_ARG if an argument is invalid.
  *     MAXRTOS_ERR_QUEUE_EMPTY if the queue is empty and the operation
  *     does not block, or the caller cannot block because no other
@@ -171,7 +197,7 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
  *     an absolute wake tick.
  */
 maxrtos_status_t maxrtos_kernel_queue_port_receive(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t id,
     void * out_message,
     size_t buffer_size,
     maxrtos_tick_t timeout,
@@ -182,13 +208,43 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
 /**
  * @brief Return the number of messages currently stored.
  *
- * @param[in] port
+ * @param[in] id
  *     Port to query.
+ *
+ * @param[in] current_id
+ *     ID of the process asking. Its partition must be a sender or a
+ *     receiver of the port.
  *
  * @return
  *     Number of messages currently stored.
- *     Zero if port is NULL.
+ *     Zero if id names no port or the partition may not use it.
  */
-size_t maxrtos_kernel_queue_port_count( maxrtos_queue_port_t const * port );
+size_t maxrtos_kernel_queue_port_count(
+    maxrtos_queue_port_id_t id,
+    maxrtos_process_id_t current_id );
+
+/**
+ * @brief Read the state of a port.
+ *
+ * @param[in] id
+ *     Port to query.
+ *
+ * @param[in] current_id
+ *     ID of the process asking. Its partition must be a sender or a
+ *     receiver of the port.
+ *
+ * @param[out] out_status
+ *     Receives the state.
+ *
+ * @return
+ *     MAXRTOS_OK on success.
+ *     MAXRTOS_ERR_INVALID_ID if id names no port or the partition may not
+ *     use it.
+ *     MAXRTOS_ERR_INVALID_ARG if out_status is NULL.
+ */
+maxrtos_status_t maxrtos_kernel_queue_port_get_status(
+    maxrtos_queue_port_id_t id,
+    maxrtos_process_id_t current_id,
+    maxrtos_queue_port_status_t * out_status );
 
 #endif /* MAXRTOS_KERNEL_QUEUE_PORT_H */

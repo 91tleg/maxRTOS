@@ -145,11 +145,12 @@
   "ports": [
     {
       "name": "bench_q",
-      "size": "1024B",
       "message_size": "4B",
       "capacity": 4,
-      "region": "sram",
-      "members": [
+      "senders": [
+        "queuep"
+      ],
+      "receivers": [
         "queuep"
       ]
     }

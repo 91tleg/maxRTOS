@@ -22,6 +22,7 @@
 #include "maxrtos/arch/cortex_m7/systick.h"
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/queue_port.h"
+#include "maxrtos/sampling_port.h"
 #include "maxrtos/scheduler.h"
 #include "maxrtos/timing.h"
 #include "maxrtos/yield.h"
@@ -796,34 +797,67 @@ uint32_t sim_queue_count_raw( uint32_t port )
 }
 
 maxrtos_status_t maxrtos_queue_port_send(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t port,
     void const * message,
     size_t message_size,
     maxrtos_tick_t timeout )
 {
     return sim_queue_send_raw(
-        sim_ptr_to_uaddr( port ),
-        sim_ptr_to_uaddr( message ),
-        ( uint32_t ) message_size,
-        timeout );
+        port, sim_ptr_to_uaddr( message ), ( uint32_t ) message_size, timeout );
 }
 
 maxrtos_status_t maxrtos_queue_port_receive(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t port,
     void * out_message,
     size_t buffer_size,
     maxrtos_tick_t timeout )
 {
     return sim_queue_receive_raw(
-        sim_ptr_to_uaddr( port ),
+        port,
         sim_ptr_to_uaddr( out_message ),
         ( uint32_t ) buffer_size,
         timeout );
 }
 
-size_t maxrtos_queue_port_count( maxrtos_queue_port_t const * port )
+size_t maxrtos_queue_port_count( maxrtos_queue_port_id_t port )
 {
-    return sim_queue_count_raw( sim_ptr_to_uaddr( port ) );
+    return sim_queue_count_raw( port );
+}
+
+maxrtos_status_t sim_sampling_write_raw(
+    uint32_t port,
+    uint32_t message,
+    uint32_t size )
+{
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_SAMPLING_WRITE, port, message, size, 0U );
+}
+
+maxrtos_status_t sim_sampling_read_raw(
+    uint32_t port,
+    uint32_t buffer,
+    uint32_t size )
+{
+    return ( maxrtos_status_t ) sim_svc(
+        MAXRTOS_SVC_SAMPLING_READ, port, buffer, size, 0U );
+}
+
+maxrtos_status_t maxrtos_sampling_port_write(
+    maxrtos_sampling_port_id_t port,
+    void const * message,
+    size_t message_size )
+{
+    return sim_sampling_write_raw(
+        port, sim_ptr_to_uaddr( message ), ( uint32_t ) message_size );
+}
+
+maxrtos_status_t maxrtos_sampling_port_read(
+    maxrtos_sampling_port_id_t port,
+    void * out_message,
+    size_t buffer_size )
+{
+    return sim_sampling_read_raw(
+        port, sim_ptr_to_uaddr( out_message ), ( uint32_t ) buffer_size );
 }
 
 /* ------------------------------------------------------------------------ */

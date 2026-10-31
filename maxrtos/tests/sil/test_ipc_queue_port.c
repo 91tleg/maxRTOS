@@ -12,9 +12,13 @@
  * - A full queue rejects a non-blocking send, and a blocked
  *   sender is admitted, in order, when a slot frees.
  * - The kernel never dereferences a pointer the caller could not
- *   access itself: kernel memory, another partition's memory,
- *   non-member ports and malformed ranges are rejected, and
- *   nothing is read, written or disturbed.
+ *   access itself: kernel memory, another partition's memory and
+ *   malformed ranges are rejected, and nothing is read, written or
+ *   disturbed.
+ * - A port is named by ID, never by address, and only by a partition the
+ *   port lists as a sender (to send) or a receiver (to receive): an ID past
+ *   the pool, an address, a non-member and the wrong direction are all
+ *   refused.
  * - A message whose size differs from the port's is rejected.
  */
 
@@ -25,11 +29,45 @@
 #include "maxrtos/queue_port.h"
 #include "maxrtos/yield.h"
 
-#define QA ( sil_system()->port[ 0 ] ) /* member: partition 0 */
-#define QB ( sil_system()->port[ 1 ] ) /* members: partitions 0 and 1 */
-#define QC ( sil_system()->port[ 2 ] ) /* member: partition 1 only */
+#define QA ( sil_system()->port_id[ 0 ] ) /* send and receive: partition 0 */
+#define QB                                                                     \
+    ( sil_system()->port_id[ 1 ] ) /* send and receive: partitions 0, 1 */
+#define QC ( sil_system()->port_id[ 2 ] ) /* send and receive: partition 1 */
+#define QD ( sil_system()->port_id[ 3 ] ) /* partition 0 sends, 1 receives */
 
 #define CANARY ( 0xC0FFEE42UL )
+
+/* The number of messages on a port, as the kernel holds it: asked on behalf of
+ * the first process of the first partition (a member of QA and QB). */
+static size_t kernel_count( maxrtos_queue_port_id_t port )
+{
+    return maxrtos_kernel_queue_port_count(
+        port, sil_system()->process_id[ 0 ][ 0 ] );
+}
+
+static size_t waiting_receivers_of( maxrtos_queue_port_id_t port )
+{
+    maxrtos_queue_port_status_t status;
+
+    SIL_REQUIRE_EQ(
+        maxrtos_kernel_queue_port_get_status(
+            port, sil_system()->process_id[ 0 ][ 0 ], &status ),
+        MAXRTOS_OK );
+
+    return status.waiting_receivers;
+}
+
+static size_t waiting_senders_of( maxrtos_queue_port_id_t port )
+{
+    maxrtos_queue_port_status_t status;
+
+    SIL_REQUIRE_EQ(
+        maxrtos_kernel_queue_port_get_status(
+            port, sil_system()->process_id[ 0 ][ 0 ], &status ),
+        MAXRTOS_OK );
+
+    return status.waiting_senders;
+}
 
 static void idle_yield( void * arg )
 {
@@ -65,16 +103,23 @@ static void build_ipc_system(
     spec.partition[ 1 ].process[ 1 ].entry = p1_aux;
     spec.partition[ 1 ].process[ 1 ].priority = 5U;
 
-    spec.port_count = 3U;
+    spec.port_count = 4U;
     spec.port[ 0 ].message_size = 4U;
     spec.port[ 0 ].capacity = 4U;
-    spec.port[ 0 ].member_mask = 0x1U;
+    spec.port[ 0 ].sender_mask = 0x1U;
+    spec.port[ 0 ].receiver_mask = 0x1U;
     spec.port[ 1 ].message_size = 4U;
     spec.port[ 1 ].capacity = 4U;
-    spec.port[ 1 ].member_mask = 0x3U;
+    spec.port[ 1 ].sender_mask = 0x3U;
+    spec.port[ 1 ].receiver_mask = 0x3U;
     spec.port[ 2 ].message_size = 4U;
     spec.port[ 2 ].capacity = 4U;
-    spec.port[ 2 ].member_mask = 0x2U;
+    spec.port[ 2 ].sender_mask = 0x2U;
+    spec.port[ 2 ].receiver_mask = 0x2U;
+    spec.port[ 3 ].message_size = 4U;
+    spec.port[ 3 ].capacity = 4U;
+    spec.port[ 3 ].sender_mask = 0x1U;
+    spec.port[ 3 ].receiver_mask = 0x2U;
 
     sil_build( &spec );
 }
@@ -124,7 +169,7 @@ static void test_blocked_receive_same_partition( void )
     SIL_REQUIRE_EQ( s_done, 1U );
     SIL_EXPECT_EQ( s_status, MAXRTOS_OK );
     SIL_EXPECT_EQ( s_data, 0xCAFE0001UL );
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QA ), 0U );
+    SIL_EXPECT_EQ( kernel_count( QA ), 0U );
     SIL_EXPECT_EQ( sim_model_violations(), 0U );
     sim_shutdown();
 }
@@ -210,8 +255,8 @@ static void test_timed_receive_expires_and_leaves_port_consistent( void )
     SIL_EXPECT( s_wait_ended <= s_wait_started + TIMEOUT_TICKS + 8U );
 
     /* The port is intact: nothing queued, and it still works. */
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QA ), 0U );
-    SIL_EXPECT_EQ( QA->waiting_receivers.count, 0U );
+    SIL_EXPECT_EQ( kernel_count( QA ), 0U );
+    SIL_EXPECT_EQ( waiting_receivers_of( QA ), 0U );
     sim_shutdown();
 }
 
@@ -290,8 +335,8 @@ static void test_stream_between_partitions_loses_nothing( void )
     SIL_EXPECT( s_done_tick != 0U );
 
     /* Everything drained; no process left parked on the port. */
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QB ), 0U );
-    SIL_EXPECT_EQ( QB->waiting_senders.count, 0U );
+    SIL_EXPECT_EQ( kernel_count( QB ), 0U );
+    SIL_EXPECT_EQ( waiting_senders_of( QB ), 0U );
     SIL_EXPECT_EQ( sim_model_violations(), 0U );
     sim_shutdown();
 }
@@ -402,14 +447,18 @@ enum
     H_RECEIVE_KERNEL_BUFFER,
     H_BUFFER_STRADDLES_DOMAIN_END,
     H_BUFFER_IN_OTHER_PARTITION,
-    H_PORT_IS_NOT_A_PORT,
+    H_PORT_ID_OUT_OF_RANGE,
+    H_PORT_ID_INVALID,
+    H_PORT_ID_IS_AN_ADDRESS,
     H_PORT_NOT_A_MEMBER_SEND,
+    H_PORT_NOT_A_MEMBER_RECEIVE,
     H_COUNT_NOT_A_MEMBER,
+    H_RECEIVE_ON_SEND_ONLY_PORT,
+    H_SEND_ON_RECEIVE_ONLY_PORT,
     H_SIZE_WRAPS_ADDRESS_SPACE,
     H_SIZE_ZERO,
-    H_PORT_UNMAPPED,
-    H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER,
     H_LEGITIMATE_SEND,
+    H_LEGITIMATE_SEND_ON_QD,
     H_COUNT
 };
 
@@ -426,54 +475,66 @@ static void hostile( void * arg )
     /* Something for the receive probes to (try to) take. */
     ( void ) maxrtos_queue_port_send( QA, &good, sizeof( good ), 0U );
 
-    s_probe[ H_SEND_KERNEL_MESSAGE ] = ( uint32_t ) sim_queue_send_raw(
-        sys->port_address[ 0 ], SIL_KERNEL_GUARD, 4U, 0U );
+    s_probe[ H_SEND_KERNEL_MESSAGE ] =
+        ( uint32_t ) sim_queue_send_raw( QA, SIL_KERNEL_GUARD, 4U, 0U );
 
-    s_probe[ H_RECEIVE_KERNEL_BUFFER ] = ( uint32_t ) sim_queue_receive_raw(
-        sys->port_address[ 0 ], SIL_KERNEL_GUARD, 4U, 0U );
+    s_probe[ H_RECEIVE_KERNEL_BUFFER ] =
+        ( uint32_t ) sim_queue_receive_raw( QA, SIL_KERNEL_GUARD, 4U, 0U );
 
     s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ] =
         ( uint32_t ) sim_queue_receive_raw(
-            sys->port_address[ 0 ],
-            sys->domain_base[ 0 ] + sys->domain_size[ 0 ] - 2U,
-            4U,
-            0U );
+            QA, sys->domain_base[ 0 ] + sys->domain_size[ 0 ] - 2U, 4U, 0U );
 
     s_probe[ H_BUFFER_IN_OTHER_PARTITION ] = ( uint32_t ) sim_queue_receive_raw(
-        sys->port_address[ 0 ], sys->domain_base[ 1 ] + 16U, 4U, 0U );
+        QA, sys->domain_base[ 1 ] + 16U, 4U, 0U );
 
-    /* An address inside the caller's own domain is not a port. */
-    s_probe[ H_PORT_IS_NOT_A_PORT ] = ( uint32_t ) sim_queue_send_raw(
-        sys->domain_base[ 0 ] + 64U,
-        ( uint32_t ) 0U + sim_ptr_to_uaddr( &good ),
-        4U,
-        0U );
+    /* An ID past the pool, the "no port" sentinel, and an address the caller
+     * could once have used as a port: none names a port. */
+    s_probe[ H_PORT_ID_OUT_OF_RANGE ] = ( uint32_t ) sim_queue_send_raw(
+        MAXRTOS_MAX_QUEUE_PORTS, sim_ptr_to_uaddr( &good ), 4U, 0U );
+    s_probe[ H_PORT_ID_INVALID ] = ( uint32_t ) sim_queue_send_raw(
+        MAXRTOS_INVALID_QUEUE_PORT_ID, sim_ptr_to_uaddr( &good ), 4U, 0U );
+    s_probe[ H_PORT_ID_IS_AN_ADDRESS ] = ( uint32_t ) sim_queue_send_raw(
+        sys->domain_base[ 0 ] + 64U, sim_ptr_to_uaddr( &good ), 4U, 0U );
 
-    /* Port QC exists but partition 0 is not a member. */
+    /* Port QC exists but partition 0 is not on it, as sender or receiver. */
     s_probe[ H_PORT_NOT_A_MEMBER_SEND ] = ( uint32_t ) sim_queue_send_raw(
-        sys->port_address[ 2 ], sim_ptr_to_uaddr( &good ), 4U, 0U );
-    s_probe[ H_COUNT_NOT_A_MEMBER ] =
-        sim_queue_count_raw( sys->port_address[ 2 ] );
+        QC, sim_ptr_to_uaddr( &good ), 4U, 0U );
+    s_probe[ H_PORT_NOT_A_MEMBER_RECEIVE ] = ( uint32_t ) sim_queue_receive_raw(
+        QC, sim_ptr_to_uaddr( &good ), 4U, 0U );
+    s_probe[ H_COUNT_NOT_A_MEMBER ] = sim_queue_count_raw( QC );
+
+    /* QD: partition 0 only sends. Receiving on it is refused. */
+    s_probe[ H_RECEIVE_ON_SEND_ONLY_PORT ] = ( uint32_t ) sim_queue_receive_raw(
+        QD, sim_ptr_to_uaddr( &good ), 4U, 0U );
 
     s_probe[ H_SIZE_WRAPS_ADDRESS_SPACE ] = ( uint32_t ) sim_queue_send_raw(
-        sys->port_address[ 0 ], sim_ptr_to_uaddr( &good ), 0xFFFFFFF0U, 0U );
+        QA, sim_ptr_to_uaddr( &good ), 0xFFFFFFF0U, 0U );
 
     s_probe[ H_SIZE_ZERO ] = ( uint32_t ) sim_queue_send_raw(
-        sys->port_address[ 0 ], sim_ptr_to_uaddr( &good ), 0U, 0U );
+        QA, sim_ptr_to_uaddr( &good ), 0U, 0U );
 
-    s_probe[ H_PORT_UNMAPPED ] = ( uint32_t ) sim_queue_send_raw(
-        0U, sim_ptr_to_uaddr( &good ), 4U, 0U );
-
-    /* The message points into a port region this partition may not access. */
-    s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ] =
-        ( uint32_t ) sim_queue_send_raw(
-            sys->port_address[ 0 ], sys->port_address[ 2 ] + 1024U, 4U, 0U );
-
-    /* Rejection is not blanket: a legitimate call still works. */
+    /* Rejection is not blanket: a legitimate call still works, and so does
+     * the send direction of QD. */
     s_probe[ H_LEGITIMATE_SEND ] =
         ( uint32_t ) maxrtos_queue_port_send( QA, &good, sizeof( good ), 0U );
+    s_probe[ H_LEGITIMATE_SEND_ON_QD ] =
+        ( uint32_t ) maxrtos_queue_port_send( QD, &good, sizeof( good ), 0U );
 
     s_probes_done = 1U;
+    idle_yield( NULL );
+}
+
+/* Partition 1 receives on QD but does not send on it. */
+static void hostile_p1( void * arg )
+{
+    uint32_t good = 0x600DU;
+
+    ( void ) arg;
+
+    s_probe[ H_SEND_ON_RECEIVE_ONLY_PORT ] =
+        ( uint32_t ) maxrtos_queue_port_send( QD, &good, sizeof( good ), 0U );
+
     idle_yield( NULL );
 }
 
@@ -487,7 +548,7 @@ static void test_kernel_rejects_hostile_pointers( void )
 
     s_probes_done = 0U;
 
-    build_ipc_system( hostile, idle_yield, idle_yield, idle_yield );
+    build_ipc_system( hostile, idle_yield, hostile_p1, idle_yield );
     sys = sil_system();
 
     /* Canaries the probes would corrupt if the kernel followed the pointers. */
@@ -508,26 +569,35 @@ static void test_kernel_rejects_hostile_pointers( void )
         s_probe[ H_BUFFER_STRADDLES_DOMAIN_END ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ(
         s_probe[ H_BUFFER_IN_OTHER_PARTITION ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_PORT_IS_NOT_A_PORT ], MAXRTOS_ERR_INVALID_ARG );
+    SIL_EXPECT_EQ( s_probe[ H_PORT_ID_OUT_OF_RANGE ], MAXRTOS_ERR_INVALID_ID );
+    SIL_EXPECT_EQ( s_probe[ H_PORT_ID_INVALID ], MAXRTOS_ERR_INVALID_ID );
+    SIL_EXPECT_EQ( s_probe[ H_PORT_ID_IS_AN_ADDRESS ], MAXRTOS_ERR_INVALID_ID );
     SIL_EXPECT_EQ(
-        s_probe[ H_PORT_NOT_A_MEMBER_SEND ], MAXRTOS_ERR_INVALID_ARG );
+        s_probe[ H_PORT_NOT_A_MEMBER_SEND ], MAXRTOS_ERR_INVALID_ID );
+    SIL_EXPECT_EQ(
+        s_probe[ H_PORT_NOT_A_MEMBER_RECEIVE ], MAXRTOS_ERR_INVALID_ID );
     SIL_EXPECT_EQ( s_probe[ H_COUNT_NOT_A_MEMBER ], 0U );
+    SIL_EXPECT_EQ(
+        s_probe[ H_RECEIVE_ON_SEND_ONLY_PORT ], MAXRTOS_ERR_INVALID_ID );
     SIL_EXPECT_EQ(
         s_probe[ H_SIZE_WRAPS_ADDRESS_SPACE ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_SIZE_ZERO ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ( s_probe[ H_PORT_UNMAPPED ], MAXRTOS_ERR_INVALID_ARG );
-    SIL_EXPECT_EQ(
-        s_probe[ H_MESSAGE_IN_PORT_MEMORY_OF_NON_MEMBER ],
-        MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_probe[ H_LEGITIMATE_SEND ], MAXRTOS_OK );
+    SIL_EXPECT_EQ( s_probe[ H_LEGITIMATE_SEND_ON_QD ], MAXRTOS_OK );
+    SIL_EXPECT_EQ(
+        s_probe[ H_SEND_ON_RECEIVE_ONLY_PORT ], MAXRTOS_ERR_INVALID_ID );
 
     /* Nothing was read or written through a hostile pointer... */
     SIL_EXPECT_EQ( *guard, canary_before );
     SIL_EXPECT_EQ( *victim, canary_before );
 
     /* ...the good messages are the only ones queued, and nothing faulted. */
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QA ), 2U );
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QC ), 0U );
+    SIL_EXPECT_EQ( kernel_count( QA ), 2U );
+    SIL_EXPECT_EQ( kernel_count( QD ), 1U );
+    SIL_EXPECT_EQ(
+        maxrtos_kernel_queue_port_count(
+            QC, sil_system()->process_id[ 1 ][ 0 ] ),
+        0U );
     SIL_EXPECT( !sim_halted() );
 
     for( i = 0U; i < 8U; i++ )
@@ -571,7 +641,7 @@ static void test_wrong_message_size_is_rejected( void )
     SIL_EXPECT_EQ( s_size_status[ 0 ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_size_status[ 1 ], MAXRTOS_ERR_INVALID_ARG );
     SIL_EXPECT_EQ( s_size_status[ 2 ], MAXRTOS_OK );
-    SIL_EXPECT_EQ( maxrtos_kernel_queue_port_count( QA ), 1U );
+    SIL_EXPECT_EQ( kernel_count( QA ), 1U );
     sim_shutdown();
 }
 

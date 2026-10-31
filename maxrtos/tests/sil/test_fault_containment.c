@@ -444,7 +444,7 @@ static void waiter_for_faulty_sender( void * arg )
 
     ( void ) arg;
     s_wait_status = maxrtos_queue_port_receive(
-        sil_system()->port[ 0 ], &value, sizeof( value ), 40U );
+        sil_system()->port_id[ 0 ], &value, sizeof( value ), 40U );
     s_wait_done = 1U;
 
     for( ;; )
@@ -476,7 +476,8 @@ static void test_waiting_peer_is_released_when_its_sender_faults( void )
     spec.port_count = 1U;
     spec.port[ 0 ].message_size = 4U;
     spec.port[ 0 ].capacity = 4U;
-    spec.port[ 0 ].member_mask = 0x3U;
+    spec.port[ 0 ].sender_mask = 0x3U;
+    spec.port[ 0 ].receiver_mask = 0x3U;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 200U ) );

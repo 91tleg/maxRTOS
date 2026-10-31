@@ -153,12 +153,12 @@ void SysTick_Handler( void )
 }
 
 /* The QEMU tests start from zeroed RAM. A reset on the board keeps SRAM, so
- * the results the previous test left in the port would still be there. The
- * port memory is not part of .bss, so clear the result words by hand. */
+ * the results the previous test left would still be there. The result block
+ * is not part of .bss, so clear the result words by hand. */
 static void clear_results( void )
 {
     volatile uint32_t * word = EMU_RES;
-    size_t const words = ( PORT_SIZE_results - 1024U ) / sizeof( uint32_t );
+    size_t const words = EMU_RESULTS_SIZE / sizeof( uint32_t );
     size_t i;
 
     for( i = 0U; i < words; i++ )

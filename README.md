@@ -15,7 +15,10 @@ C and a linker script at build time.
   and optional `period` / `time_capacity` (deadline supervision).
 - **Privilege:** a partition attribute. Application partitions run
   unprivileged; system partitions run privileged.
-- **IPC:** queuing ports with blocking send/receive and timeouts.
+- **IPC:** queuing ports with blocking send/receive and timeouts, and sampling
+  ports that hold the latest message. A port is named by an ID and held by the
+  kernel, in memory no partition can map; the module lists which partitions may
+  send (write) on it and which may receive (read).
 - **Health monitor:** per-partition recovery policy per fault class
   (restart process, halt partition, ignore), including deadline misses.
   When the kernel cannot continue (a fault it cannot attribute to a process,
@@ -86,5 +89,14 @@ openocd -f interface/stlink.cfg -f target/stm32h7x.cfg \
 
 ## Performance
 
-Yield to a partition peer takes 764 cycles on average (1.6 µs) at 480 MHz, -O2, caches on.
+Yield to a partition peer takes 348 cycles on average (0.73 µs), 552 at worst
+(1.15 µs), at 480 MHz, -O2, caches on. The benchmark runs with every partition
+privileged, so a switch into an unprivileged partition, which also changes
+`CONTROL.nPRIV`, is not included.
 Full tables, including 64 MHz and caches off: [RESULTS.md](maxrtos/tests/hil/bench/RESULTS.md).
+
+SysTick and PendSV run at the lowest exception priority, so any interrupt
+handler of higher priority delays a partition switch by at least its own
+run time. The slot boundaries are exact in the tick count; the instant the
+next partition starts running is not. Budget the longest interrupt handler
+you add, plus the switch itself, as jitter at every slot boundary.

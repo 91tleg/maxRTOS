@@ -6,8 +6,8 @@
  * ARMv7-M MPU. Configuration and validation are provided by mpu.c.
  *
  * The partition region is reused for the currently scheduled
- * partition. Lower regions are reserved for system mappings and
- * remaining regions are statically assigned to communication ports.
+ * partition. Lower regions are reserved for system mappings; no other
+ * region is used.
  *
  * MPU configuration is updated by PendSV before restoring the
  * incoming process context.
@@ -29,8 +29,7 @@
  *     MPU configuration. Must not be NULL and shall remain valid for
  *     the lifetime of the MPU configuration.
  */
-void maxrtos_arch_mpu_set_config(
-    maxrtos_mpu_config_t const * config );
+void maxrtos_arch_mpu_set_config( maxrtos_mpu_config_t const * config );
 
 /**
  * @brief Initialize the Cortex-M7 MPU.
@@ -59,8 +58,7 @@ void maxrtos_arch_mpu_init( bool privileged_default_map );
 /**
  * @brief Configure the MPU for the incoming process.
  *
- * Configures the reusable partition region and updates static port
- * region access for the process.
+ * Configures the reusable partition region for the process's partition.
  *
  * @param[in] next_pcb
  *     Process control block about to become current. If NULL, no
@@ -123,15 +121,5 @@ bool maxrtos_arch_mpu_partition_owns_range(
     maxrtos_partition_id_t partition_id,
     uint32_t address,
     uint32_t size );
-
-/**
- * @brief Check that address is the base of a static port region that the
- *        partition is a member of.
- *
- * Used to validate port objects passed to kernel IPC services.
- */
-bool maxrtos_arch_mpu_is_port_member(
-    maxrtos_partition_id_t partition_id,
-    uint32_t address );
 
 #endif /* MAXRTOS_ARCH_CORTEX_M7_MPU_HW_H */

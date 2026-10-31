@@ -20,6 +20,7 @@
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/sampling_port.h"
 
 #include "sim_target.h"
 
@@ -28,12 +29,13 @@
 #define SIL_MAX_PORTS                   ( 4U )
 
 /* Virtual memory map (same addresses as the Nucleo-H753ZI demo). */
-#define SIL_DTCM_BASE    ( 0x20000000UL )
-#define SIL_DTCM_SIZE    ( 0x00020000UL )
-#define SIL_SRAM_BASE    ( 0x24000000UL )
-#define SIL_SRAM_SIZE    ( 0x00100000UL )
-#define SIL_KERNEL_GUARD ( SIL_DTCM_BASE + 0x100UL ) /* a word of kernel data  \
-                                                      */
+#define SIL_DTCM_BASE ( 0x20000000UL )
+#define SIL_DTCM_SIZE ( 0x00020000UL )
+#define SIL_SRAM_BASE ( 0x24000000UL )
+#define SIL_SRAM_SIZE ( 0x00100000UL )
+#define SIL_KERNEL_GUARD                                                       \
+    ( SIL_DTCM_BASE + 0x100UL ) /* a word of kernel data                       \
+                                 */
 
 #define SIL_STACK_BYTES ( 32U * 1024U )
 
@@ -66,8 +68,16 @@ typedef struct
 {
     uint32_t message_size;
     uint32_t capacity;
-    uint32_t member_mask; /* bit n set: partition n is a member */
+    uint32_t sender_mask;   /* bit n set: partition n may send */
+    uint32_t receiver_mask; /* bit n set: partition n may receive */
 } sil_port_spec_t;
+
+typedef struct
+{
+    uint32_t message_size;
+    uint32_t writer_mask; /* bit n set: partition n may write */
+    uint32_t reader_mask; /* bit n set: partition n may read */
+} sil_sampling_spec_t;
 
 typedef struct
 {
@@ -79,6 +89,9 @@ typedef struct
 
     sil_port_spec_t port[ SIL_MAX_PORTS ];
     uint32_t port_count;
+
+    sil_sampling_spec_t sampling[ SIL_MAX_PORTS ];
+    uint32_t sampling_count;
 } sil_system_spec_t;
 
 typedef struct
@@ -94,8 +107,9 @@ typedef struct
     maxrtos_process_id_t process_id[ SIL_MAX_PARTITIONS ]
                                    [ SIL_MAX_PROCESSES_PER_PARTITION ];
 
-    uint32_t port_address[ SIL_MAX_PORTS ];
-    maxrtos_queue_port_t * port[ SIL_MAX_PORTS ];
+    /* Ports are named by ID; the kernel holds them. */
+    maxrtos_queue_port_id_t port_id[ SIL_MAX_PORTS ];
+    maxrtos_sampling_port_id_t sampling_id[ SIL_MAX_PORTS ];
 } sil_system_t;
 
 /** Fill a spec with the default health-monitor policy for every partition. */

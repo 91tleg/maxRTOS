@@ -21,6 +21,7 @@
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/sampling_port.h"
 #include "maxrtos/kernel/semaphore.h"
 #include "maxrtos/kernel/buffer.h"
 
@@ -49,7 +50,6 @@ static maxrtos_partition_table_t s_partition_table;
 static maxrtos_frame_schedule_t s_frame_schedule;
 static maxrtos_mpu_config_t s_mpu_config;
 static maxrtos_health_monitor_t s_health_monitor;
-static bool s_ipc_ports_initialized = false;
 
 void maxrtos_config_init( void )
 {
@@ -57,6 +57,8 @@ void maxrtos_config_init( void )
     maxrtos_mutex_pool_init();
     maxrtos_semaphore_pool_init();
     maxrtos_buffer_pool_init();
+    maxrtos_queue_port_pool_init();
+    maxrtos_sampling_port_pool_init();
     MAXRTOS_CONFIG_CHECK( maxrtos_partition_table_init( &s_partition_table ) );
     maxrtos_arch_set_partition_table( &s_partition_table );
 

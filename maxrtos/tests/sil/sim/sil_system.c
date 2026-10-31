@@ -15,7 +15,10 @@
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/timing.h"
 
-#define PORT_BYTES ( 2048U )
+#define PORT_STORAGE_BYTES ( 1024U )
+
+static uint8_t s_port_storage[ SIL_MAX_PORTS ][ PORT_STORAGE_BYTES ];
+static uint8_t s_sampling_storage[ SIL_MAX_PORTS ][ PORT_STORAGE_BYTES ];
 
 static sil_system_t s_system;
 
@@ -188,28 +191,37 @@ void sil_build( sil_system_spec_t const * spec )
         MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE,
         false );
 
-    /* IPC ports, after the domains, each aligned to its own size. */
+    /* IPC ports: kernel objects, created by ID as the generated
+     * configuration does. Their storage is kernel memory, not simulated
+     * memory, so no partition can map it. */
+    maxrtos_queue_port_pool_init();
+
     for( i = 0U; i < spec->port_count; i++ )
     {
-        uint32_t mask = spec->port[ i ].member_mask;
-
-        sram_cursor =
-            ( sram_cursor + PORT_BYTES - 1U ) / PORT_BYTES * PORT_BYTES;
-        sys->port_address[ i ] = SIL_SRAM_BASE + sram_cursor;
-        sys->port[ i ] =
-            ( maxrtos_queue_port_t * ) ( void * ) ( sram + sram_cursor );
-        sram_cursor += PORT_BYTES;
-
-        SIL_REQUIRE( sizeof( maxrtos_queue_port_t ) <= PORT_BYTES );
         SIL_REQUIRE_EQ(
-            maxrtos_mpu_add_port_region(
-                &sys->mpu, sys->port_address[ i ], PORT_BYTES, mask ),
-            MAXRTOS_OK );
-        SIL_REQUIRE_EQ(
-            maxrtos_queue_port_init(
-                sys->port[ i ],
+            maxrtos_queue_port_create(
+                s_port_storage[ i ],
+                sizeof( s_port_storage[ i ] ),
                 spec->port[ i ].message_size,
-                spec->port[ i ].capacity ),
+                spec->port[ i ].capacity,
+                spec->port[ i ].sender_mask,
+                spec->port[ i ].receiver_mask,
+                &sys->port_id[ i ] ),
+            MAXRTOS_OK );
+    }
+
+    maxrtos_sampling_port_pool_init();
+
+    for( i = 0U; i < spec->sampling_count; i++ )
+    {
+        SIL_REQUIRE_EQ(
+            maxrtos_sampling_port_create(
+                s_sampling_storage[ i ],
+                sizeof( s_sampling_storage[ i ] ),
+                spec->sampling[ i ].message_size,
+                spec->sampling[ i ].writer_mask,
+                spec->sampling[ i ].reader_mask,
+                &sys->sampling_id[ i ] ),
             MAXRTOS_OK );
     }
 

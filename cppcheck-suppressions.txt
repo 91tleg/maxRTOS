@@ -27,4 +27,5 @@ misra-c2012-17.3:maxrtos/arch/cortex_m7/*
 # through them (out_message, status). They cannot be const.
 constParameterPointer:maxrtos/arch/cortex_m7/src/buffer.c
 constParameterPointer:maxrtos/arch/cortex_m7/src/queue_port.c
+constParameterPointer:maxrtos/arch/cortex_m7/src/sampling_port.c
 constParameterPointer:maxrtos/arch/cortex_m7/src/semaphore.c

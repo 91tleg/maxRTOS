@@ -31,14 +31,14 @@ verdict is reported with the program counter and the last fault the core took.
 | Test | What it checks |
 |---|---|
 | `timebase` | The core counts exactly `reload + 1` cycles per tick, and the tick count follows the host's wall clock (the runner compares them), which shows the core clock is the 64 MHz the harness assumes |
-| `mpu_regs` | The 16 MPU regions read back from the hardware match the configuration for the running partition: the region count, the size encoding, how base and region number read back, partition domain and port membership switching, and that unused regions are off |
-| `mpu_isolation` | Every kind of forbidden access (other partition read/write, flash, kernel memory, a peripheral, executing data, a port the partition is not a member of) raises a MemManage fault with exactly the right `CFSR` bits and fault address, never reaches HardFault, leaves the victim memory unchanged, restarts only the offender, and leaves the rest running |
+| `mpu_regs` | The 16 MPU regions read back from the hardware match the configuration for the running partition: the region count, the size encoding, how base and region number read back, the partition domain switching, and that unused regions are off, including every one a port could once have used |
+| `mpu_isolation` | Every kind of forbidden access (other partition read/write, flash, kernel memory, a peripheral, executing data) raises a MemManage fault with exactly the right `CFSR` bits and fault address, never reaches HardFault, leaves the victim memory unchanged, restarts only the offender, and leaves the rest running |
 | `fault_status` | Undefined instruction, divide by zero, unaligned `LDRD`, branch to ARM state and a real bus error leave the `CFSR`/`BFAR` values the ARMv7-M manual lists, are classified, and are recovered by the health monitor |
 | `context_integrity` | r1-r12 hold their values across preemption by the real exception entry/return and the MPU switch, for processes that are cut by the tick and for ones that also yield |
 
 **The QEMU tests, unchanged, on the chip**
 
-`yield`, `queue_port_ipc`, `hm_restart_process`, `hm_halt_partition`,
+`yield`, `queue_port_ipc`, `sampling_port`, `hm_restart_process`, `hm_halt_partition`,
 `deadline_supervision`, `partition_privilege`, `hardfault_escalation`, `mutex`,
 `mutex_release_on_restart`, `semaphore` and `timed_wait` are built from `../qemu/test_*.c`
 and run against the same checks. Their module configurations are the QEMU ones

@@ -9,8 +9,11 @@
  * QEMU process exit status is the test result and no debugger is needed.
  *
  * Processes are unprivileged and can only write their own partition's
- * memory and their ports, so they record results in the "results" port
- * memory (EMU_RES), which the privileged poll function can read.
+ * memory, so they record results in a block of RAM (EMU_RES) that the test
+ * module maps read-write for every partition with a background MPU region
+ * (number 5 in module*.json, over EMU_RESULTS_BASE). The privileged poll
+ * function reads it. It is test scaffolding: a real module has no such
+ * region, and IPC ports are never memory a partition can reach.
  */
 
 #ifndef MAXRTOS_EMU_HARNESS_H
@@ -30,9 +33,15 @@
 /* Give up (fail) if the test has not finished after this many ticks. */
 #define EMU_TICK_LIMIT ( 1000UL )
 
-/* Result slots, in the results port memory past the queue header. */
-#define EMU_RES                                                                \
-    ( ( volatile uint32_t * ) ( ( uint8_t * ) maxrtos_port_results + 1024U ) )
+/* The result block: 2 KiB at EMU_RESULTS_BASE, matching the module's MPU
+ * region. The HIL build moves it to the board's SRAM. */
+#ifndef EMU_RESULTS_BASE
+#define EMU_RESULTS_BASE ( 0x200C0000UL )
+#endif
+#define EMU_RESULTS_SIZE ( 2048U )
+
+/* Result slots. */
+#define EMU_RES ( ( volatile uint32_t * ) EMU_RESULTS_BASE )
 
 /* A word of kernel (DTCM) memory that unprivileged code may not write. It is
  * a variable of its own, so no live kernel object shares it. */
