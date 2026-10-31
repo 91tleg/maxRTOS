@@ -13,7 +13,7 @@
     },
     "sram": {
       "origin": "0x20080000",
-      "size": "512K"
+      "size": "256K"
     }
   },
   "stack_region": "sram",
@@ -98,38 +98,37 @@
         "size": "512K",
         "access": "priv_read_write",
         "executable": false
+      },
+      {
+        "number": 5,
+        "base": "0x200C0000",
+        "size": "2K",
+        "access": "read_write",
+        "executable": false
       }
     ]
   },
   "ports": [
     {
       "name": "qa",
-      "size": "1024B",
       "message_size": "4B",
       "capacity": 4,
-      "region": "sram",
-      "members": [
+      "senders": [
+        "control"
+      ],
+      "receivers": [
         "control"
       ]
     },
     {
       "name": "qb",
-      "size": "1024B",
       "message_size": "4B",
       "capacity": 4,
-      "region": "sram",
-      "members": [
+      "senders": [
         "control",
         "application"
-      ]
-    },
-    {
-      "name": "results",
-      "size": "2048B",
-      "message_size": "4B",
-      "capacity": 4,
-      "region": "sram",
-      "members": [
+      ],
+      "receivers": [
         "control",
         "application"
       ]

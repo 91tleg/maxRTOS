@@ -10,7 +10,8 @@ semihosting, so the QEMU exit status is the result and no debugger is needed.
 | Test | What it checks |
 |---|---|
 | `emu_yield` | `maxrtos_yield()` alternates between the two processes of a partition and never starves either |
-| `emu_queue_port_ipc` | blocking receive (same and other partition), timed receive expiry, blocked sender admitted in FIFO order, hostile pointers rejected |
+| `emu_queue_port_ipc` | blocking receive (same and other partition), timed receive expiry, blocked sender admitted in FIFO order, hostile pointers, unknown IDs and the wrong partition or direction rejected |
+| `emu_sampling_port` | a read before the first write, a write in one partition seen whole by a reader in another, a read that leaves the message, a write that replaces it, hostile pointers, unknown IDs and the wrong partition or direction rejected |
 | `emu_hm_restart_process` | a memory fault restarts only the faulting process; everything else keeps running |
 | `emu_timed_wait` | `maxrtos_timed_wait()` returns after its delay and not before (a short delay that ends inside the partition's slot, and a long one that spans frames), the partition's other process keeps running meanwhile, a delay of 0 returns and gives way to its equal-priority peers, an infinite delay is rejected, and `maxrtos_get_time()` never goes back |
 | `emu_fatal_hook` | A fault that cannot be attributed to a process (a `BKPT` with no debugger) ends in the application's own `maxrtos_arch_fatal()`, which replaces the kernel's weak halt |
@@ -35,7 +36,9 @@ Add `test_<name>.c` implementing `emu_test_setup()` (create processes) and
 `emu_test_poll()` (judge; called every tick from the privileged SysTick
 handler), then register it with `add_emu_test()` in `CMakeLists.txt`.
 Unprivileged processes cannot write kernel memory, so they record results in
-`EMU_RES`, the memory of the `results` port, which the poll function reads.
+`EMU_RES`, a 2 KiB block that the test modules map read-write for every
+partition (MPU region 5 in `module*.json`) and the poll function reads. It is
+test scaffolding; IPC ports are never memory a partition can reach.
 The RTOS configuration is generated from `module.json` by `maxrtos_codegen`
 at build time, so these tests also exercise the generator.
 

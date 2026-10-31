@@ -107,6 +107,7 @@ endfunction()
 
 add_emu_test(yield              test_yield.c              module.json)
 add_emu_test(queue_port_ipc     test_queue_port_ipc.c     module.json)
+add_emu_test(sampling_port      test_sampling_port.c      module.json)
 add_emu_test(hm_restart_process test_hm_restart_process.c module.json)
 add_emu_test(hm_halt_partition  test_hm_halt_partition.c  module_halt.json)
 add_emu_test(deadline_supervision test_deadline_supervision.c module.json)

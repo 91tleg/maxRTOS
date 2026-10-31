@@ -26,7 +26,7 @@ enum
     C_BUSY
 };
 
-#define QA ( ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_qa )
+#define QA ( PORT_ID_qa )
 
 #define MIN_RECEIVED ( 20U )
 #define MIN_WAKES    ( 5U )

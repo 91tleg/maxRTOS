@@ -126,6 +126,14 @@ maxrtos_status_t sim_queue_receive_raw(
     uint32_t size,
     uint32_t timeout );
 uint32_t sim_queue_count_raw( uint32_t port );
+maxrtos_status_t sim_sampling_write_raw(
+    uint32_t port,
+    uint32_t message,
+    uint32_t size );
+maxrtos_status_t sim_sampling_read_raw(
+    uint32_t port,
+    uint32_t buffer,
+    uint32_t size );
 
 /* --- Environment control and observation ---------------------------------- */
 

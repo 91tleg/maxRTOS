@@ -23,7 +23,7 @@
 #include "maxrtos/timing.h"
 #include "maxrtos/yield.h"
 
-#define QA ( sil_system()->port[ 0 ] ) /* member: partition 0 */
+#define QA ( sil_system()->port_id[ 0 ] ) /* partition 0 sends and receives */
 
 #define TRACE_LENGTH ( 600U )
 
@@ -82,7 +82,8 @@ static void build(
         spec.port_count = 1U;
         spec.port[ 0 ].message_size = 4U;
         spec.port[ 0 ].capacity = 4U;
-        spec.port[ 0 ].member_mask = 0x1U;
+        spec.port[ 0 ].sender_mask = 0x1U;
+        spec.port[ 0 ].receiver_mask = 0x1U;
     }
 
     sil_build( &spec );

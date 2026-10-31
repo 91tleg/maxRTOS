@@ -357,10 +357,7 @@ static void queue_tx( void * arg )
         }
 
         ( void ) maxrtos_queue_port_send(
-            ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_bench_q,
-            &message,
-            sizeof( message ),
-            0U );
+            PORT_ID_bench_q, &message, sizeof( message ), 0U );
         message++;
 
         maxrtos_yield();
@@ -380,7 +377,7 @@ static void queue_rx( void * arg )
         observe_tick( 1U );
 
         if( maxrtos_queue_port_receive(
-                ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_bench_q,
+                PORT_ID_bench_q,
                 &message,
                 sizeof( message ),
                 MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )

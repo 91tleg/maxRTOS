@@ -109,7 +109,9 @@ function(add_hil_test name)
     )
 
     target_compile_options(${target} PRIVATE -Wall -Wextra -g)
-    target_compile_definitions(${target} PRIVATE ${ARG_DEFINES})
+    target_compile_definitions(${target} PRIVATE
+        EMU_RESULTS_BASE=0x24040000UL
+        ${ARG_DEFINES})
 
     target_link_options(${target} PRIVATE
         -T${gen}/link.ld
@@ -147,6 +149,7 @@ add_hil_test(context_integrity
 # The QEMU tests, unchanged, on the real chip.
 add_hil_test(yield              SOURCE ${QEMU_TESTS}/test_yield.c)
 add_hil_test(queue_port_ipc     SOURCE ${QEMU_TESTS}/test_queue_port_ipc.c)
+add_hil_test(sampling_port      SOURCE ${QEMU_TESTS}/test_sampling_port.c)
 add_hil_test(hm_restart_process SOURCE ${QEMU_TESTS}/test_hm_restart_process.c)
 add_hil_test(hm_halt_partition  SOURCE ${QEMU_TESTS}/test_hm_halt_partition.c
     CONFIG ${QEMU_TESTS}/module_halt.json)

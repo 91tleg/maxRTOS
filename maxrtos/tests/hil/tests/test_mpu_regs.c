@@ -11,8 +11,9 @@
  * Every tick, before the context switch it requested has run, the poll
  * function reads all 16 regions and compares them with what the running
  * partition should have: the background regions of retarget_module.py, the
- * partition domain in region 8, and the port regions (enabled only for member
- * partitions) from region 9 on.
+ * partition domain in region 8, and nothing from region 9 on. IPC ports are
+ * kernel memory and have no region, so those must stay off whichever
+ * partition runs.
  */
 
 #include "hil.h"
@@ -58,25 +59,11 @@ static background_t const k_background[] = {
     { 1U, HIL_AHB4_BASE, HIL_AHB4_SIZE, AP_PRIV_RW, false },
     { 2U, HIL_DTCM_BASE, HIL_DTCM_SIZE, AP_PRIV_RW, false },
     { 3U, HIL_SRAM_BASE, HIL_SRAM_SIZE, AP_PRIV_RW, false },
-};
-
-typedef struct
-{
-    uint8_t const * base;
-    uint32_t size;
-    uint32_t members; /* bit n set: partition n is a member */
-} port_t;
-
-/* In the order of "ports" in the QEMU module.json. */
-static port_t const k_ports[] = {
-    { maxrtos_port_qa, PORT_SIZE_qa, 0x1U },
-    { maxrtos_port_qb, PORT_SIZE_qb, 0x3U },
-    { maxrtos_port_results, PORT_SIZE_results, 0x3U },
+    { 5U, EMU_RESULTS_BASE, EMU_RESULTS_SIZE, AP_RW, false },
 };
 
 #define BACKGROUND_COUNT                                                       \
     ( sizeof( k_background ) / sizeof( k_background[ 0 ] ) )
-#define PORT_COUNT ( sizeof( k_ports ) / sizeof( k_ports[ 0 ] ) )
 
 static uint32_t s_samples[ 2 ];
 
@@ -226,27 +213,13 @@ static int check_partition( uint32_t partition )
             rasr_for( domain_size, AP_RW, false ) );
     }
 
-    /* Port regions: on for member partitions, off for the rest, and the
-     * slots past the last port stay off. */
+    /* Nothing above the partition region: a port is not memory a partition
+     * can map, so these stay off whichever partition runs. */
     for( number = MAXRTOS_MPU_PARTITION_REGION + 1U;
          ( number < MAXRTOS_MPU_HW_REGION_COUNT ) && ( result == EMU_RUNNING );
          number++ )
     {
-        uint32_t const index = number - ( MAXRTOS_MPU_PARTITION_REGION + 1U );
-
-        if( ( index < PORT_COUNT ) &&
-            ( ( k_ports[ index ].members & ( 1UL << partition ) ) != 0U ) )
-        {
-            result = check_region(
-                number,
-                true,
-                ( uint32_t ) k_ports[ index ].base,
-                rasr_for( k_ports[ index ].size, AP_RW, false ) );
-        }
-        else
-        {
-            result = check_region( number, false, 0U, 0U );
-        }
+        result = check_region( number, false, 0U, 0U );
     }
 
     return result;

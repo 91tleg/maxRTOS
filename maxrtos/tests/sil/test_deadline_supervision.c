@@ -273,7 +273,7 @@ static void blocked_receiver( void * arg )
 
     /* Waits for a message that never comes. */
     if( maxrtos_queue_port_receive(
-            sil_system()->port[ 0 ],
+            sil_system()->port_id[ 0 ],
             &value,
             sizeof( value ),
             MAXRTOS_TIMEOUT_INFINITE ) == MAXRTOS_OK )
@@ -314,7 +314,8 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list(
     spec.port_count = 1U;
     spec.port[ 0 ].message_size = 4U;
     spec.port[ 0 ].capacity = 4U;
-    spec.port[ 0 ].member_mask = 0x3U;
+    spec.port[ 0 ].sender_mask = 0x3U;
+    spec.port[ 0 ].receiver_mask = 0x3U;
     sil_build( &spec );
 
     SIL_REQUIRE( sim_start( 10U * FRAME ) );
@@ -327,7 +328,17 @@ static void test_a_blocked_process_that_misses_is_restarted_off_the_wait_list(
     SIL_EXPECT_EQ( s_wait_returned, 0U );
 
     /* Never on the wait list twice: at most the one current wait. */
-    SIL_EXPECT( sil_system()->port[ 0 ]->waiting_receivers.count <= 1U );
+    {
+        maxrtos_queue_port_status_t port_status;
+
+        SIL_REQUIRE_EQ(
+            maxrtos_kernel_queue_port_get_status(
+                sil_system()->port_id[ 0 ],
+                sil_system()->process_id[ 0 ][ 0 ],
+                &port_status ),
+            MAXRTOS_OK );
+        SIL_EXPECT( port_status.waiting_receivers <= 1U );
+    }
     SIL_EXPECT( s_peer_progress > 50U );
     sim_shutdown();
 }

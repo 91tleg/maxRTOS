@@ -21,7 +21,7 @@ import sys
 MEMORY = {
     "flash": {"origin": "0x08000000", "size": "2M"},
     "dtcm": {"origin": "0x20000000", "size": "128K"},
-    "sram": {"origin": "0x24000000", "size": "512K"},
+    "sram": {"origin": "0x24000000", "size": "256K"},
 }
 
 REGIONS = [
@@ -33,6 +33,10 @@ REGIONS = [
      "access": "priv_read_write", "executable": False},
     {"number": 3, "base": "0x24000000", "size": "512K",
      "access": "priv_read_write", "executable": False},
+    # The tests' result block, in the half of the SRAM that "sram" above leaves
+    # free (see EMU_RESULTS_BASE in the HIL CMakeLists.txt).
+    {"number": 5, "base": "0x24040000", "size": "2K",
+     "access": "read_write", "executable": False},
 ]
 
 

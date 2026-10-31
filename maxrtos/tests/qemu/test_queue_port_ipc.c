@@ -5,14 +5,16 @@
  * Covers: blocking receive woken by a sender in the same partition and in
  * another partition; timed receive expiry; blocked sender admitted when a
  * receiver frees a slot, with FIFO order preserved; and rejection of
- * hostile pointers (kernel memory as message/buffer, a non-port as port).
+ * hostile pointers (kernel memory as message/buffer), and refusal of IDs
+ * that name no port and of partitions and directions the port does not
+ * allow.
  */
 
 #include "harness.h"
-#include "maxrtos/kernel/queue_port.h" /* sizeof only: the ports are opaque to applications */
 
-#define QA ( ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_qa )
-#define QB ( ( maxrtos_queue_port_t * ) ( void * ) maxrtos_port_qb )
+#define QA ( PORT_ID_qa ) /* control sends and receives */
+#define QB ( PORT_ID_qb ) /* control and application send and receive */
+#define QC ( PORT_ID_qc ) /* control sends, application receives */
 
 enum
 {
@@ -28,13 +30,18 @@ enum
     R_S4_RECEIVE_BAD_BUFFER,
     R_S4_SEND_BAD_PORT,
     R_S4_COUNT_BAD_PORT,
+    R_S4_RECEIVE_ON_SEND_ONLY,
     R_S4_DONE,
     R_S5_SEND_STATUS,
     R_S5_FIRST,
     R_S5_DONE,
     R_S6_COUNT,
     R_S6_ORDER,
-    R_S6_DONE
+    R_S6_DONE,
+    R_S7_SEND_NOT_A_MEMBER,
+    R_S7_COUNT_NOT_A_MEMBER,
+    R_S7_SEND_ON_RECEIVE_ONLY,
+    R_S7_DONE
 };
 
 static void yield_times( uint32_t n )
@@ -129,13 +136,18 @@ static void control_aux( void * arg )
         ( uint32_t ) maxrtos_queue_port_receive(
             QA, ( void * ) EMU_KERNEL_ADDRESS, sizeof( m ), 0U );
 
+    /* An address is not a port: the ID must name one of the module's ports. */
     EMU_RES[ R_S4_SEND_BAD_PORT ] = ( uint32_t ) maxrtos_queue_port_send(
-        ( maxrtos_queue_port_t * ) ( void * ) EMU_KERNEL_ADDRESS,
+        ( maxrtos_queue_port_id_t ) ( uint32_t ) EMU_KERNEL_ADDRESS,
         &m,
         sizeof( m ),
         0U );
     EMU_RES[ R_S4_COUNT_BAD_PORT ] = ( uint32_t ) maxrtos_queue_port_count(
-        ( maxrtos_queue_port_t * ) ( void * ) EMU_KERNEL_ADDRESS );
+        ( maxrtos_queue_port_id_t ) ( uint32_t ) EMU_KERNEL_ADDRESS );
+
+    /* The control partition only sends on QC: it may not receive from it. */
+    EMU_RES[ R_S4_RECEIVE_ON_SEND_ONLY ] =
+        ( uint32_t ) maxrtos_queue_port_receive( QC, &m, sizeof( m ), 0U );
     EMU_RES[ R_S4_DONE ] = 1U;
 
     while( maxrtos_queue_port_receive( QA, &drained, sizeof( drained ), 0U ) ==
@@ -179,10 +191,23 @@ static void application_main( void * arg )
     }
 }
 
-/* Gives application_main a peer to run while it is blocked. */
+/* Gives application_main a peer to run while it is blocked, and checks what
+ * the application partition may not do: it is not on QA, and it only
+ * receives on QC. */
 static void application_aux( void * arg )
 {
+    uint32_t m;
+
     ( void ) arg;
+
+    m = 7U;
+    EMU_RES[ R_S7_SEND_NOT_A_MEMBER ] =
+        ( uint32_t ) maxrtos_queue_port_send( QA, &m, sizeof( m ), 0U );
+    EMU_RES[ R_S7_COUNT_NOT_A_MEMBER ] =
+        ( uint32_t ) maxrtos_queue_port_count( QA );
+    EMU_RES[ R_S7_SEND_ON_RECEIVE_ONLY ] =
+        ( uint32_t ) maxrtos_queue_port_send( QC, &m, sizeof( m ), 0U );
+    EMU_RES[ R_S7_DONE ] = 1U;
 
     for( ;; )
     {
@@ -192,10 +217,6 @@ static void application_aux( void * arg )
 
 void emu_test_setup( void )
 {
-    _Static_assert(
-        sizeof( maxrtos_queue_port_t ) <= 1024U,
-        "results are stored past the queue header" );
-
     EMU_CREATE( control_main, PARTITION_ID_control, control_main );
     EMU_CREATE( control_aux, PARTITION_ID_control, control_aux );
     EMU_CREATE( application_main, PARTITION_ID_application, application_main );
@@ -215,7 +236,8 @@ int emu_test_poll( uint32_t tick )
 {
     ( void ) tick;
 
-    if( ( EMU_RES[ R_S6_DONE ] == 0U ) || ( EMU_RES[ R_S2_DONE ] == 0U ) )
+    if( ( EMU_RES[ R_S6_DONE ] == 0U ) || ( EMU_RES[ R_S2_DONE ] == 0U ) ||
+        ( EMU_RES[ R_S7_DONE ] == 0U ) )
     {
         return EMU_RUNNING;
     }
@@ -247,11 +269,27 @@ int emu_test_poll( uint32_t tick )
             ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
         "S4: kernel memory accepted as a receive buffer" );
     CHECK(
-        EMU_RES[ R_S4_SEND_BAD_PORT ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ARG,
+        EMU_RES[ R_S4_SEND_BAD_PORT ] == ( uint32_t ) MAXRTOS_ERR_INVALID_ID,
         "S4: a non-port accepted as a port" );
     CHECK(
         EMU_RES[ R_S4_COUNT_BAD_PORT ] == 0U,
         "S4: count on a non-port did not report 0" );
+    CHECK(
+        EMU_RES[ R_S4_RECEIVE_ON_SEND_ONLY ] ==
+            ( uint32_t ) MAXRTOS_ERR_INVALID_ID,
+        "S4: a send-only partition received from the port" );
+
+    CHECK(
+        EMU_RES[ R_S7_SEND_NOT_A_MEMBER ] ==
+            ( uint32_t ) MAXRTOS_ERR_INVALID_ID,
+        "S7: a partition not on the port sent to it" );
+    CHECK(
+        EMU_RES[ R_S7_COUNT_NOT_A_MEMBER ] == 0U,
+        "S7: a partition not on the port saw its count" );
+    CHECK(
+        EMU_RES[ R_S7_SEND_ON_RECEIVE_ONLY ] ==
+            ( uint32_t ) MAXRTOS_ERR_INVALID_ID,
+        "S7: a receive-only partition sent on the port" );
 
     CHECK(
         EMU_RES[ R_S5_SEND_STATUS ] == ( uint32_t ) MAXRTOS_OK,
