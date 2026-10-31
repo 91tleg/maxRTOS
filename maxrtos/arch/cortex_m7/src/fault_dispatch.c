@@ -154,21 +154,18 @@ void maxrtos_arch_handle_fault( maxrtos_fault_type_t fault_type )
         maxrtos_arch_get_current_pcb(), fault_type );
 }
 
-/* SCB ICSR: clear a pending PendSV. */
-#define MAXRTOS_SCB_ICSR_REG       ( *( volatile uint32_t * ) 0xE000ED04UL )
-#define MAXRTOS_ICSR_PENDSVCLR_BIT ( UINT32_C( 1 ) << 27U )
-
 void maxrtos_arch_context_invalid( void )
 {
     maxrtos_process_control_block_t * const pcb =
         maxrtos_arch_get_current_pcb();
+    maxrtos_process_control_block_t * const planned =
+        maxrtos_arch_get_next_pcb();
 
     /* The process broke the rules of its own stack: its stack pointer left
      * the stack it was given, or it gave up the FPU state the context holds.
-     * That is its fault, handled like a memory access fault. The recovery
-     * discards the context and names the process that runs next, which is what
-     * the PendSV handler that called us does next, so the switch the recovery
-     * requested is not needed again. */
+     * That is its fault, handled like a memory access fault with the policy
+     * of its partition. The recovery discards the context and names the
+     * process that runs next. */
     if( pcb != NULL )
     {
         maxrtos_arch_handle_process_fault( pcb, MAXRTOS_FAULT_MEMORY_ACCESS );
@@ -181,5 +178,15 @@ void maxrtos_arch_context_invalid( void )
         maxrtos_arch_fatal();
     }
 
-    MAXRTOS_SCB_ICSR_REG = MAXRTOS_ICSR_PENDSVCLR_BIT;
+    /* This PendSV was requested to switch to another partition (the slot
+     * boundary), and the recovery has just named a process of the faulting
+     * partition instead. Let the switch go where it was going: the faulting
+     * partition must not take the next partition's time, nor, by faulting
+     * again, all of it. The recovery has already made the faulting process
+     * ready to start afresh or kept the partition from running. */
+    if( ( pcb != NULL ) && ( planned != NULL ) &&
+        ( planned->partition_id != pcb->partition_id ) )
+    {
+        maxrtos_arch_set_next_pcb( planned );
+    }
 }

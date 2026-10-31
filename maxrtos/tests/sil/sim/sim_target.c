@@ -414,6 +414,11 @@ maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void )
     return g_maxrtos_current_pcb;
 }
 
+maxrtos_process_control_block_t * maxrtos_arch_get_next_pcb( void )
+{
+    return g_maxrtos_next_pcb;
+}
+
 void maxrtos_arch_request_context_switch( void )
 {
     s_pendsv_pending = true;

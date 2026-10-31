@@ -147,7 +147,8 @@ add_hil_test(fault_status
 set_source_files_properties(
     ${QEMU_TESTS}/test_fpu_context.c ${QEMU_TESTS}/test_fpu_more.c
     ${QEMU_TESTS}/test_fpu_startup.c ${QEMU_TESTS}/test_stack_integrity.c
-    ${QEMU_TESTS}/test_stack_halt.c
+    ${QEMU_TESTS}/test_stack_halt.c ${QEMU_TESTS}/test_stack_slot.c
+    ${QEMU_TESTS}/test_stack_lazy.c
     PROPERTIES
     COMPILE_OPTIONS "-mfpu=fpv5-d16;-mfloat-abi=softfp;-fno-lto")
 add_hil_test(fpu_context
@@ -163,6 +164,12 @@ add_hil_test(stack_halt
     CONFIG ${QEMU_TESTS}/module_halt.json)
 add_hil_test(stack_integrity
     SOURCE ${QEMU_TESTS}/test_stack_integrity.c
+    CONFIG ${QEMU_TESTS}/module_fpu.json)
+add_hil_test(stack_slot
+    SOURCE ${QEMU_TESTS}/test_stack_slot.c
+    CONFIG ${QEMU_TESTS}/module_fpu.json)
+add_hil_test(stack_lazy
+    SOURCE ${QEMU_TESTS}/test_stack_lazy.c
     CONFIG ${QEMU_TESTS}/module_fpu.json)
 
 add_hil_test(context_integrity

@@ -124,11 +124,13 @@ add_emu_test(priority            test_priority.c            module_priority.json
 # the target's options, which have no FPU, and cannot assemble these.
 set_source_files_properties(
     test_fpu_context.c test_fpu_more.c test_fpu_startup.c test_stack_integrity.c
-    test_stack_halt.c PROPERTIES
+    test_stack_halt.c test_stack_slot.c test_stack_lazy.c PROPERTIES
     COMPILE_OPTIONS "-mfpu=fpv5-d16;-mfloat-abi=softfp;-fno-lto")
 add_emu_test(fpu_context         test_fpu_context.c         module_fpu.json)
 add_emu_test(fpu_more            test_fpu_more.c            module_fpu_system.json)
 add_emu_test(fpu_startup         test_fpu_startup.c         module.json)
 add_emu_test(stack_integrity     test_stack_integrity.c     module_fpu.json)
 add_emu_test(stack_halt          test_stack_halt.c          module_halt.json)
+add_emu_test(stack_slot          test_stack_slot.c          module_fpu.json)
+add_emu_test(stack_lazy          test_stack_lazy.c          module_fpu.json)
 add_emu_test(fatal_hook          test_fatal_hook.c          module.json)

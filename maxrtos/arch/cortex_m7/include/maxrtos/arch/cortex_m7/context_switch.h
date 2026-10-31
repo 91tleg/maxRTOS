@@ -117,6 +117,15 @@ void maxrtos_arch_set_next_pcb( maxrtos_process_control_block_t * pcb );
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void );
 
 /**
+ * @brief Return the process that the pending context switch will run.
+ *
+ * @return
+ *     Pointer to the next process control block.
+ *     NULL if no switch has been requested.
+ */
+maxrtos_process_control_block_t * maxrtos_arch_get_next_pcb( void );
+
+/**
  * @brief Prepare the hardware and the process for its restore.
  *
  * Called once by the PendSV handler, after the outgoing context is saved

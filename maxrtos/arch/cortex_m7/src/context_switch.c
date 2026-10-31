@@ -103,6 +103,11 @@ _Static_assert(
 
 #define MAXRTOS_ARCH_STACK_ALIGNMENT ( 8U )
 
+/* The least a stack can be for init_stack() to place the context in it. The
+ * code generator asks for more (MIN_STACK_SIZE in schema.py, 512 bytes): the
+ * process also needs room for the exception frame of a system call or
+ * interrupt, which stacks another 104 bytes below the context, and for its
+ * own use. */
 #define MAXRTOS_ARCH_MIN_STACK_SIZE                                            \
     ( ( MAXRTOS_INITIAL_FRAME_WORDS * sizeof( uint32_t ) ) +                   \
       ( MAXRTOS_ARCH_STACK_ALIGNMENT - 1U ) )
@@ -180,6 +185,11 @@ void maxrtos_arch_set_next_pcb( maxrtos_process_control_block_t * pcb )
 maxrtos_process_control_block_t * maxrtos_arch_get_current_pcb( void )
 {
     return g_maxrtos_current_pcb;
+}
+
+maxrtos_process_control_block_t * maxrtos_arch_get_next_pcb( void )
+{
+    return g_maxrtos_next_pcb;
 }
 
 static void maxrtos_arch_apply_privilege_for_next_pcb(
