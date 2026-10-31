@@ -141,6 +141,30 @@ add_hil_test(fault_status
     SOURCE tests/test_fault_status.c
     REGION 4:0x00100000:4K:read_write)
 
+# FPU instructions, with the soft-float calling convention the kernel uses.
+# Not through link-time optimization: the LTO link step builds every unit with
+# the target's options, which have no FPU, and cannot assemble these.
+set_source_files_properties(
+    ${QEMU_TESTS}/test_fpu_context.c ${QEMU_TESTS}/test_fpu_more.c
+    ${QEMU_TESTS}/test_fpu_startup.c ${QEMU_TESTS}/test_stack_integrity.c
+    ${QEMU_TESTS}/test_stack_halt.c
+    PROPERTIES
+    COMPILE_OPTIONS "-mfpu=fpv5-d16;-mfloat-abi=softfp;-fno-lto")
+add_hil_test(fpu_context
+    SOURCE ${QEMU_TESTS}/test_fpu_context.c
+    CONFIG ${QEMU_TESTS}/module_fpu.json)
+add_hil_test(fpu_more
+    SOURCE ${QEMU_TESTS}/test_fpu_more.c
+    CONFIG ${QEMU_TESTS}/module_fpu_system.json)
+add_hil_test(fpu_startup
+    SOURCE ${QEMU_TESTS}/test_fpu_startup.c)
+add_hil_test(stack_halt
+    SOURCE ${QEMU_TESTS}/test_stack_halt.c
+    CONFIG ${QEMU_TESTS}/module_halt.json)
+add_hil_test(stack_integrity
+    SOURCE ${QEMU_TESTS}/test_stack_integrity.c
+    CONFIG ${QEMU_TESTS}/module_fpu.json)
+
 add_hil_test(context_integrity
     SOURCE tests/test_context_integrity.c
     ASM tests/context_integrity.S

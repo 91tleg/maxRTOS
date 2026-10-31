@@ -172,6 +172,13 @@ int main( void )
     /* Before the MPU is on: the peripheral region is privileged-only. */
     leds_init();
 
+    /* A test may run something before the kernel initializes, as start-up
+     * code, a bootloader or the C library would. */
+    if( emu_test_early != NULL )
+    {
+        emu_test_early();
+    }
+
     maxrtos_config_init();
     clear_results();
 

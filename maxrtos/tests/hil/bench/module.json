@@ -34,14 +34,14 @@
       "processes": [
         {
           "name": "yield_a",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         },
         {
           "name": "yield_b",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         }
       ]
@@ -57,14 +57,14 @@
       "processes": [
         {
           "name": "queue_tx",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         },
         {
           "name": "queue_rx",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         }
       ]
@@ -80,14 +80,14 @@
       "processes": [
         {
           "name": "mutex_a",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         },
         {
           "name": "mutex_b",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         }
       ]

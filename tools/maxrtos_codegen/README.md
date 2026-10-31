@@ -99,6 +99,12 @@ See `examples/example_module.json`. Key sections:
   path). There is no per-process privilege, and `maxrtos_process_create()` has
   no such parameter. Use `system` only for platform software such as a driver
   partition.
+- **Stack size.** A process's stack must be at least 512 bytes: its saved
+  context takes 200 (the registers, the FPU registers and the extended
+  exception frame) and a system call or interrupt stacks another 104-byte
+  frame before the process uses any. The context switch checks the process's
+  stack pointer against its stack before it writes the context, and treats a
+  process that left it as having faulted.
 - **MPU isolation is per partition.** All processes of a partition share one
   MPU region, the *domain*: a naturally aligned power-of-two block covering all
   of that partition's stacks (sum of the stacks, rounded up). Processes in the
@@ -176,6 +182,9 @@ See `examples/example_module.json`. Key sections:
 - `mpu.regions[]`: background MPU regions (flash, peripheral space, etc.)
   independent of any partition. `size` must be a power of two and `base`
   aligned to it (hardware MPU region requirement).
+  The generator refuses a `read_only` or `read_write` region that overlaps the
+  kernel's data, that is `read_write` over flash, that is both `read_write`
+  and `executable`, or that overlaps the partitions' stack domains.
 
 ## Validation
 

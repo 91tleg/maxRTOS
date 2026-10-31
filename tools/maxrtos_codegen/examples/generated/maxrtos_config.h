@@ -45,19 +45,19 @@ extern "C" {
 #define PARTITION_ID_control ( ( maxrtos_partition_id_t ) 0U )
 #define PARTITION_ID_application ( ( maxrtos_partition_id_t ) 1U )
 /* Partition MPU domain sizes: one MPU region per partition covers all of its process stacks. */
-#define PARTITION_DOMAIN_SIZE_control ( 512U )
-#define PARTITION_DOMAIN_SIZE_application ( 512U )
+#define PARTITION_DOMAIN_SIZE_control ( 1024U )
+#define PARTITION_DOMAIN_SIZE_application ( 1024U )
 
 /* Process stacks (defined and placed by maxrtos_config.c / linker), each inside its partition's domain.
  * PERIOD / TIME_CAPACITY are the process's release interval and deadline in ticks (0 = none); pass
  * them to maxrtos_process_set_timing() (maxrtos/kernel/timing.h) after creating the process. */
-extern uint8_t maxrtos_stack_control_main[ 512 ];
-#define PROCESS_STACK_SIZE_control_main ( 512U )
+extern uint8_t maxrtos_stack_control_main[ 1024 ];
+#define PROCESS_STACK_SIZE_control_main ( 1024U )
 #define PROCESS_PRIORITY_control_main ( 5U )
 #define PROCESS_PERIOD_TICKS_control_main ( 0U )
 #define PROCESS_TIME_CAPACITY_TICKS_control_main ( 0U )
-extern uint8_t maxrtos_stack_application_main[ 512 ];
-#define PROCESS_STACK_SIZE_application_main ( 512U )
+extern uint8_t maxrtos_stack_application_main[ 1024 ];
+#define PROCESS_STACK_SIZE_application_main ( 1024U )
 #define PROCESS_PRIORITY_application_main ( 5U )
 #define PROCESS_PERIOD_TICKS_application_main ( 0U )
 #define PROCESS_TIME_CAPACITY_TICKS_application_main ( 0U )

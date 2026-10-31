@@ -36,9 +36,9 @@ extern uint8_t __partition_control_domain_start[];
 extern uint8_t __partition_application_domain_start[];
 
 /* Process stacks, placed inside their partition's domain by the linker script. */
-uint8_t maxrtos_stack_control_main[ 512 ]
+uint8_t maxrtos_stack_control_main[ 1024 ]
     __attribute__((
-        aligned( 512 ),
+        aligned( 1024 ),
         section( ".partition_control_control_main_stack" )
     ));
 uint8_t maxrtos_stack_control_log[ 1024 ]
@@ -46,9 +46,9 @@ uint8_t maxrtos_stack_control_log[ 1024 ]
         aligned( 1024 ),
         section( ".partition_control_control_log_stack" )
     ));
-uint8_t maxrtos_stack_application_main[ 512 ]
+uint8_t maxrtos_stack_application_main[ 1024 ]
     __attribute__((
-        aligned( 512 ),
+        aligned( 1024 ),
         section( ".partition_application_application_main_stack" )
     ));
 /* Message storage of the IPC ports. It is kernel memory (.bss): no partition
@@ -146,7 +146,7 @@ void maxrtos_config_init( void )
         &s_mpu_config,
         PARTITION_ID_application,
         ( uint32_t ) __partition_application_domain_start,
-        512U,
+        1024U,
         MAXRTOS_MPU_ACCESS_READ_WRITE,
         false ) );
     maxrtos_arch_mpu_set_config( &s_mpu_config );

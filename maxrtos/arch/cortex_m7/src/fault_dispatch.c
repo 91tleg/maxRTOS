@@ -153,3 +153,33 @@ void maxrtos_arch_handle_fault( maxrtos_fault_type_t fault_type )
     maxrtos_arch_handle_process_fault(
         maxrtos_arch_get_current_pcb(), fault_type );
 }
+
+/* SCB ICSR: clear a pending PendSV. */
+#define MAXRTOS_SCB_ICSR_REG       ( *( volatile uint32_t * ) 0xE000ED04UL )
+#define MAXRTOS_ICSR_PENDSVCLR_BIT ( UINT32_C( 1 ) << 27U )
+
+void maxrtos_arch_context_invalid( void )
+{
+    maxrtos_process_control_block_t * const pcb =
+        maxrtos_arch_get_current_pcb();
+
+    /* The process broke the rules of its own stack: its stack pointer left
+     * the stack it was given, or it gave up the FPU state the context holds.
+     * That is its fault, handled like a memory access fault. The recovery
+     * discards the context and names the process that runs next, which is what
+     * the PendSV handler that called us does next, so the switch the recovery
+     * requested is not needed again. */
+    if( pcb != NULL )
+    {
+        maxrtos_arch_handle_process_fault( pcb, MAXRTOS_FAULT_MEMORY_ACCESS );
+    }
+
+    if( maxrtos_arch_get_current_pcb() != NULL )
+    {
+        /* The policy let the process go on, and there is no valid context to
+         * go on with. */
+        maxrtos_arch_fatal();
+    }
+
+    MAXRTOS_SCB_ICSR_REG = MAXRTOS_ICSR_PENDSVCLR_BIT;
+}

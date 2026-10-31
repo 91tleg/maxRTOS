@@ -5,6 +5,31 @@
  * Provides the architecture-specific interface for process stack
  * initialization, context-switch state management, and PendSV-based
  * context switching.
+ *
+ * FPU. Every process may use the FPU, and the kernel makes sure nothing it
+ * leaves there reaches another process. Access is granted at initialization
+ * (CPACR) with automatic state (ASPEN) and lazy stacking (LSPEN). Every
+ * process has the same saved context: s16-s31 and r4-r11 saved by the PendSV
+ * handler, and the extended exception frame (r0-r3, r12, lr, pc, xPSR, s0-s15,
+ * FPSCR) stacked by the hardware, 50 words (200 bytes) in all. A new or
+ * restarted process has a context of zeros, so it starts with every FPU
+ * register and FPSCR cleared, and a switch replaces the whole FPU state, so
+ * one process's values are never visible to the next.
+ *
+ * Stack. Each process needs room for that context, and for the 104-byte
+ * exception frame its own system calls and interrupts stack, on top of what it
+ * uses itself. The PendSV handler checks the saved stack pointer against
+ * the stack the process was given before it writes the context, and handles a
+ * process that left it as having faulted (see maxrtos_arch_context_invalid()),
+ * so a process that overflows or moves its stack cannot make the handler
+ * overwrite someone else's memory. The code generator rejects stacks too
+ * small for a context.
+ *
+ * Handlers. The kernel's own exception handlers (SysTick, SVC, PendSV) are
+ * compiled soft-float and never touch the FPU registers. An application
+ * interrupt handler may use the FPU: with lazy stacking the hardware preserves
+ * the interrupted code's s0-s15 and FPSCR, and the compiler preserves
+ * s16-s31.
  */
 
 #ifndef MAXRTOS_ARCH_CORTEX_M7_CONTEXT_SWITCH_H
@@ -16,6 +41,22 @@
 
 extern maxrtos_process_control_block_t * g_maxrtos_current_pcb;
 extern maxrtos_process_control_block_t * g_maxrtos_next_pcb;
+
+/**
+ * @brief Handle a process whose context the PendSV handler cannot save.
+ *
+ * Called by the PendSV handler, with interrupts masked, before it writes
+ * anything to the outgoing process's stack, when that process's stack pointer
+ * is not inside the stack it was given (or leaves too little room for the
+ * context, or the process cleared its FPU state). Applying the health monitor
+ * policy for a memory access fault to the process discards the context and
+ * names the next process. If the policy lets the process continue there is
+ * nothing valid to continue with, and the kernel stops through
+ * maxrtos_arch_fatal().
+ *
+ * Not for application use.
+ */
+void maxrtos_arch_context_invalid( void );
 
 /**
  * @brief Initialize a process execution stack.

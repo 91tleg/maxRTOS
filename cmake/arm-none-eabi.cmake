@@ -9,8 +9,6 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(MCU_FLAGS
     -mcpu=cortex-m7
     -mthumb
-    # Soft-float: the kernel does not save or restore FPU state on a context
-    # switch, so no code may use the FPU until that support exists.
     -mfloat-abi=soft
 )
 
