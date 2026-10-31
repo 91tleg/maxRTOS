@@ -192,6 +192,12 @@ _RUNTIME_OBJECT_LIMITS = {
 
 MPU_MIN_REGION_SIZE = 32
 
+# A process's saved context is 200 bytes (the registers, s16-s31 and the
+# extended exception frame, see context_switch.c), a system call or interrupt
+# stacks another 104-byte frame, and the process needs some of its own. Below
+# this a stack cannot be right.
+MIN_STACK_SIZE = 512
+
 # Fault classes the architecture layer actually raises, mapped to the C
 # enumerator suffix in maxrtos/kernel/health_monitor.h
 # (MAXRTOS_FAULT_<suffix>). UNEXPECTED_RETURN exists in the kernel enum but
@@ -550,6 +556,13 @@ def load_config(raw: dict) -> RtosConfig:
                     f"stack_alignment ({stack_align})"
                 )
 
+            if stack_size < MIN_STACK_SIZE:
+                raise ConfigError(
+                    f"{pctx}.stack_size ({stack_size}) is below {MIN_STACK_SIZE} bytes: a "
+                    f"process's saved context takes 200 bytes and an exception frame "
+                    f"another 104, before the process uses any"
+                )
+
             prio = pr["priority"]
             if isinstance(prio, bool) or not isinstance(prio, int) or not (0 <= prio <= MAX_PRIORITY):
                 raise ConfigError(
@@ -872,6 +885,42 @@ def load_config(raw: dict) -> RtosConfig:
                     f"{mr.access}) overlaps memory region {kernel_region!r}, which "
                     f"holds the kernel's data: unprivileged code could corrupt it. "
                     f"Use 'priv_read_write' or move the region"
+                )
+
+    # An MPU region unprivileged code can use must not undo what the partitions
+    # are for: it must not make writable memory executable, make flash writable,
+    # or cover a partition's stack domain, which belongs to that partition alone
+    # while it runs.
+    for mr in mpu_regions:
+        if mr.access not in ("read_only", "read_write"):
+            continue
+
+        if mr.access == "read_write" and mr.executable:
+            raise ConfigError(
+                f"mpu.regions number {mr.number} (0x{mr.base:X}, {mr.size} bytes) lets "
+                f"unprivileged code write memory it can also execute; use "
+                f"'read_only' for code or 'executable': false for data"
+            )
+
+        flash = memory.get("flash")
+        if (
+            mr.access == "read_write"
+            and flash is not None
+            and mr.base < flash.end
+            and (mr.base + mr.size) > flash.origin
+        ):
+            raise ConfigError(
+                f"mpu.regions number {mr.number} (0x{mr.base:X}, {mr.size} bytes) lets "
+                f"unprivileged code write memory region 'flash'"
+            )
+
+        for region_name, parts in by_region.items():
+            domains_end = memory[region_name].origin + _domain_bytes(parts)
+            if mr.base < domains_end and (mr.base + mr.size) > memory[region_name].origin:
+                raise ConfigError(
+                    f"mpu.regions number {mr.number} (0x{mr.base:X}, {mr.size} bytes, "
+                    f"{mr.access}) overlaps the partition stack domains in memory region "
+                    f"{region_name!r}, which each partition has to itself while it runs"
                 )
 
     return RtosConfig(

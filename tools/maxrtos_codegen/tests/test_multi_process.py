@@ -109,7 +109,7 @@ def test_stack_size_must_be_multiple_of_alignment():
 
 
 def test_too_many_processes():
-    procs = [_proc(f"p{i}", "32B", "32B") for i in range(17)]
+    procs = [_proc(f"p{i}", "512B", "512B") for i in range(17)]
     raw = _base([{"id": 0, "name": "a", "mpu": {}, "processes": procs}])
     raw["schedule"]["major_frame"] = [{"partition": 0, "duration_ticks": 1}]
     with pytest.raises(ConfigError, match="MAXRTOS_MAX_PROCESSES"):
@@ -352,3 +352,62 @@ def test_deadline_exceeded_is_a_configurable_fault_class():
     _, c, _ = _gen(raw)
     assert ("PARTITION_ID_a,\n        MAXRTOS_FAULT_DEADLINE_EXCEEDED,\n"
             "        MAXRTOS_HM_ACTION_HALT_PARTITION") in c
+
+
+def test_a_stack_too_small_for_a_context_is_refused():
+    raw = _base()
+    raw["partitions"][0]["processes"][0]["stack_size"] = "256B"
+    raw["partitions"][0]["processes"][0]["stack_alignment"] = "256B"
+    with pytest.raises(ConfigError, match="below 512 bytes"):
+        load_config(raw)
+
+
+def test_the_smallest_allowed_stack_is_accepted():
+    raw = _base()
+    raw["partitions"][0]["processes"][0]["stack_size"] = "512B"
+    load_config(raw)
+
+
+def _with_region(raw, **region):
+    raw["mpu"]["regions"].append({"number": 5, "executable": False, **region})
+    return raw
+
+
+def test_writable_and_executable_for_unprivileged_code_is_refused():
+    raw = _with_region(
+        _base(), base="0x40000000", size="64K", access="read_write", executable=True
+    )
+    with pytest.raises(ConfigError, match="write memory it can also execute"):
+        load_config(raw)
+
+
+def test_readable_and_executable_for_unprivileged_code_is_fine():
+    raw = _with_region(
+        _base(), base="0x40000000", size="64K", access="read_only", executable=True
+    )
+    load_config(raw)
+
+
+def test_unprivileged_writable_flash_is_refused():
+    raw = _with_region(_base(), base="0x08000000", size="64K", access="read_write")
+    with pytest.raises(ConfigError, match="write memory region 'flash'"):
+        load_config(raw)
+
+
+@pytest.mark.parametrize("access", ["read_write", "read_only"])
+def test_an_unprivileged_region_over_the_stack_domains_is_refused(access):
+    # The stack region starts at 0x24000000; the partitions' domains are
+    # placed from there.
+    raw = _with_region(_base(), base="0x24000000", size="4K", access=access)
+    with pytest.raises(ConfigError, match="partition stack domains"):
+        load_config(raw)
+
+
+def test_an_unprivileged_region_past_the_stack_domains_is_fine():
+    raw = _base()
+    # Two 512-byte domains use the first 1K of the 512K region.
+    raw["mpu"]["regions"].append(
+        {"number": 5, "base": "0x24040000", "size": "2K", "access": "read_write",
+         "executable": False}
+    )
+    load_config(raw)

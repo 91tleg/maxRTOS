@@ -85,20 +85,20 @@ SECTIONS
     {
         . = ALIGN(2048);
         __partition_control_domain_start = .;
-        *(.partition_control_control_log_stack)
         *(.partition_control_control_main_stack)
+        *(.partition_control_control_log_stack)
         /* Pad to the domain size. If the stacks overflowed it, ld fails
          * here with "cannot move location counter backwards". */
         . = __partition_control_domain_start + 2048;
     } >SRAM
     .partition_application_domain (NOLOAD) :
     {
-        . = ALIGN(512);
+        . = ALIGN(1024);
         __partition_application_domain_start = .;
         *(.partition_application_application_main_stack)
         /* Pad to the domain size. If the stacks overflowed it, ld fails
          * here with "cannot move location counter backwards". */
-        . = __partition_application_domain_start + 512;
+        . = __partition_application_domain_start + 1024;
     } >SRAM
     .ARM.attributes 0 : { *(.ARM.attributes) }
 }
