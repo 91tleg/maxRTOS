@@ -14,9 +14,9 @@
  *   r4-r11
  *   extended exception frame: r0-r3, r12, lr, pc, xPSR, s0-s15, FPSCR, pad
  *
- * The hardware stacks the exception frame (s0-s15 and FPSCR lazily, when the
- * first FPU instruction after the exception begins, which is the save of
- * s16-s31 here); this handler saves and restores the rest. A new or restarted
+ * The hardware stacks the exception frame (s0-s15 and FPSCR lazily, at the
+ * first FPU instruction after the exception begins, which on the usual path
+ * is the save of s16-s31 here); this handler saves and restores the rest. A new or restarted
  * process has a context of zeros, so it starts from cleared registers and
  * FPSCR, and a context switch cannot carry one process's FPU values to
  * another: the whole FPU state is replaced each time.
@@ -77,9 +77,12 @@ PendSV_Handler:
     cmp     r0, #0
     beq.w   1f
 
-    /* The hardware must have stacked an extended frame (EXC_RETURN bit 4
-     * clear); every process runs with FPCA set. */
-    tst     lr, #0x10
+    /* The process must have been running in Thread mode on PSP with an
+     * extended frame stacked (EXC_RETURN 0xFFFFFFED); every process runs with
+     * FPCA set. Anything else, such as a privileged process that gave up the
+     * FPU state or moved to MSP, has no PSP frame this handler can save. */
+    mvn     r2, #0x12
+    cmp     lr, r2
     bne.w   7f
 
     /* The process's stack pointer must leave room for the context below the
@@ -124,6 +127,8 @@ PendSV_Handler:
     ldr     r2, [r1]
     bic     r2, r2, #1
     str     r2, [r1]
+    dsb
+    isb
 
 4:
     /* Configure the incoming process before restoring its context: MPU,
