@@ -8,45 +8,142 @@
  * This module contains no architecture-specific code.
  */
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "maxrtos/kernel/queue_port.h"
 #include "maxrtos/kernel/tick.h"
 #include "maxrtos/kernel/ipc_block.h"
+#include "maxrtos/kernel/process.h"
 
-maxrtos_status_t maxrtos_queue_port_init(
-    maxrtos_queue_port_t * port,
+typedef struct
+{
+    bool in_use;
+    uint32_t sender_mask;
+    uint32_t receiver_mask;
+
+    maxrtos_kernel_fifo_t fifo;
+
+    maxrtos_waitlist_t waiting_receivers;
+    maxrtos_waitlist_t waiting_senders;
+} maxrtos_queue_port_t;
+
+static maxrtos_queue_port_t s_port_pool[ MAXRTOS_MAX_QUEUE_PORTS ];
+
+/* The partition bits of a mask must name partitions that exist. */
+#define MAXRTOS_PARTITION_MASK_VALID( mask_ )                                  \
+    ( ( ( mask_ ) >> MAXRTOS_MAX_PARTITIONS ) == 0U )
+
+_Static_assert(
+    MAXRTOS_MAX_PARTITIONS < 32U,
+    "a partition set is one bit per partition in 32 bits" );
+
+void maxrtos_queue_port_pool_init( void )
+{
+    size_t i;
+
+    for( i = 0U; i < MAXRTOS_MAX_QUEUE_PORTS; i++ )
+    {
+        s_port_pool[ i ].in_use = false;
+        s_port_pool[ i ].sender_mask = 0U;
+        s_port_pool[ i ].receiver_mask = 0U;
+        ( void ) maxrtos_waitlist_init( &s_port_pool[ i ].waiting_receivers );
+        ( void ) maxrtos_waitlist_init( &s_port_pool[ i ].waiting_senders );
+    }
+}
+
+/* The port, if it exists and the process's partition is in @p mask of it
+ * (the sender or the receiver set, or both for a count). */
+static maxrtos_queue_port_t * maxrtos_queue_port_for_process(
+    maxrtos_queue_port_id_t id,
+    maxrtos_process_id_t process_id,
+    bool sending,
+    bool receiving )
+{
+    maxrtos_queue_port_t * port;
+    maxrtos_process_control_block_t const * pcb;
+
+    port = NULL;
+    pcb = maxrtos_process_get( process_id );
+
+    if( ( pcb != NULL ) && ( pcb->partition_id < MAXRTOS_MAX_PARTITIONS ) &&
+        ( id < ( maxrtos_queue_port_id_t ) MAXRTOS_MAX_QUEUE_PORTS ) &&
+        ( s_port_pool[ id ].in_use == true ) )
+    {
+        uint32_t allowed;
+
+        allowed = 0U;
+
+        if( sending )
+        {
+            allowed |= s_port_pool[ id ].sender_mask;
+        }
+
+        if( receiving )
+        {
+            allowed |= s_port_pool[ id ].receiver_mask;
+        }
+
+        if( ( allowed & ( UINT32_C( 1 ) << pcb->partition_id ) ) != 0U )
+        {
+            port = &s_port_pool[ id ];
+        }
+    }
+
+    return port;
+}
+
+maxrtos_status_t maxrtos_queue_port_create(
+    void * storage,
+    size_t storage_size,
     size_t message_size,
-    size_t capacity )
+    size_t capacity,
+    uint32_t sender_mask,
+    uint32_t receiver_mask,
+    maxrtos_queue_port_id_t * out_id )
 {
     maxrtos_status_t status;
 
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( port != NULL ) &&
-        ( message_size > 0U ) &&
-        ( message_size <= MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ) &&
-        ( capacity > 0U ) &&
-        ( capacity <= MAXRTOS_MAX_QUEUE_CAPACITY ) )
+    if( ( storage != NULL ) && ( out_id != NULL ) && ( sender_mask != 0U ) &&
+        ( receiver_mask != 0U ) &&
+        MAXRTOS_PARTITION_MASK_VALID( sender_mask ) &&
+        MAXRTOS_PARTITION_MASK_VALID( receiver_mask ) )
     {
-        status = maxrtos_kernel_fifo_init(
-            &port->fifo,
-            port->buffer,
-            sizeof( port->buffer ),
-            message_size,
-            capacity );
+        size_t i;
 
-        if( status == MAXRTOS_OK )
-        {
-            status = maxrtos_waitlist_init(
-                &port->waiting_receivers );
-        }
+        status = MAXRTOS_ERR_POOL_FULL;
 
-        if( status == MAXRTOS_OK )
+        for( i = 0U;
+             ( i < MAXRTOS_MAX_QUEUE_PORTS ) && ( status != MAXRTOS_OK ) &&
+             ( status != MAXRTOS_ERR_INVALID_ARG );
+             i++ )
         {
-            status = maxrtos_waitlist_init(
-                &port->waiting_senders );
+            if( s_port_pool[ i ].in_use == false )
+            {
+                status = maxrtos_kernel_fifo_init(
+                    &s_port_pool[ i ].fifo,
+                    storage,
+                    storage_size,
+                    message_size,
+                    capacity );
+
+                if( status == MAXRTOS_OK )
+                {
+                    s_port_pool[ i ].in_use = true;
+                    s_port_pool[ i ].sender_mask = sender_mask;
+                    s_port_pool[ i ].receiver_mask = receiver_mask;
+                    ( void ) maxrtos_waitlist_init(
+                        &s_port_pool[ i ].waiting_receivers );
+                    ( void ) maxrtos_waitlist_init(
+                        &s_port_pool[ i ].waiting_senders );
+
+                    *out_id = ( maxrtos_queue_port_id_t ) i;
+                }
+            }
         }
     }
 
@@ -54,11 +151,14 @@ maxrtos_status_t maxrtos_queue_port_init(
 }
 
 size_t maxrtos_kernel_queue_port_count(
-    maxrtos_queue_port_t const * port )
+    maxrtos_queue_port_id_t id,
+    maxrtos_process_id_t current_id )
 {
     size_t count;
+    maxrtos_queue_port_t const * port;
 
     count = 0U;
+    port = maxrtos_queue_port_for_process( id, current_id, true, true );
 
     if( port != NULL )
     {
@@ -68,8 +168,42 @@ size_t maxrtos_kernel_queue_port_count(
     return count;
 }
 
+maxrtos_status_t maxrtos_kernel_queue_port_get_status(
+    maxrtos_queue_port_id_t id,
+    maxrtos_process_id_t current_id,
+    maxrtos_queue_port_status_t * out_status )
+{
+    maxrtos_status_t status;
+    maxrtos_queue_port_t const * port;
+
+    status = MAXRTOS_ERR_INVALID_ARG;
+
+    if( out_status != NULL )
+    {
+        port = maxrtos_queue_port_for_process( id, current_id, true, true );
+
+        if( port == NULL )
+        {
+            status = MAXRTOS_ERR_INVALID_ID;
+        }
+        else
+        {
+            out_status->message_size = port->fifo.message_size;
+            out_status->capacity = port->fifo.capacity;
+            out_status->nb_message = maxrtos_kernel_fifo_count( &port->fifo );
+            out_status->waiting_receivers =
+                maxrtos_waitlist_count( &port->waiting_receivers );
+            out_status->waiting_senders =
+                maxrtos_waitlist_count( &port->waiting_senders );
+            status = MAXRTOS_OK;
+        }
+    }
+
+    return status;
+}
+
 maxrtos_status_t maxrtos_kernel_queue_port_send(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t id,
     void const * message,
     size_t message_size,
     maxrtos_tick_t timeout,
@@ -79,27 +213,36 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
 {
     maxrtos_status_t status;
 
+    maxrtos_queue_port_t * port;
+
+    port = NULL;
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( port != NULL ) &&
-        ( message != NULL ) &&
-        ( message_size == port->fifo.message_size ) &&
-        ( table != NULL ) &&
-        ( out_next_id != NULL ) )
+    if( ( message != NULL ) && ( table != NULL ) && ( out_next_id != NULL ) )
+    {
+        port = maxrtos_queue_port_for_process( id, current_id, true, false );
+
+        if( port == NULL )
+        {
+            status = MAXRTOS_ERR_INVALID_ID;
+        }
+    }
+
+    if( ( port != NULL ) && ( message_size == port->fifo.message_size ) )
     {
         maxrtos_process_id_t receiver_id;
         maxrtos_ipc_operation_t receiver_op;
 
         if( maxrtos_ipc_wake_one(
-                &port->waiting_receivers,
-                &receiver_id,
-                &receiver_op ) == MAXRTOS_OK )
+                &port->waiting_receivers, &receiver_id, &receiver_op ) ==
+            MAXRTOS_OK )
         {
             /* A receiver only blocks on an empty queue, so the message
              * goes straight to it. Copying here keeps FIFO order and
              * means the receiver needs no second call. */
             if( ( receiver_op.kind == MAXRTOS_IPC_OP_QUEUE_RECEIVE ) &&
-                ( receiver_op.payload.queue_receive.buffer_size >= message_size ) )
+                ( receiver_op.payload.queue_receive.buffer_size >=
+                  message_size ) )
             {
                 ( void ) memcpy(
                     receiver_op.payload.queue_receive.out_message,
@@ -121,8 +264,8 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
         }
         else
         {
-            status = maxrtos_kernel_fifo_push(
-                &port->fifo, message, message_size );
+            status =
+                maxrtos_kernel_fifo_push( &port->fifo, message, message_size );
         }
 
         if( ( status == MAXRTOS_ERR_QUEUE_FULL ) && ( timeout != 0U ) )
@@ -137,7 +280,6 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
                 maxrtos_ipc_operation_t op;
 
                 op.kind = MAXRTOS_IPC_OP_QUEUE_SEND;
-                op.payload.queue_send.port = port;
                 op.payload.queue_send.message = message;
                 op.payload.queue_send.message_size = message_size;
 
@@ -172,7 +314,7 @@ maxrtos_status_t maxrtos_kernel_queue_port_send(
 }
 
 maxrtos_status_t maxrtos_kernel_queue_port_receive(
-    maxrtos_queue_port_t * port,
+    maxrtos_queue_port_id_t id,
     void * out_message,
     size_t buffer_size,
     maxrtos_tick_t timeout,
@@ -182,17 +324,26 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
 {
     maxrtos_status_t status;
 
+    maxrtos_queue_port_t * port;
+
+    port = NULL;
     status = MAXRTOS_ERR_INVALID_ARG;
 
-    if( ( port != NULL ) &&
-        ( out_message != NULL ) &&
-        ( table != NULL ) &&
+    if( ( out_message != NULL ) && ( table != NULL ) &&
         ( out_next_id != NULL ) )
     {
-        status = maxrtos_kernel_fifo_pop(
-            &port->fifo,
-            out_message,
-            buffer_size );
+        port = maxrtos_queue_port_for_process( id, current_id, false, true );
+
+        if( port == NULL )
+        {
+            status = MAXRTOS_ERR_INVALID_ID;
+        }
+    }
+
+    if( port != NULL )
+    {
+        status =
+            maxrtos_kernel_fifo_pop( &port->fifo, out_message, buffer_size );
 
         if( status == MAXRTOS_OK )
         {
@@ -201,9 +352,8 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
 
             /* A slot just freed: admit one blocked sender. */
             if( maxrtos_ipc_wake_one(
-                    &port->waiting_senders,
-                    &sender_id,
-                    &sender_op ) == MAXRTOS_OK )
+                    &port->waiting_senders, &sender_id, &sender_op ) ==
+                MAXRTOS_OK )
             {
                 maxrtos_status_t sender_result;
 
@@ -232,7 +382,6 @@ maxrtos_status_t maxrtos_kernel_queue_port_receive(
                 maxrtos_ipc_operation_t op;
 
                 op.kind = MAXRTOS_IPC_OP_QUEUE_RECEIVE;
-                op.payload.queue_receive.port = port;
                 op.payload.queue_receive.out_message = out_message;
                 op.payload.queue_receive.buffer_size = buffer_size;
 

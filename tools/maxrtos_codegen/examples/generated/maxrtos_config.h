@@ -16,6 +16,8 @@
 
 #include <stdint.h>
 
+#include "maxrtos/types.h"
+
 #include "maxrtos/kernel/process.h"
 #include "maxrtos/kernel/partition.h"
 #include "maxrtos/kernel/frame.h"

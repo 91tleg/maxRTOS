@@ -21,6 +21,7 @@
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/sampling_port.h"
 #include "maxrtos/kernel/semaphore.h"
 #include "maxrtos/kernel/buffer.h"
 
@@ -45,21 +46,25 @@ uint8_t maxrtos_stack_{{ pr.name }}[ {{ pr.stack_size }} ]
     ));
 {% endfor %}
 {% endfor %}
-{% if port_regions %}
-/* Static IPC port buffers, placed by the generated linker script. */
-{% for prt in port_regions %}
-uint8_t maxrtos_port_{{ prt.name }}[ {{ prt.size }} ]
-    __attribute__((
-        aligned( {{ prt.size }} ),
-        section( ".port_{{ prt.name }}" )
-    ));
+{% if ports %}
+/* Message storage of the IPC ports. It is kernel memory (.bss): no partition
+ * maps it, and the kernel copies messages in and out of it. */
+{% for prt in ports %}
+static uint8_t s_port_storage_{{ prt.name }}[ {{ prt.storage_size }} ]
+    __attribute__(( aligned( 4 ) ));
+{% endfor %}
+{% endif %}
+{% if sampling_ports %}
+/* Message storage of the IPC sampling ports: kernel memory (.bss) too. */
+{% for prt in sampling_ports %}
+static uint8_t s_sampling_storage_{{ prt.name }}[ {{ prt.message_size }} ]
+    __attribute__(( aligned( 4 ) ));
 {% endfor %}
 {% endif %}
 static maxrtos_partition_table_t s_partition_table;
 static maxrtos_frame_schedule_t s_frame_schedule;
 static maxrtos_mpu_config_t s_mpu_config;
 static maxrtos_health_monitor_t s_health_monitor;
-static bool s_ipc_ports_initialized = false;
 
 void maxrtos_config_init( void )
 {
@@ -67,6 +72,8 @@ void maxrtos_config_init( void )
     maxrtos_mutex_pool_init();
     maxrtos_semaphore_pool_init();
     maxrtos_buffer_pool_init();
+    maxrtos_queue_port_pool_init();
+    maxrtos_sampling_port_pool_init();
     MAXRTOS_CONFIG_CHECK( maxrtos_partition_table_init( &s_partition_table ) );
     maxrtos_arch_set_partition_table( &s_partition_table );
 
@@ -115,28 +122,47 @@ void maxrtos_config_init( void )
         MAXRTOS_MPU_ACCESS_{{ r.access_enum }},
         {{ "true" if r.executable else "false" }} );
 {% endfor %}
-{% if port_regions %}
-    /* Static IPC port regions. */
-{% for prt in port_regions %}
-    MAXRTOS_CONFIG_CHECK( maxrtos_mpu_add_port_region(
-        &s_mpu_config,
-        ( uint32_t ) maxrtos_port_{{ prt.name }},
-        {{ prt.size }}U,
-        {{ prt.mask_expr }} ) );
-{% endfor %}
-    if( !s_ipc_ports_initialized )
+{% if ports %}
+    /* IPC queuing ports. A port's ID is its index here. */
     {
-{% for prt in port_regions %}
-        _Static_assert(
-            sizeof( maxrtos_queue_port_t ) <= {{ prt.size }}U,
-            "{{ prt.name }} port too small for maxrtos_queue_port_t" );
+        maxrtos_queue_port_id_t port_id = 0U;
 
-        MAXRTOS_CONFIG_CHECK( maxrtos_queue_port_init(
-            ( maxrtos_queue_port_t * ) maxrtos_port_{{ prt.name }},
+{% for prt in ports %}
+        MAXRTOS_CONFIG_CHECK( maxrtos_queue_port_create(
+            s_port_storage_{{ prt.name }},
+            sizeof( s_port_storage_{{ prt.name }} ),
             {{ prt.message_size }}U,
-            {{ prt.capacity }}U ) );
+            {{ prt.capacity }}U,
+            {{ prt.sender_mask_expr }},
+            {{ prt.receiver_mask_expr }},
+            &port_id ) );
+        if( port_id != PORT_ID_{{ prt.name }} )
+        {
+            MAXRTOS_CONFIG_HALT();
+        }
+
 {% endfor %}
-        s_ipc_ports_initialized = true;
+    }
+{% endif %}
+{% if sampling_ports %}
+    /* IPC sampling ports. A port's ID is its index here. */
+    {
+        maxrtos_sampling_port_id_t sampling_id = 0U;
+
+{% for prt in sampling_ports %}
+        MAXRTOS_CONFIG_CHECK( maxrtos_sampling_port_create(
+            s_sampling_storage_{{ prt.name }},
+            sizeof( s_sampling_storage_{{ prt.name }} ),
+            {{ prt.message_size }}U,
+            {{ prt.writer_mask_expr }},
+            {{ prt.reader_mask_expr }},
+            &sampling_id ) );
+        if( sampling_id != SAMPLING_PORT_ID_{{ prt.name }} )
+        {
+            MAXRTOS_CONFIG_HALT();
+        }
+
+{% endfor %}
     }
 {% endif %}
     maxrtos_arch_mpu_init( {{ "true" if privileged_default_map else "false" }} );

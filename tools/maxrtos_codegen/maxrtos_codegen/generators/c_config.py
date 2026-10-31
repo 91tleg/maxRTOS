@@ -104,40 +104,43 @@ def _mpu_regions_with_access_enum(
     return result
 
 
-def _port_regions_with_mask_expr(
-    cfg: RtosConfig,
-) -> list[SimpleNamespace]:
+def _mask_expr(partition_ids: list[int]) -> str:
+    """C expression for a set of partitions, one bit each.
+
+    For example, partitions {0, 2} becomes "(1UL << 0U) | (1UL << 2U)".
     """
-    Attach a precomputed C bitmask expression to each port.
+    return " | ".join(f"(1UL << {partition_id}U)" for partition_id in partition_ids)
 
-    For example, partitions {0, 2} becomes:
-    "(1UL << 0U) | (1UL << 2U)".
 
-    Computed here in Python rather than in the template because Jinja2's
-    built-in filters do not include a regex/format-map operation suited
-    to this.
-    """
-    result = []
-
-    for port_region in cfg.port_regions:
-        mask_expr = " | ".join(
-            f"(1UL << {partition_id}U)"
-            for partition_id in port_region.member_partition_ids
+def _ports(cfg: RtosConfig) -> list[SimpleNamespace]:
+    """The ports in declaration order, so a port's index is its ID, with the
+    storage size and the partition-set expressions the templates need."""
+    return [
+        SimpleNamespace(
+            name=port.name,
+            index=index,
+            message_size=port.message_size,
+            capacity=port.capacity,
+            storage_size=port.message_size * port.capacity,
+            sender_mask_expr=_mask_expr(port.sender_ids),
+            receiver_mask_expr=_mask_expr(port.receiver_ids),
         )
+        for index, port in enumerate(cfg.ports)
+    ]
 
-        result.append(
-            SimpleNamespace(
-                name=port_region.name,
-                size=port_region.size,
-                message_size=port_region.message_size,
-                capacity=port_region.capacity,
-                region=port_region.region,
-                member_partition_ids=port_region.member_partition_ids,
-                mask_expr=mask_expr,
-            )
+
+def _sampling_ports(cfg: RtosConfig) -> list[SimpleNamespace]:
+    """The sampling ports in declaration order, so a port's index is its ID."""
+    return [
+        SimpleNamespace(
+            name=port.name,
+            index=index,
+            message_size=port.message_size,
+            writer_mask_expr=_mask_expr(port.writer_ids),
+            reader_mask_expr=_mask_expr(port.reader_ids),
         )
-
-    return result
+        for index, port in enumerate(cfg.sampling_ports)
+    ]
 
 
 def generate_header(cfg: RtosConfig, config_path: str) -> str:
@@ -147,7 +150,8 @@ def generate_header(cfg: RtosConfig, config_path: str) -> str:
         config_path=config_path,
         module_name=cfg.module_name,
         partitions=cfg.partitions,
-        port_regions=_port_regions_with_mask_expr(cfg),
+        ports=_ports(cfg),
+        sampling_ports=_sampling_ports(cfg),
         limit_minimums=limit_minimums(cfg.limits),
     )
 
@@ -173,5 +177,6 @@ def generate_source(cfg: RtosConfig, config_path: str) -> str:
         mpu_regions=_mpu_regions_with_access_enum(cfg),
         frame_schedule=cfg.frame_schedule,
         privileged_default_map=cfg.privileged_default_map,
-        port_regions=_port_regions_with_mask_expr(cfg),
+        ports=_ports(cfg),
+        sampling_ports=_sampling_ports(cfg),
     )

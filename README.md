@@ -15,7 +15,10 @@ C and a linker script at build time.
   and optional `period` / `time_capacity` (deadline supervision).
 - **Privilege:** a partition attribute. Application partitions run
   unprivileged; system partitions run privileged.
-- **IPC:** queuing ports with blocking send/receive and timeouts.
+- **IPC:** queuing ports with blocking send/receive and timeouts, and sampling
+  ports that hold the latest message. A port is named by an ID and held by the
+  kernel, in memory no partition can map; the module lists which partitions may
+  send (write) on it and which may receive (read).
 - **Health monitor:** per-partition recovery policy per fault class
   (restart process, halt partition, ignore), including deadline misses.
   When the kernel cannot continue (a fault it cannot attribute to a process,

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from ..schema import RtosConfig
+from ..schema import RtosConfig, select_kernel_region
 
 
 _TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / "templates"
@@ -20,7 +20,7 @@ def generate_linker_script(
     """
     Generate the linker script for an RTOS configuration.
 
-    Partition domains (one per partition, holding all its process stacks) and static port buffers are grouped by their configured
+    Partition domains (one per partition, holding all its process stacks) are grouped by their configured
     memory region so the linker template can emit deterministic NOLOAD
     sections. Kernel data, BSS, heap, and the main stack are placed in the
     first available non-flash memory region that is not assigned to
@@ -73,44 +73,21 @@ def generate_linker_script(
             processes=ordered,
         ))
 
-    # Group static port buffers by memory region in configuration order.
-    # Each port buffer is emitted as a separate NOLOAD section and aligned
-    # to its configured size because the MPU requires an MPU region's base
-    # address to be aligned to the region size.
-    port_regions: dict[str, list] = {}
+    # Kernel .data, .bss, heap and the main stack go in the region chosen by
+    # the schema (it also checks that no unprivileged MPU region covers it).
+    kernel_region = select_kernel_region(cfg.memory, set(stack_regions.keys()))
 
-    for port_region in cfg.port_regions:
-        port_regions.setdefault(
-            port_region.region,
-            [],
-        ).append(port_region)
-
-    # Select the memory region used for kernel .data, .bss, heap, and the
-    # main stack. Flash is excluded, as are regions already dedicated to
-    # partition stacks. The first remaining region is selected to keep
-    # the configuration deterministic.
-    stack_region_names = set(stack_regions.keys())
-
-    kernel_candidates = [
-        name
-        for name in cfg.memory
-        if name not in stack_region_names and name != "flash"
-    ]
-
-    if not kernel_candidates:
+    if kernel_region is None:
         raise ValueError(
             "no memory region available for kernel .data/.bss "
             "(all non-flash regions are used for partition stacks) -- "
             "add a dedicated region, e.g. 'dtcm'"
         )
 
-    kernel_region = kernel_candidates[0]
-
     return template.render(
         config_path=config_path,
         memory=cfg.memory,
         stack_regions=stack_regions,
-        port_regions=port_regions,
         kernel_region=kernel_region,
         min_heap_size=hex(min_heap_size),
         min_stack_size=hex(min_stack_size),

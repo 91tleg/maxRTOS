@@ -96,20 +96,6 @@ SECTIONS
     } >{{ region_name|upper }}
 {% endfor %}
 {% endfor %}
-{% for region_name, ports in port_regions.items() %}
-    /* Static IPC port buffers packed into {{ region_name|upper }}, in
-     * declaration order. Each is aligned to its own size because the
-     * MPU requires a region's base address be a multiple of its size. */
-{% for prt in ports %}
-    .port_{{ prt.name }} (NOLOAD) :
-    {
-        . = ALIGN({{ prt.size }});
-        __port_{{ prt.name }}_start = .;
-        *(.port_{{ prt.name }})
-        . = ALIGN({{ prt.size }});
-    } >{{ region_name|upper }}
-{% endfor %}
-{% endfor %}
     .ARM.attributes 0 : { *(.ARM.attributes) }
 }
 

@@ -100,16 +100,6 @@ SECTIONS
          * here with "cannot move location counter backwards". */
         . = __partition_application_domain_start + 512;
     } >SRAM
-    /* Static IPC port buffers packed into SRAM, in
-     * declaration order. Each is aligned to its own size because the
-     * MPU requires a region's base address be a multiple of its size. */
-    .port_cmd_channel (NOLOAD) :
-    {
-        . = ALIGN(1024);
-        __port_cmd_channel_start = .;
-        *(.port_cmd_channel)
-        . = ALIGN(1024);
-    } >SRAM
     .ARM.attributes 0 : { *(.ARM.attributes) }
 }
 

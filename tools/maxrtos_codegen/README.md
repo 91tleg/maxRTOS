@@ -103,6 +103,41 @@ See `examples/example_module.json`. Key sections:
   MPU region, the *domain*: a naturally aligned power-of-two block covering all
   of that partition's stacks (sum of the stacks, rounded up). Processes in the
   same partition are therefore not isolated from each other's stacks.
+- `ports[]` (optional): queuing ports between partitions. Each has `name` (a C
+  identifier), `message_size`, `capacity`, `senders` and `receivers` (lists of
+  partition names; a partition may be in both). Messages have the fixed size
+  `message_size`. The generated header has `PORT_ID_<name>`, the handle the
+  application passes to `maxrtos_queue_port_send()`, `_receive()` and
+  `_count()`, and `PORT_MESSAGE_SIZE_<name>` / `PORT_CAPACITY_<name>`.
+  - A port is not memory the partitions share. The kernel holds the port, its
+    queue state and its message storage in its own memory (kernel `.bss`),
+    which no partition can map, and checks the caller's partition against
+    `senders` (send) or `receivers` (receive) on every call. A partition that
+    is not in the list, or an ID that names no port, gets
+    `MAXRTOS_ERR_INVALID_ID`.
+  - Up to `MAXRTOS_MAX_QUEUE_PORTS` (8) ports. `limits` sizes the kernel pool to
+    the number declared.
+  - The old keys `size`, `region` and `members` (a port as an MPU-mapped
+    memory region) are rejected.
+  - The generator refuses an `mpu.regions` entry that gives unprivileged code
+    (`read_only` or `read_write`) access to the memory region holding kernel
+    data, since that would let a partition reach the ports' state.
+- `sampling_ports[]` (optional): sampling ports between partitions. Each has
+  `name` (a C identifier), `message_size`, `writers` and `readers` (lists of
+  partition names; a partition may be in both). A port holds one message of
+  `message_size` bytes: a write replaces it, a read returns the latest and
+  leaves it, and neither blocks. Reading before the first write returns
+  `MAXRTOS_ERR_QUEUE_EMPTY`. The generated header has
+  `SAMPLING_PORT_ID_<name>`, the handle the application passes to
+  `maxrtos_sampling_port_write()` and `_read()`, and
+  `SAMPLING_PORT_MESSAGE_SIZE_<name>`.
+  - Held by the kernel exactly like a queuing port: its state and message are
+    in kernel memory no partition can map, and the kernel checks the caller's
+    partition against `writers` (write) or `readers` (read) on every call. A
+    partition that is not in the list, or an ID that names no port, gets
+    `MAXRTOS_ERR_INVALID_ID`.
+  - Up to `MAXRTOS_MAX_SAMPLING_PORTS` (8) ports; `limits` sizes the kernel
+    pool to the number declared.
 - `health_monitor` (optional): recovery policy per fault class, as
   `{"default": {...}}` at the top level and optionally
   `partitions[].health_monitor` to override per partition. Fault classes:

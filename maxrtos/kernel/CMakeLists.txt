@@ -5,6 +5,7 @@ add_library(maxrtos_kernel STATIC
     src/dispatch.c
     src/partition.c
     src/queue_port.c
+    src/sampling_port.c
     src/mutex.c
     src/semaphore.c
     src/buffer.c

@@ -135,23 +135,41 @@ class MpuRegion:
 
 
 @dataclass
-class PortRegion:
-    """A statically declared, MPU-protected shared-memory region for
-    inter-partition IPC.
+class Port:
+    """A statically declared queuing port between partitions.
 
-    The generator owns the queue/sampling initialization contract because it
-    knows the configured object shape for each static port and because the
-    port must be ready before any partition can send or receive.
+    The port lives in the kernel (see kernel/queue_port.h); the application
+    names it by the generated PORT_ID_<name>. Only the partitions listed as
+    senders may send on it and only those listed as receivers may receive.
+    The generated configuration creates it once in maxrtos_config_init(),
+    before any partition can send or receive.
     """
     name: str
-    size: int
     message_size: int
     capacity: int
-    region: str
-    member_partition_ids: list[int]
+    sender_ids: list[int]
+    receiver_ids: list[int]
 
 
-MAX_PORT_REGIONS = 7
+@dataclass
+class SamplingPort:
+    """A statically declared sampling port between partitions.
+
+    Like a Port, it lives in the kernel and is named by the generated
+    SAMPLING_PORT_ID_<name>. It holds one message: a write replaces it, a read
+    returns the latest. Only the partitions listed as writers may write and
+    only those listed as readers may read.
+    """
+    name: str
+    message_size: int
+    writer_ids: list[int]
+    reader_ids: list[int]
+
+
+# Must match MAXRTOS_MAX_QUEUE_PORTS and MAXRTOS_MAX_SAMPLING_PORTS in
+# include/maxrtos/config.h.
+MAX_QUEUE_PORTS = 8
+MAX_SAMPLING_PORTS = 8
 
 # Must match the kernel defaults in include/maxrtos/config.h. They are the
 # upper bounds of the limits the generator derives (see Limits).
@@ -271,6 +289,9 @@ class Limits:
     max_mutexes: int | None = None
     max_semaphores: int | None = None
     max_buffers: int | None = None
+    # Set to the number of declared ports; None when there are none.
+    max_queue_ports: int | None = None
+    max_sampling_ports: int | None = None
 
 
 @dataclass
@@ -281,7 +302,8 @@ class RtosConfig:
     frame_schedule: list[FrameSlot]
     mpu_regions: list[MpuRegion]
     stack_region_name: str
-    port_regions: list[PortRegion]
+    ports: list[Port]
+    sampling_ports: list[SamplingPort]
     # Value of MPU_CTRL.PRIVDEFENA. False (the default) denies every access
     # not permitted by a region, privileged included.
     privileged_default_map: bool = False
@@ -289,7 +311,8 @@ class RtosConfig:
 
 
 def _parse_limits(raw: object, partitions: list["Partition"],
-                  frame_slots: int) -> Limits:
+                  frame_slots: int, queue_ports: int,
+                  sampling_ports: int) -> Limits:
     """Derive the kernel limits from the model and the optional "limits" object."""
     if not isinstance(raw, dict):
         raise ConfigError("limits must be an object")
@@ -332,6 +355,8 @@ def _parse_limits(raw: object, partitions: list["Partition"],
         max_ready_per_priority=ready,
         max_frame_slots=frame_slots,
         max_processes_per_partition=per_partition,
+        max_queue_ports=queue_ports or None,
+        max_sampling_ports=sampling_ports or None,
         **runtime,
     )
 
@@ -360,6 +385,46 @@ def _parse_health_policy(raw: object, ctx: str) -> dict[str, str]:
             )
         policy[fault] = action
     return policy
+
+
+def select_kernel_region(memory: dict, stack_region_names: set[str]) -> str | None:
+    """The memory region holding kernel .data/.bss, heap and the main stack:
+    the first region that is neither flash nor holds partition stacks, so the
+    choice is deterministic. None when every RAM region holds stacks."""
+    for name in memory:
+        if name not in stack_region_names and name != "flash":
+            return name
+    return None
+
+
+_SAMPLING_PORT_KEYS = ("name", "message_size", "writers", "readers")
+
+
+def _partition_set(raw: dict, key: str, ctx: str, name_to_id: dict[str, int]) -> list[int]:
+    """The partitions a port lists under `key`, as sorted ids."""
+    names = raw[key]
+    if not isinstance(names, list) or len(names) == 0:
+        raise ConfigError(f"{ctx}.{key} must be a non-empty list of partition names")
+    ids: list[int] = []
+    for m in names:
+        if m not in name_to_id:
+            raise ConfigError(f"{ctx}.{key} references unknown partition {m!r}")
+        ids.append(name_to_id[m])
+    if len(set(ids)) != len(ids):
+        raise ConfigError(f"{ctx}.{key} lists the same partition more than once")
+    return sorted(ids)
+
+
+_PORT_KEYS = ("name", "message_size", "capacity", "senders", "receivers")
+
+_LEGACY_PORT_KEYS = {
+    "size": "ports are no longer memory regions; their storage is sized from "
+            "message_size and capacity",
+    "region": "ports are no longer placed in a memory region; the kernel holds "
+              "them",
+    "members": "list the partitions that send in 'senders' and the partitions "
+               "that receive in 'receivers'",
+}
 
 
 def load_config(raw: dict) -> RtosConfig:
@@ -661,19 +726,26 @@ def load_config(raw: dict) -> RtosConfig:
             )
 
     ports_raw = raw.get("ports", [])
-    if len(ports_raw) > MAX_PORT_REGIONS:
+    if len(ports_raw) > MAX_QUEUE_PORTS:
         raise ConfigError(
-            f"{len(ports_raw)} ports declared but only {MAX_PORT_REGIONS} static "
-            f"port MPU regions exist in hardware (16 regions - 8 background - "
-            f"1 reusable partition slot -- see mpu.h)"
+            f"{len(ports_raw)} ports declared but MAXRTOS_MAX_QUEUE_PORTS is "
+            f"{MAX_QUEUE_PORTS}"
         )
 
     name_to_id = {p.name: p.id for p in partitions}
     seen_port_names: set[str] = set()
-    port_regions: list[PortRegion] = []
+    ports: list[Port] = []
     for i, prt in enumerate(ports_raw):
         ctx = f"ports[{i}]"
-        for req in ("name", "size", "message_size", "capacity", "region", "members"):
+        for legacy, hint in _LEGACY_PORT_KEYS.items():
+            if legacy in prt:
+                raise ConfigError(f"{ctx}.{legacy} is no longer supported: {hint}")
+        unknown = set(prt) - set(_PORT_KEYS)
+        if unknown:
+            raise ConfigError(
+                f"{ctx}: unknown key(s) {sorted(unknown)}; expected {list(_PORT_KEYS)}"
+            )
+        for req in _PORT_KEYS:
             if req not in prt:
                 raise ConfigError(f"{ctx} missing required key '{req}'")
 
@@ -682,71 +754,68 @@ def load_config(raw: dict) -> RtosConfig:
             raise ConfigError(f"duplicate port name {name!r}")
         seen_port_names.add(name)
 
-        size = parse_size(prt["size"])
-        if not is_power_of_two(size):
-            raise ConfigError(f"{ctx}.size ({size}) must be a power of two -- MPU region size rule")
-        if size < 32:
-            raise ConfigError(f"{ctx}.size ({size}) must be at least 32 bytes -- ARMv7-M MPU minimum region size")
+        message_size = parse_size(prt["message_size"])
+        if message_size <= 0:
+            raise ConfigError(f"{ctx}.message_size must be greater than zero")
+
+        capacity = prt["capacity"]
+        if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
+            raise ConfigError(f"{ctx}.capacity must be an integer greater than zero")
+
+        ports.append(Port(
+            name=name,
+            message_size=message_size,
+            capacity=capacity,
+            sender_ids=_partition_set(prt, "senders", ctx, name_to_id),
+            receiver_ids=_partition_set(prt, "receivers", ctx, name_to_id),
+        ))
+
+    sampling_raw = raw.get("sampling_ports", [])
+    if len(sampling_raw) > MAX_SAMPLING_PORTS:
+        raise ConfigError(
+            f"{len(sampling_raw)} sampling ports declared but "
+            f"MAXRTOS_MAX_SAMPLING_PORTS is {MAX_SAMPLING_PORTS}"
+        )
+
+    seen_sampling_names: set[str] = set()
+    sampling_ports: list[SamplingPort] = []
+    for i, prt in enumerate(sampling_raw):
+        ctx = f"sampling_ports[{i}]"
+        unknown = set(prt) - set(_SAMPLING_PORT_KEYS)
+        if unknown:
+            raise ConfigError(
+                f"{ctx}: unknown key(s) {sorted(unknown)}; "
+                f"expected {list(_SAMPLING_PORT_KEYS)}"
+            )
+        for req in _SAMPLING_PORT_KEYS:
+            if req not in prt:
+                raise ConfigError(f"{ctx} missing required key '{req}'")
+
+        name = require_c_ident(prt["name"], f"{ctx}.name")
+        if name in seen_sampling_names:
+            raise ConfigError(f"duplicate sampling port name {name!r}")
+        seen_sampling_names.add(name)
 
         message_size = parse_size(prt["message_size"])
         if message_size <= 0:
             raise ConfigError(f"{ctx}.message_size must be greater than zero")
 
-        capacity = int(prt["capacity"])
-        if capacity <= 0:
-            raise ConfigError(f"{ctx}.capacity must be greater than zero")
-
-        region_name = prt["region"]
-        if region_name not in memory:
-            raise ConfigError(f"{ctx}.region {region_name!r} not found in 'memory'")
-
-        members_raw = prt["members"]
-        if not isinstance(members_raw, list) or len(members_raw) == 0:
-            raise ConfigError(f"{ctx}.members must be a non-empty list of partition names")
-        member_ids: list[int] = []
-        for m in members_raw:
-            if m not in name_to_id:
-                raise ConfigError(f"{ctx}.members references unknown partition {m!r}")
-            member_ids.append(name_to_id[m])
-        if len(set(member_ids)) != len(member_ids):
-            raise ConfigError(f"{ctx}.members lists the same partition more than once")
-
-        port_regions.append(PortRegion(
+        sampling_ports.append(SamplingPort(
             name=name,
-            size=size,
             message_size=message_size,
-            capacity=capacity,
-            region=region_name,
-            member_partition_ids=sorted(member_ids),
+            writer_ids=_partition_set(prt, "writers", ctx, name_to_id),
+            reader_ids=_partition_set(prt, "readers", ctx, name_to_id),
         ))
 
-    # Combined capacity check: partition stacks and port buffers sharing
-    # a memory region are both linker-packed sequentially into it, so
-    # they compete for the same space. Each is padded to its own
-    # required alignment the same way the linker will place it -- ports
-    # must additionally be aligned to their own size, since the MPU
-    # requires a region's base address be a multiple of its size.
-    port_regions_by_memory: dict[str, list[PortRegion]] = {}
-    for prt in port_regions:
-        port_regions_by_memory.setdefault(prt.region, []).append(prt)
-
-    all_region_names = set(by_region.keys()) | set(port_regions_by_memory.keys())
-    for region_name in all_region_names:
+    # Partition domains are linker-packed into their stack region and are the
+    # only things in it that the schema sizes.
+    for region_name in by_region:
         region = memory[region_name]
-
-        stack_bytes = _domain_bytes(by_region.get(region_name, []))
-
-        port_bytes = 0
-        for prt in port_regions_by_memory.get(region_name, []):
-            port_bytes = (port_bytes + prt.size - 1) // prt.size * prt.size
-            port_bytes += prt.size
-
-        total = stack_bytes + port_bytes
-        if total > region.size:
+        stack_bytes = _domain_bytes(by_region[region_name])
+        if stack_bytes > region.size:
             raise ConfigError(
-                f"memory region {region_name!r} needs {total} bytes for partition "
-                f"domains ({stack_bytes}) and port buffers ({port_bytes}) together "
-                f"but is only {region.size} bytes"
+                f"memory region {region_name!r} needs {stack_bytes} bytes for "
+                f"partition domains but is only {region.size} bytes"
             )
 
     mpu_section = raw.get("mpu", {})
@@ -785,6 +854,26 @@ def load_config(raw: dict) -> RtosConfig:
                     f"data, stacks and IPC objects placed there would fault"
                 )
 
+    # The kernel's own data -- the ports with their queue state, wait lists and
+    # message storage, the process table, the schedulers -- lives in the kernel
+    # region. A background MPU region that unprivileged code can use over any
+    # of it would let a partition corrupt that state, so refuse it.
+    kernel_region = select_kernel_region(memory, set(by_region))
+    if kernel_region is not None:
+        kr = memory[kernel_region]
+        for mr in mpu_regions:
+            if (
+                mr.access in ("read_only", "read_write")
+                and mr.base < kr.end
+                and (mr.base + mr.size) > kr.origin
+            ):
+                raise ConfigError(
+                    f"mpu.regions number {mr.number} (0x{mr.base:X}, {mr.size} bytes, "
+                    f"{mr.access}) overlaps memory region {kernel_region!r}, which "
+                    f"holds the kernel's data: unprivileged code could corrupt it. "
+                    f"Use 'priv_read_write' or move the region"
+                )
+
     return RtosConfig(
         module_name=module_name,
         memory=memory,
@@ -792,7 +881,11 @@ def load_config(raw: dict) -> RtosConfig:
         frame_schedule=frame_schedule,
         mpu_regions=mpu_regions,
         stack_region_name=stack_region_name,
-        port_regions=port_regions,
+        ports=ports,
+        sampling_ports=sampling_ports,
         privileged_default_map=privdefena,
-        limits=_parse_limits(raw.get("limits", {}), partitions, len(frame_schedule)),
+        limits=_parse_limits(
+            raw.get("limits", {}), partitions, len(frame_schedule), len(ports),
+            len(sampling_ports),
+        ),
     )

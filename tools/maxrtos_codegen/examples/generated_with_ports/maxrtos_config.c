@@ -21,6 +21,7 @@
 #include "maxrtos/kernel/health_monitor.h"
 #include "maxrtos/kernel/mutex.h"
 #include "maxrtos/kernel/queue_port.h"
+#include "maxrtos/kernel/sampling_port.h"
 #include "maxrtos/kernel/semaphore.h"
 #include "maxrtos/kernel/buffer.h"
 
@@ -50,17 +51,17 @@ uint8_t maxrtos_stack_application_main[ 512 ]
         aligned( 512 ),
         section( ".partition_application_application_main_stack" )
     ));
-/* Static IPC port buffers, placed by the generated linker script. */
-uint8_t maxrtos_port_cmd_channel[ 1024 ]
-    __attribute__((
-        aligned( 1024 ),
-        section( ".port_cmd_channel" )
-    ));
+/* Message storage of the IPC ports. It is kernel memory (.bss): no partition
+ * maps it, and the kernel copies messages in and out of it. */
+static uint8_t s_port_storage_cmd_channel[ 16 ]
+    __attribute__(( aligned( 4 ) ));
+/* Message storage of the IPC sampling ports: kernel memory (.bss) too. */
+static uint8_t s_sampling_storage_status[ 8 ]
+    __attribute__(( aligned( 4 ) ));
 static maxrtos_partition_table_t s_partition_table;
 static maxrtos_frame_schedule_t s_frame_schedule;
 static maxrtos_mpu_config_t s_mpu_config;
 static maxrtos_health_monitor_t s_health_monitor;
-static bool s_ipc_ports_initialized = false;
 
 void maxrtos_config_init( void )
 {
@@ -68,6 +69,8 @@ void maxrtos_config_init( void )
     maxrtos_mutex_pool_init();
     maxrtos_semaphore_pool_init();
     maxrtos_buffer_pool_init();
+    maxrtos_queue_port_pool_init();
+    maxrtos_sampling_port_pool_init();
     MAXRTOS_CONFIG_CHECK( maxrtos_partition_table_init( &s_partition_table ) );
     maxrtos_arch_set_partition_table( &s_partition_table );
 
@@ -172,23 +175,40 @@ void maxrtos_config_init( void )
         524288U,
         MAXRTOS_MPU_ACCESS_PRIV_READ_WRITE,
         false );
-    /* Static IPC port regions. */
-    MAXRTOS_CONFIG_CHECK( maxrtos_mpu_add_port_region(
-        &s_mpu_config,
-        ( uint32_t ) maxrtos_port_cmd_channel,
-        1024U,
-        (1UL << 0U) | (1UL << 1U) ) );
-    if( !s_ipc_ports_initialized )
+    /* IPC queuing ports. A port's ID is its index here. */
     {
-        _Static_assert(
-            sizeof( maxrtos_queue_port_t ) <= 1024U,
-            "cmd_channel port too small for maxrtos_queue_port_t" );
+        maxrtos_queue_port_id_t port_id = 0U;
 
-        MAXRTOS_CONFIG_CHECK( maxrtos_queue_port_init(
-            ( maxrtos_queue_port_t * ) maxrtos_port_cmd_channel,
+        MAXRTOS_CONFIG_CHECK( maxrtos_queue_port_create(
+            s_port_storage_cmd_channel,
+            sizeof( s_port_storage_cmd_channel ),
             4U,
-            4U ) );
-        s_ipc_ports_initialized = true;
+            4U,
+            (1UL << 0U),
+            (1UL << 1U),
+            &port_id ) );
+        if( port_id != PORT_ID_cmd_channel )
+        {
+            MAXRTOS_CONFIG_HALT();
+        }
+
+    }
+    /* IPC sampling ports. A port's ID is its index here. */
+    {
+        maxrtos_sampling_port_id_t sampling_id = 0U;
+
+        MAXRTOS_CONFIG_CHECK( maxrtos_sampling_port_create(
+            s_sampling_storage_status,
+            sizeof( s_sampling_storage_status ),
+            8U,
+            (1UL << 0U),
+            (1UL << 1U),
+            &sampling_id ) );
+        if( sampling_id != SAMPLING_PORT_ID_status )
+        {
+            MAXRTOS_CONFIG_HALT();
+        }
+
     }
     maxrtos_arch_mpu_init( false );
 

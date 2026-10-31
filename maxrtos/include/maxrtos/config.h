@@ -13,7 +13,7 @@
  * @brief Maximum system-wide process count across all partitions.
  */
 #ifndef MAXRTOS_MAX_PROCESSES
-    #define MAXRTOS_MAX_PROCESSES ( 16U )
+#define MAXRTOS_MAX_PROCESSES ( 16U )
 #endif /* MAXRTOS_MAX_PROCESSES */
 
 /**
@@ -22,14 +22,14 @@
  * Priority 0 represents the highest priority level.
  */
 #ifndef MAXRTOS_MAX_PRIORITY
-    #define MAXRTOS_MAX_PRIORITY ( 31U )
+#define MAXRTOS_MAX_PRIORITY ( 31U )
 #endif /* MAXRTOS_MAX_PRIORITY */
 
 /**
  * @brief Maximum supported partition count system-wide.
  */
 #ifndef MAXRTOS_MAX_PARTITIONS
-    #define MAXRTOS_MAX_PARTITIONS ( 8U )
+#define MAXRTOS_MAX_PARTITIONS ( 8U )
 #endif /* MAXRTOS_MAX_PARTITIONS */
 
 /**
@@ -37,39 +37,41 @@
  *        priority level within a single partition.
  */
 #ifndef MAXRTOS_MAX_READY_PER_PRIORITY
-    #define MAXRTOS_MAX_READY_PER_PRIORITY ( 8U )
+#define MAXRTOS_MAX_READY_PER_PRIORITY ( 8U )
 #endif /* MAXRTOS_MAX_READY_PER_PRIORITY */
 
 /**
  * @brief Maximum number of slots in a single major-frame schedule.
  */
 #ifndef MAXRTOS_MAX_FRAME_SLOTS
-    #define MAXRTOS_MAX_FRAME_SLOTS ( 16U )
+#define MAXRTOS_MAX_FRAME_SLOTS ( 16U )
 #endif /* MAXRTOS_MAX_FRAME_SLOTS */
 
 /**
- * @brief Maximum allowable payload size for a single queuing port, in bytes.
+ * @brief Maximum number of queuing ports in the kernel port pool.
  *
- * Determines static buffer allocation for queuing port instances.
+ * The ports are created by the generated configuration; their storage is
+ * supplied by it and sized to each port.
  */
-#ifndef MAXRTOS_MAX_QUEUE_MESSAGE_SIZE
-    #define MAXRTOS_MAX_QUEUE_MESSAGE_SIZE ( 64U )
-#endif /* MAXRTOS_MAX_QUEUE_MESSAGE_SIZE */
+#ifndef MAXRTOS_MAX_QUEUE_PORTS
+#define MAXRTOS_MAX_QUEUE_PORTS ( 8U )
+#endif /* MAXRTOS_MAX_QUEUE_PORTS */
 
 /**
- * @brief Maximum allowable message capacity for a single queuing port.
+ * @brief Maximum number of sampling ports in the kernel port pool.
  *
- * Defines the maximum number of messages a queuing port buffer can hold.
+ * The ports are created by the generated configuration; their storage is
+ * supplied by it and sized to each port.
  */
-#ifndef MAXRTOS_MAX_QUEUE_CAPACITY
-    #define MAXRTOS_MAX_QUEUE_CAPACITY ( 8U )
-#endif /* MAXRTOS_MAX_QUEUE_CAPACITY */
+#ifndef MAXRTOS_MAX_SAMPLING_PORTS
+#define MAXRTOS_MAX_SAMPLING_PORTS ( 8U )
+#endif /* MAXRTOS_MAX_SAMPLING_PORTS */
 
 /**
  * @brief Maximum allowable payload size for a single buffer, in bytes.
  */
 #ifndef MAXRTOS_MAX_BUFFER_MESSAGE_SIZE
-    #define MAXRTOS_MAX_BUFFER_MESSAGE_SIZE ( 64U )
+#define MAXRTOS_MAX_BUFFER_MESSAGE_SIZE ( 64U )
 #endif /* MAXRTOS_MAX_BUFFER_MESSAGE_SIZE */
 
 /**
@@ -78,28 +80,28 @@
  * Defines the maximum number of messages a buffer can hold.
  */
 #ifndef MAXRTOS_MAX_BUFFER_CAPACITY
-    #define MAXRTOS_MAX_BUFFER_CAPACITY ( 8U )
+#define MAXRTOS_MAX_BUFFER_CAPACITY ( 8U )
 #endif /* MAXRTOS_MAX_BUFFER_CAPACITY */
 
 /**
  * @brief Maximum number of mutexes in the kernel mutex pool.
  */
 #ifndef MAXRTOS_MAX_MUTEXES
-    #define MAXRTOS_MAX_MUTEXES ( 8U )
+#define MAXRTOS_MAX_MUTEXES ( 8U )
 #endif /* MAXRTOS_MAX_MUTEXES */
 
 /**
  * @brief Maximum number of semaphores in the kernel semaphore pool.
  */
 #ifndef MAXRTOS_MAX_SEMAPHORES
-    #define MAXRTOS_MAX_SEMAPHORES ( 8U )
+#define MAXRTOS_MAX_SEMAPHORES ( 8U )
 #endif /* MAXRTOS_MAX_SEMAPHORES */
 
 /**
  * @brief Maximum number of buffers in the kernel buffer pool.
  */
 #ifndef MAXRTOS_MAX_BUFFERS
-    #define MAXRTOS_MAX_BUFFERS ( 8U )
+#define MAXRTOS_MAX_BUFFERS ( 8U )
 #endif /* MAXRTOS_MAX_BUFFERS */
 
 /**
@@ -107,7 +109,7 @@
  *        one blocking primitive.
  */
 #ifndef MAXRTOS_WAITLIST_MAX
-    #define MAXRTOS_WAITLIST_MAX ( 8U )
+#define MAXRTOS_WAITLIST_MAX ( 8U )
 #endif /* MAXRTOS_WAITLIST_MAX */
 
 #endif /* MAXRTOS_CONFIG_H */
