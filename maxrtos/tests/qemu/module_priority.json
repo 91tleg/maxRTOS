@@ -28,14 +28,14 @@
       "processes": [
         {
           "name": "control_main",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 2
         },
         {
           "name": "control_aux",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         }
       ]
@@ -50,14 +50,14 @@
       "processes": [
         {
           "name": "application_main",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 2
         },
         {
           "name": "application_aux",
-          "stack_size": "512B",
-          "stack_alignment": "512B",
+          "stack_size": "1K",
+          "stack_alignment": "1K",
           "priority": 5
         }
       ]

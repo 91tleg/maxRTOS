@@ -118,4 +118,17 @@ add_emu_test(mutex_release_on_restart test_mutex_release_on_restart.c module.jso
 add_emu_test(semaphore           test_semaphore.c           module.json)
 add_emu_test(timed_wait          test_timed_wait.c          module.json)
 add_emu_test(priority            test_priority.c            module_priority.json)
+
+# FPU instructions, with the soft-float calling convention the kernel uses.
+# Not through link-time optimization: the LTO link step builds every unit with
+# the target's options, which have no FPU, and cannot assemble these.
+set_source_files_properties(
+    test_fpu_context.c test_fpu_more.c test_fpu_startup.c test_stack_integrity.c
+    test_stack_halt.c PROPERTIES
+    COMPILE_OPTIONS "-mfpu=fpv5-d16;-mfloat-abi=softfp;-fno-lto")
+add_emu_test(fpu_context         test_fpu_context.c         module_fpu.json)
+add_emu_test(fpu_more            test_fpu_more.c            module_fpu_system.json)
+add_emu_test(fpu_startup         test_fpu_startup.c         module.json)
+add_emu_test(stack_integrity     test_stack_integrity.c     module_fpu.json)
+add_emu_test(stack_halt          test_stack_halt.c          module_halt.json)
 add_emu_test(fatal_hook          test_fatal_hook.c          module.json)

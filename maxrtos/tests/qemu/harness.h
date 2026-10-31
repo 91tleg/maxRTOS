@@ -48,6 +48,10 @@
 extern volatile uint32_t g_emu_kernel_word;
 #define EMU_KERNEL_ADDRESS ( &g_emu_kernel_word )
 
+/** Optional: run by main() before the kernel initializes. A test that
+ *  defines it can leave the machine as start-up code might. */
+extern void emu_test_early( void ) __attribute__( ( weak ) );
+
 /** Create the test's processes. Called after maxrtos_config_init(). */
 void emu_test_setup( void );
 

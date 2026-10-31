@@ -38,7 +38,7 @@ verdict is reported with the program counter and the last fault the core took.
 
 **The QEMU tests, unchanged, on the chip**
 
-`yield`, `queue_port_ipc`, `sampling_port`, `hm_restart_process`, `hm_halt_partition`,
+`yield`, `queue_port_ipc`, `sampling_port`, `fpu_context`, `fpu_more`, `fpu_startup`, `stack_integrity`, `stack_halt`, `hm_restart_process`, `hm_halt_partition`,
 `deadline_supervision`, `partition_privilege`, `hardfault_escalation`, `mutex`,
 `mutex_release_on_restart`, `semaphore` and `timed_wait` are built from `../qemu/test_*.c`
 and run against the same checks. Their module configurations are the QEMU ones
