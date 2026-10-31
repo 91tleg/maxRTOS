@@ -13,9 +13,9 @@
 #include "maxrtos/arch/cortex_m7/context_switch.h"
 #include "maxrtos/arch/cortex_m7/port.h"
 
-/* Room for the initial frame (16 words) plus the exception frame taken
- * when SysTick or SVC interrupts the idle loop. */
-#define MAXRTOS_IDLE_STACK_SIZE ( 256U )
+/* Room for the context the idle loop is saved with (50 words, 200 bytes) and
+ * the exception frame (104 bytes) taken when SysTick or SVC interrupts it. */
+#define MAXRTOS_IDLE_STACK_SIZE ( 512U )
 
 static maxrtos_process_control_block_t s_idle_pcb;
 
@@ -34,7 +34,7 @@ void maxrtos_arch_idle_init( void )
     /* Only the idle context uses this stack; it lives here, not at file
      * scope. */
     static uint8_t s_idle_stack[ MAXRTOS_IDLE_STACK_SIZE ]
-        __attribute__(( aligned( 8 ) ));
+        __attribute__( ( aligned( 8 ) ) );
 
     s_idle_pcb.id = MAXRTOS_INVALID_PROCESS_ID;
     s_idle_pcb.partition_id = MAXRTOS_INVALID_PARTITION_ID;

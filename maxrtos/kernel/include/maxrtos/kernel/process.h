@@ -49,9 +49,10 @@ typedef void ( *maxrtos_process_entry_t )( void * arg );
  * state, and blocking-operation information for one process.
  *
  * @warning
- * stack_pointer shall remain the first member of this structure.
- * The architecture-specific context-switch implementation accesses
- * this member at offset zero.
+ * stack_pointer, stack_base and stack_size shall remain the first three
+ * members of this structure, in this order. The architecture-specific
+ * context-switch implementation accesses them at offsets zero, four and
+ * eight.
  */
 typedef struct process_control_block_s
 {

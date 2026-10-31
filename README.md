@@ -58,6 +58,27 @@ The arch layer calls the kernel; the kernel never calls the arch layer.
 
 See [`demo/nucleo_h753zi`](demo/nucleo_h753zi) for a complete example.
 
+## FPU
+
+Every process may use the Cortex-M7 FPU. The kernel enables it at
+initialization and saves and restores the whole FPU state (s0-s31, FPSCR) with
+each process's context, so a process that is switched out and in again finds
+its registers as it left them, and one process's FPU values never reach
+another's: a new or restarted process starts from zeros.
+
+The kernel stays soft-float. Build code that uses the FPU with
+`-mfpu=fpv5-d16 -mfloat-abi=softfp`, which has the soft-float calling
+convention and so links with the kernel. Do not build the kernel that way: its
+exception handlers must not touch the FPU registers. Under link-time
+optimization, build such a file without it (`-fno-lto`): the link step builds
+every unit with the target's options and cannot assemble FPU instructions that
+were compiled for another set.
+
+Each process needs stack for a 200-byte saved context and a 104-byte exception
+frame on top of its own use; the code generator rejects stacks below 512 bytes.
+The context switch checks a process's stack pointer against its stack before it
+writes the context, and treats a process that left its stack as having faulted.
+
 ## Build
 
 Host tests:
