@@ -85,7 +85,8 @@ See `examples/example_module.json`. Key sections:
 - `stack_region`: which memory region holds partition stacks by default
   (override per-partition with a `"stack_region"` key on that partition).
 - `partitions[]`: `id`, `name` (C identifier), `type`, `mpu.access` / `mpu.executable`
-  for the partition's memory domain, and `processes[]`. Each process has
+  for the partition's memory domain (not both `read_write` and `executable`),
+  and `processes[]`. Each process has
   `name` (C identifier, unique across the config), `stack_size`,
   `stack_alignment` (power of two; `stack_size` a multiple of it) and
   `priority` (0..`MAXRTOS_MAX_PRIORITY`), and optionally `period_ticks` (release

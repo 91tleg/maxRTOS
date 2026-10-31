@@ -512,6 +512,11 @@ def load_config(raw: dict) -> RtosConfig:
                 f"{ctx}.mpu.access must be one of {ACCESS_VALUES}, got {access!r}"
             )
         executable = bool(mpu.get("executable", False))
+        if access == "read_write" and executable:
+            raise ConfigError(
+                f"{ctx}.mpu is read_write and executable: the partition's stacks and "
+                f"data would be code it can run; set 'executable' to false"
+            )
 
         stack_region = p.get("stack_region") or raw.get("stack_region")
         if not stack_region:

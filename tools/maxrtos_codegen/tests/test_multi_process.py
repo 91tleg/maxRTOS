@@ -381,6 +381,13 @@ def test_writable_and_executable_for_unprivileged_code_is_refused():
         load_config(raw)
 
 
+def test_a_writable_and_executable_partition_domain_is_refused():
+    raw = _base()
+    raw["partitions"][0]["mpu"] = {"access": "read_write", "executable": True}
+    with pytest.raises(ConfigError, match="read_write and executable"):
+        load_config(raw)
+
+
 def test_readable_and_executable_for_unprivileged_code_is_fine():
     raw = _with_region(
         _base(), base="0x40000000", size="64K", access="read_only", executable=True
